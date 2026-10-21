@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:ed3cec54ca3bbfc7af68df2f20197d9c656c41c1e3c595f7bc7b4d8469e3523f",
+  "stats_fingerprint": "sha256:614688f66ed92220470b0cae28de97c3e5060c9e94459d87c02b5076eb34a89c",
   "stats_config_hash": "sha256:8e52787ca8edaecc739ba53e2c7f6d450842cd8d2862856ca817964bd440e27c",
   "totals": {
     "public_repos": 9,
@@ -13,18 +13,17 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-21T13:55:19+00:00",
+      "pushed_at": "2026-10-21T14:09:22+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:da1af7e674264c0ae3889181f4d31f196540dd554c4eb4304eb466578657e6a5"
+      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
     {
       "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T13:38:52+00:00",
-      "intro_hash": "sha256:85ebc4e7ed2a19749d6443db0a7c8294e20b144d100a2c7ee596d9c50dfa2139",
-      "intro_generated_at": "2026-10-21T14:02:27.023844+00:00",
-      "ai_generated": true
+      "short_intro": "运行 workflow 自动生成 GitHub 个人主页 README，含仓库统计、精选项目卡片与 AI 中文简介。",
+      "short_intro_hash": "sha256:617e19fb40460201616a8982072bb370f8ddf85c31deb28d976e43d335296db6"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -79,5 +78,5 @@
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
-  "generated_at": "2026-10-21T14:02:59.303690+00:00"
+  "generated_at": "2026-10-21T14:10:43.256223+00:00"
 }
