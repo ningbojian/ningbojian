@@ -112,10 +112,12 @@ jobs:
             if ! gh pr create --title "AI 项目介绍更新（待审核）" \
               --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
 
+          💡 如本页显示 conflict：重新运行一次本工作流即可自动解决（分支会基于最新 main 重建）。
+
           数据指纹: $fingerprint" \
               --head auto/profile-update --base main; then
               if gh pr view auto/profile-update >/dev/null 2>&1; then
-                gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。数据指纹: $fingerprint"
+                gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。如显示 conflict 请重新运行工作流。数据指纹: $fingerprint"
               else
                 echo "::error::创建 PR 被拒绝。请到仓库 Settings → Actions → General → Workflow permissions，勾选 Allow GitHub Actions to create and approve pull requests，然后重新运行本工作流。"
                 exit 1
@@ -123,5 +125,13 @@ jobs:
             fi
           else
             git commit -m "chore: 自动更新 Profile README [skip ci]"
-            git push
+            # 运行期间 main 可能被网页编辑推进过 → 自动 rebase 重试，避免非快失败
+            for i in 1 2 3; do
+              if git push; then
+                break
+              fi
+              echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
+              git pull --rebase origin main
+              sleep 5
+            done
           fi
