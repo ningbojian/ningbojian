@@ -42,7 +42,7 @@
 
 ### [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) ⭐ 0
 
-通过 GitHub Actions workflow 自动生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介，可通过配置 ANTHROPI
+通过 GitHub Actions 一键生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介。
 
 `Python`
 
@@ -73,4 +73,4 @@ Django + 姓氏文化查询与可视化网站
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 21:41（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 21:46（北京时间） 自动更新

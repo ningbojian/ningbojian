@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:074f6f5e3de509558084993cd1b4639d1628ac9c89d96fa47fbd483997dc83f4",
+  "stats_fingerprint": "sha256:6ed584b6e4780c6a17c20b095b0b3382b072bbe336000b573bec6795ac1811f2",
   "stats_config_hash": "sha256:cdec9a72f6781bf89b62f0121736e68770beab0a2c09ce7b3d9bcff24d83e04b",
   "totals": {
     "public_repos": 9,
@@ -13,17 +13,17 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-21T13:37:03+00:00",
+      "pushed_at": "2026-10-21T13:44:24+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 根据 config.yaml 自动生成，展示统计数据、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:c0e05e124cdacebb65f8d1454fa20cdbe57b828f61a00d346a84517f962ce833"
+      "short_intro_hash": "sha256:62a721afb557aa1119767036de633eefda949640543eb5bf23ab7b0d31404422"
     },
     {
       "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-21T13:23:29+00:00",
-      "short_intro": "通过 GitHub Actions workflow 自动生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介，可通过配置 ANTHROPI",
-      "short_intro_hash": "sha256:174f8525a316653319ef19918ef79b23ac01951e750a3955c3f9c8ead881f784"
+      "pushed_at": "2026-10-21T13:38:52+00:00",
+      "short_intro": "通过 GitHub Actions 一键生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介。",
+      "short_intro_hash": "sha256:617e19fb40460201616a8982072bb370f8ddf85c31deb28d976e43d335296db6"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -78,5 +78,5 @@
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
-  "generated_at": "2026-10-21T13:41:36.213723+00:00"
+  "generated_at": "2026-10-21T13:46:50.333905+00:00"
 }
