@@ -91,45 +91,40 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          review_via_pr=true
+          grep -A6 '^projects:' config.yaml | grep -qE 'review_via_pr:[[:space:]]*false' && review_via_pr=false
+
+          # 项目介绍是否有变化（目录可能不存在，status 比 staged 判断更稳）
+          projects_changed=false
+          if [ -d docs/projects ] && [ -n "$(git status --porcelain -- docs/projects)" ]; then
+            projects_changed=true
+          fi
+
+          # 走 PR 时分支里只放 docs/projects：README/统计直接进 main，
+          # 两者文件永不相交 → PR 开着期间 main 再怎么更新都不会产生冲突
+          pr_route=false
+          if [ "$review_via_pr" = "true" ] && [ "$projects_changed" = "true" ]; then
+            pr_route=true
+          fi
+
           git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}"
-          # docs/projects 不存在时不能进 git add 参数（pathspec 未匹配会让整个 add 失败）
-          if [ -d docs/projects ]; then
+          if [ "$pr_route" = "false" ] && [ "$projects_changed" = "true" ]; then
             git add docs/projects
           fi
-          if git diff --cached --quiet; then
+
+          has_direct=false
+          if ! git diff --cached --quiet; then
+            has_direct=true
+          fi
+          if [ "$has_direct" = "false" ] && [ "$pr_route" = "false" ]; then
             echo "无变更，跳过提交"
             exit 0
           fi
-          review_via_pr=true
-          grep -A6 '^projects:' config.yaml | grep -qE 'review_via_pr:[[:space:]]*false' && review_via_pr=false
-          if [ "$review_via_pr" = "true" ] && ! git diff --cached --quiet -- docs/projects; then
-            fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
-            # 同样内容此前被 Close 过 → 不再反复骚扰
-            if gh pr list --state closed --head auto/profile-update --limit 30 --json body -q '.[].body' | grep -qF "$fingerprint"; then
-              echo "这批内容上次审核未合并，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
-              git reset
-              exit 0
-            fi
-            git checkout -B auto/profile-update
-            git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
-            git push -u origin auto/profile-update --force
-            if ! gh pr create --title "AI 项目介绍更新（待审核）" \
-              --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
 
-          💡 如本页显示 conflict：重新运行一次本工作流即可自动解决（分支会基于最新 main 重建）。
-
-          数据指纹: $fingerprint" \
-              --head auto/profile-update --base main; then
-              if gh pr view auto/profile-update >/dev/null 2>&1; then
-                gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。如显示 conflict 请重新运行工作流。数据指纹: $fingerprint"
-              else
-                echo "::error::创建 PR 被拒绝。请到仓库 Settings → Actions → General → Workflow permissions，勾选 Allow GitHub Actions to create and approve pull requests，然后重新运行本工作流。"
-                exit 1
-              fi
-            fi
-          else
+          # ---- 1. 直接提交 main：README/统计（非 PR 模式下也含项目介绍）----
+          if [ "$has_direct" = "true" ]; then
             git commit -m "chore: 自动更新 Profile README [skip ci]"
-            # 运行期间 main 可能被网页编辑推进过 → 自动 rebase 重试，避免非快失败
             pushed=false
             for i in 1 2 3; do
               if git push; then
@@ -137,11 +132,42 @@ jobs:
                 break
               fi
               echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
-              git pull --rebase origin main
+              # autostash：PR 模式下工作区还有未暂存的 docs/projects 改动，rebase 前要先收起来
+              git pull --rebase --autostash origin main
               sleep 5
             done
             if [ "$pushed" != "true" ]; then
               echo "::error::push 失败（可能与 main 上的手工修改冲突），请打开本次运行日志检查，或手动合并后重新运行工作流"
               exit 1
+            fi
+          fi
+
+          # ---- 2. 项目介绍走 PR 人工审核（分支只含 docs/projects）----
+          if [ "$pr_route" = "true" ]; then
+            fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
+            # 同样内容此前被 Close 过 → 不再反复骚扰
+            if gh pr list --state closed --head auto/profile-update --limit 30 --json body -q '.[].body' | grep -qF "$fingerprint"; then
+              echo "这批内容上次审核未合并，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
+              exit 0
+            fi
+            git checkout -B auto/profile-update
+            git add docs/projects
+            git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
+            git push -u origin auto/profile-update --force
+            if ! gh pr create --title "AI 项目介绍更新（待审核）" \
+              --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
+
+          本 PR 只包含 docs/projects（简历素材），主页 README/统计的更新都已直接进 main，不会被本 PR 拖住。
+
+          💡 如本页显示 conflict：重新运行一次本工作流即可自动解决（分支会基于最新 main 重建）。
+
+          数据指纹: $fingerprint" \
+              --head auto/profile-update --base main; then
+              if gh pr view auto/profile-update >/dev/null 2>&1; then
+                gh pr edit auto/profile-update --body "🤖 待审核更新（只含 docs/projects，已刷新）。如显示 conflict 请重新运行工作流。数据指纹: $fingerprint"
+              else
+                echo "::error::创建 PR 被拒绝。请到仓库 Settings → Actions → General → Workflow permissions，勾选 Allow GitHub Actions to create and approve pull requests，然后重新运行本工作流。"
+                exit 1
+              fi
             fi
           fi
