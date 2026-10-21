@@ -211,9 +211,14 @@ jobs:
                   i += 1
               used.add(box)
               mapping[box] = name
-              meta = f"⭐{r.get('stars') or 0}"
-              if r.get("language"):
-                  meta += f" · {r['language']}"
+              # 标签优先显示最近推送日期（比 star/语言直观）；旧版快照缺 pushed_at 则退回
+              pushed = (r.get("pushed_at") or "")[:10]
+              if re.fullmatch(r"\d{4}-\d{2}-\d{2}", pushed or ""):
+                  meta = f"{pushed} 推送"
+              else:
+                  meta = f"⭐{r.get('stars') or 0}"
+                  if r.get("language"):
+                      meta += f" · {r['language']}"
               lines.append(f"      {box}:")
               lines.append(f'        description: "{name}（{meta}）"')
               lines.append("        type: boolean")
@@ -225,12 +230,20 @@ jobs:
           MAPPING.parent.mkdir(parents=True, exist_ok=True)
           MAPPING.write_text(json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           if not os.environ.get("WORKFLOW_PAT"):
-              # GITHUB_TOKEN 无权改 workflow 文件：只留映射，提示新仓库的处理办法
-              boxes = set(re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", text, re.M))
+              # GITHUB_TOKEN 无权改 workflow 文件：只留映射，提示新仓库与残留勾选框
+              FIXED = {"force", "update_readme", "update_projects", "projects_repos"}
+              boxes = {
+                  b
+                  for b in re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", text, re.M)
+                  if b not in FIXED
+              }
               missing = sorted(set(mapping) - boxes)
+              stale = sorted(boxes - set(mapping))
               if missing:
-                  print(f"::warning::未配置 WORKFLOW_PAT secret，新仓库 {'、'.join(missing)} 暂时进不了勾选框；可先用 projects_repos 输入点名。配置带 workflow 权限的 PAT 后会自动同步（见 docs/guide.md）")
-              else:
+                  print(f"::warning::未配置 WORKFLOW_PAT secret，新仓库 {'、'.join(missing)} 暂时进不了勾选框；可先用 projects_repos 输入点名。配置带 repo/workflow 权限的 classic PAT 后会自动同步（见 docs/guide.md）")
+              if stale:
+                  print(f"::warning::对话框里的旧勾选框 {'、'.join(stale)} 已失效（勾了不会选中）；配置 WORKFLOW_PAT 后下次运行会自动清理")
+              if not missing and not stale:
                   print("未配置 WORKFLOW_PAT：勾选框已覆盖全部仓库（映射已同步）")
           elif updated == text:
               print(f"勾选框无变化（{len(mapping)} 个仓库）")
@@ -319,7 +332,7 @@ jobs:
               echo "$err"
               # 权限/认证类失败重试也没用，直接给出修法
               if echo "$err" | grep -qE 'workflows` permission|Authentication failed|invalid username or password|Support for password authentication'; then
-                echo "::error::push 因权限/认证被拒：修改 workflow 文件需要配置 WORKFLOW_PAT secret（classic PAT 勾选 workflow 权限，见 docs/guide.md）；若已配置请检查是否过期"
+                echo "::error::push 因权限/认证被拒：修改 workflow 文件需要配置 WORKFLOW_PAT secret（classic PAT 需勾选 repo 与 workflow 两项权限，见 docs/guide.md）；若已配置请检查是否过期"
                 exit 1
               fi
               echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."

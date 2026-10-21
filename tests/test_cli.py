@@ -463,3 +463,12 @@ snapshot:
     assert "项目介绍" in text
     assert "cool-tool" in text
     assert "已生成数据版" in text  # 无 AI key → 数据版占位
+
+
+def test_snapshot_repos_carry_pushed_at(tmp_path):
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    by_name = {r["full_name"]: r for r in data["repos"]}
+    # 供勾选框标签显示「最近推送日期」用
+    assert by_name["alice/cool-tool"]["pushed_at"].startswith("2026-10-01")

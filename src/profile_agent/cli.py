@@ -311,6 +311,8 @@ def run(
                 "full_name": r.full_name,
                 "stars": r.stars,
                 "language": r.language,
+                # 供 workflow 勾选框标签显示「最近推送日期」
+                "pushed_at": r.pushed_at.isoformat() if r.pushed_at else "",
                 **{
                     k: v
                     for k, v in (merged_states.get(r.full_name) or {}).items()

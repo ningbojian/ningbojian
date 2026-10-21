@@ -19,7 +19,8 @@
 1. **一键获取仓库**：点本仓库的 "Use this template"（或 fork），把新仓库改名为 `你的用户名/你的用户名`。
    > 用户名不用填：工具会自动读取仓库所有者作为用户名。
 2. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用（AI 内容降级为数据版）。
-3. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
+3. **配勾选框自动同步（推荐，2 分钟）**：生成一个 classic PAT（勾 `repo` + `workflow` 两项），存成 secret `WORKFLOW_PAT`——不配也能用，但新建仓库不会自动出现在勾选框里。详细步骤见下文「让新仓库自动出现在勾选框」。
+4. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
    - **overview 更新**直接出现在 README；
    - **项目介绍 / 简历素材**（AI 生成内容）会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才把文件放进 `docs/projects/`（你的简历素材库，**不会逐个链接到主页**，主页保持干净）；不想要就点 **Close**（同一内容之后不会重复打扰你）。
 
@@ -107,19 +108,22 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
-**勾选框选仓库（推荐，一步到位）**：Actions → Update Profile README → **Run workflow**，对话框里每个公开仓库都有一个独立勾选框（带 star/语言说明）——勾选想更新的仓库，点 Run workflow，完成。勾选的仓库会**强制重新生成**（即使数据没变、即使不在精选/白名单里）；一个都不勾则按 config 的 include/exclude 规则正常更新。
+**勾选框选仓库（推荐，一步到位）**：Actions → Update Profile README → **Run workflow**，对话框里每个公开仓库都有一个独立勾选框（带最近推送日期，一眼看出哪个仓库最近活跃）——勾选想更新的仓库，点 Run workflow，完成。勾选的仓库会**强制重新生成**（即使数据没变、即使不在精选/白名单里）；一个都不勾则按 config 的 include/exclude 规则正常更新。
 
 > **勾选框和增量检测各管一件事**：你在 GitHub 上改了仓库描述、推了代码、加了 topic——数据哈希变了，**不勾也会自动重新生成**（定时跑就是这样）。勾选框是用来对付增量检测管不到的情况：「数据没变，但我对 AI 写的这篇文案不满意，重写一版」。也就是说：数据变了等自动更新即可；想重写某篇介绍才勾它。成本上，不勾=增量零浪费，勾几个=花几次 AI 调用，明码选择。
 
 > 勾选框从哪来？工具在每次运行结束时自动把当前仓库列表同步进 workflow 文件（新仓库自动出现、删除的自动消失）。模板仓库已预置好初始勾选框，开箱即用；GitHub 的触发框本身不支持动态列表，这是在它之上实现「原生勾选」的方式。
 
-**让新仓库自动出现在勾选框（可选，推荐花 2 分钟配一次）**：GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 永远无权修改 `.github/workflows/` 下的文件，所以「勾选框自动同步」需要你自己提供一个有 `workflow` 权限的令牌：
+**让新仓库自动出现在勾选框（推荐，2 分钟配一次）**：GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 永远无权修改 `.github/workflows/` 下的文件，所以「勾选框自动同步」需要你自己提供一个令牌：
 
-1. 右上角头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) → **Generate new token (classic)**，只勾 **workflow** 这一项权限，有效期自选
-2. 回到本仓库 → Settings → Secrets and variables → Actions → **New repository secret**，名称填 `WORKFLOW_PAT`，值粘贴刚生成的 token
-3. 完成。之后每次运行会自动把新增/删除的仓库同步进勾选框，无需再管
+1. 右上角头像 → Settings → Developer settings → Personal access tokens。这里有两种令牌，**选 `Tokens (classic)`**：
+   - *Fine-grained tokens*（新）：按仓库、按权限项精细授权，配置繁琐，且部分老工具/场景兼容性一般；
+   - *Tokens (classic)*（经典）：按「权限域」授权，简单通用。本工具只需要它。
+2. **Generate new token (classic)**，勾选 **`repo`** 和 **`workflow`** 两项权限（`repo` 负责读写仓库内容，`workflow` 负责修改 workflow 文件；令牌还要替你把 README/统计提交推上去，所以不能只勾 workflow），有效期自选
+3. 回到本仓库 → Settings → Secrets and variables → Actions → **New repository secret**，名称填 `WORKFLOW_PAT`，值粘贴刚生成的 token
+4. 完成。之后每次运行会自动把新增/删除的仓库同步进勾选框，无需再管
 
-> **不配置也完全能用**：已有的勾选框照常勾选、照常生效；只是新建仓库暂时不会出现在勾选框里（运行日志会有一条 warning 提醒），期间想更新新仓库就用 `projects_repos` 输入框点名，或在本地跑 `--repos 仓库名`。配置 `WORKFLOW_PAT` 后新仓库自动补进勾选框。另外注意：如果你编辑过 workflow 文件（比如改了 cron），内置 token 同样推不上去，也会需要这个 secret。
+> **不配置也完全能用**：已有的勾选框照常勾选、照常生效；只是新建仓库暂时不会出现在勾选框里（运行日志会有 warning 提醒），期间想更新新仓库就用 `projects_repos` 输入框点名，或在本地跑 `--repos 仓库名`。另外注意：如果你编辑过 workflow 文件（比如改了 cron），内置 token 同样推不上去，也会需要这个 secret。
 
 **命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在对话框的 `projects_repos` 输入框填逗号分隔仓库名（留空=按 config 规则；`all`=全部精选）。点名的仓库同样是强制重新生成语义。
 
