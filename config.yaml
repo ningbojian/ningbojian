@@ -51,7 +51,7 @@ ai:
   prompt_version: 1 # 改 prompt 时 +1，强制重新生成简介
 
 projects:
-  enabled: true # false = 不生成项目介绍/简历素材（可只更新 overview）
+  enabled: false # true = 生成项目介绍/简历素材（需先配好 AI key）
   dir: "docs/projects"
   featured_only: true # false = 给全部仓库生成
   include: [] # 非空 = 只给这些仓库名生成（多选），如 ["cool-tool", "web-app"]

@@ -104,3 +104,12 @@ def test_write_if_changed(tmp_path):
     assert write_if_changed(path, "内容 A\n") is False  # 无变化不写
     assert write_if_changed(path, "内容 B\n") is True
     assert path.read_text(encoding="utf-8") == "内容 B\n"
+
+
+def test_render_shows_topic_chips():
+    ctx = _ctx()
+    ctx.featured[0].topics = ["python", "cli"]
+    out = render_readme(ctx, TEMPLATE)
+    assert "`#python`" in out and "`#cli`" in out
+    # 无 topics 的仓库不出现标签行残留
+    assert "#javascript" not in out

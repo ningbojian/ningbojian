@@ -85,9 +85,12 @@ class AIConfig:
 
 @dataclass
 class ProjectsConfig:
-    """方向二：按仓库生成深度项目介绍 / 简历素材（docs/projects/）。"""
+    """可选功能：按仓库生成深度项目介绍 / 简历素材（docs/projects/）。
 
-    enabled: bool = True
+    默认关闭；开启且配置好 AI key 后才会生成有内容的介绍文件。
+    """
+
+    enabled: bool = False
     dir: str = "docs/projects"
     featured_only: bool = True
     review_via_pr: bool = True  # 生成/更新走 PR 人工审核；false = 直接提交

@@ -153,3 +153,30 @@ def test_render_fingerprint_sensitive_to_config_and_template_and_profile():
     # 用户资料变化 → 指纹变化
     user2 = dict(user, name="Bob")
     assert render_fingerprint(cfg, b"template-bytes", user2) != fp1
+
+
+def test_normalize_parses_topics():
+    raw = _raw_repos()
+    for r in raw:
+        r.setdefault("topics", ["django", "web"] if r["name"] == "cool-tool" else [])
+    repos = {r.full_name: r for r in normalize_repos(raw, ReposConfig(exclude=["alice/old-profile"]))}
+    assert repos["alice/cool-tool"].topics == ["django", "web"]
+    assert repos["alice/old-thing"].topics == []
+
+
+def test_topics_affect_fingerprint_and_bio_payload():
+    raw = _raw_repos()
+    for r in raw:
+        r.setdefault("topics", [])
+    cfg = ReposConfig(exclude=["alice/old-profile"])
+    repos_a = normalize_repos(raw, cfg)
+    totals = compute_totals(_user(), repos_a)
+    fp_a = stats_fingerprint(totals, repos_a, [])
+    raw2 = json.loads(json.dumps(raw))
+    for r in raw2:
+        if r["name"] == "cool-tool":
+            r["topics"] = ["cli", "tools"]
+    repos_b = normalize_repos(raw2, cfg)
+    assert stats_fingerprint(totals, repos_b, []) != fp_a
+    payload = build_bio_payload(_user(), repos_b, AIConfig())
+    assert payload["repos"][0]["topics"] == ["cli", "tools"]

@@ -54,6 +54,7 @@ def normalize_repos(raw: list[dict], cfg: ReposConfig) -> list[Repo]:
                 pushed_at=_parse_dt(item.get("pushed_at")),
                 html_url=str(item.get("html_url") or ""),
                 homepage=str(item.get("homepage") or ""),
+                topics=[str(t) for t in (item.get("topics") or [])],
             )
         )
     return result
@@ -133,6 +134,7 @@ def stats_fingerprint(totals: Totals, repos: list[Repo], featured: list[Repo] | 
                     "stars": r.stars,
                     "forks": r.forks,
                     "pushed_at": r.pushed_at.isoformat() if r.pushed_at else None,
+                    "topics": r.topics,
                 }
                 for r in repos
             ),
@@ -191,6 +193,7 @@ def build_bio_payload(user: dict, featured: list[Repo], cfg: AIConfig) -> dict:
                 "description": r.description,
                 "language": r.language,
                 "stars": r.stars,
+                "topics": r.topics,
             }
             for r in featured[: cfg.max_repos]
         ],
