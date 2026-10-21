@@ -20,6 +20,7 @@ class Repo:
     pushed_at: datetime | None = None
     html_url: str = ""
     homepage: str = ""
+    topics: list[str] = field(default_factory=list)
 
     @property
     def age_days(self) -> float | None:

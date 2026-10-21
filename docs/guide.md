@@ -151,7 +151,7 @@ ai:
   max_age_days: 14         # 简介最长复用天数
   prompt_version: 1        # 改了 prompt 后 +1 可强制重新生成
 projects:
-  enabled: true            # false = 不生成项目介绍/简历素材
+  enabled: false           # true = 生成项目介绍/简历素材（默认关闭，开启前先配好 AI key）
   dir: "docs/projects"
   featured_only: true      # false = 给全部仓库生成
   include: []              # 多选白名单，非空时只生成这些仓库
