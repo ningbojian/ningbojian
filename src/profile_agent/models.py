@@ -52,6 +52,7 @@ class TemplateContext:
     include_update_time: bool = True
     updated_at: str = ""
     short_intros: dict[str, str] = field(default_factory=dict)  # full_name → AI 补位文案
+    visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章
 
 
 @dataclass

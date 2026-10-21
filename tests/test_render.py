@@ -1,5 +1,6 @@
 """render.py 模板渲染与写入测试。"""
 
+import dataclasses
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -157,3 +158,13 @@ def test_render_without_short_intro_shows_placeholder():
     ctx.featured[0].description = ""
     out = render_readme(ctx, TEMPLATE)
     assert "（暂无描述）" in out
+
+
+def test_render_visitors_badge_absent_by_default():
+    out = render_readme(_ctx(), TEMPLATE)
+    assert "komarev.com/ghpvc" not in out
+
+
+def test_render_visitors_badge_when_enabled():
+    out = render_readme(dataclasses.replace(_ctx(), visitors_badge=True), TEMPLATE)
+    assert "komarev.com/ghpvc/?username=alice" in out

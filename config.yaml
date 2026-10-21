@@ -29,6 +29,7 @@ readme:
     theme: "github_dark"
     show: ["stats", "top_langs", "streak"] # 可选: stats, top_langs, streak
   include_update_time: true
+  visitors_badge: true # 主页嵌入「主页访问量」计数徽章（komarev.com 免费第三方服务，页面渲染一次 +1）
 
 ai:
   enabled: true

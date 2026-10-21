@@ -56,6 +56,7 @@ class ReadmeConfig:
     template: str = "templates/profile.md.j2"
     cards: CardsConfig = field(default_factory=CardsConfig)
     include_update_time: bool = True
+    visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章（komarev.com）
 
 
 @dataclass
@@ -197,6 +198,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
             show=[str(x) for x in show],
         ),
         include_update_time=bool(readme.get("include_update_time", True)),
+        visitors_badge=bool(readme.get("visitors_badge", False)),
     )
 
     ai = _section(data, "ai")

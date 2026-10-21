@@ -148,3 +148,16 @@ def test_ai_fill_empty_descriptions_can_disable(tmp_path):
         'github:\n  username: "a"\nai:\n  fill_empty_descriptions: false\n',
     )
     assert load_config(path).ai.fill_empty_descriptions is False
+
+
+def test_readme_visitors_badge_default_off(tmp_path):
+    path = _write(tmp_path, 'github:\n  username: "a"\n')
+    assert load_config(path).readme.visitors_badge is False
+
+
+def test_readme_visitors_badge_can_enable(tmp_path):
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nreadme:\n  visitors_badge: true\n',
+    )
+    assert load_config(path).readme.visitors_badge is True
