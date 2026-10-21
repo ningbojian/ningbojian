@@ -5,15 +5,13 @@
 - 语言：Python　⭐ 0　🍴 0
 - 最近推送：2026-10-21
 
-**项目介绍**
-ProfileReadmeAgent 是一个基于 Python 的 GitHub 个人主页 README 自动生成工具。用户通过触发 GitHub Actions 工作流，即可自动在个人 profile 仓库中生成包含仓库统计、精选项目卡片和 AI 中文简介的 README 内容，省去手工维护主页的繁琐。项目采用 GitHub Actions 自动化流程，配合 Anthropic API 实现 AI 生成的中文简介，同时支持不配置 API Key 的数据版生成模式。
+项目介绍：ProfileReadmeAgent 是一个基于 Python 的 GitHub Actions 模板仓库，能自动生成并每周定时更新个人主页 README，涵盖公开仓库统计、精选项目卡片与 AI 生成内容。它通过增量检测跳过无变化的数据，避免不必要的 AI 调用，并将生成的项目介绍存入 docs/projects/ 便于直接引用。
 
-**亮点**
-- 基于 GitHub Actions 工作流，一键触发 README 自动生成
-- 自动生成仓库统计与精选项目卡片
-- 集成 Anthropic API 生成 AI 中文简介
-- 支持无 API Key 的数据版降级生成
-- 提供完整使用指南文档（docs/guide.md）
+亮点：
+- 全部公开仓库按 star 与活跃度排序上主页，支持 featured 精选配置
+- 集成 github-readme-stats 深色主题可视化卡片展示统计
+- 支持 Claude、DeepSeek、千问、Kimi、Ollama 等多模型生成中文简介
+- 无数据变化时跳过 AI 调用，简介 14 天内不重写，节省额度
+- AI 内容以 Pull Request 提交，经人工 Diff 审核后才公开
 
-**简历素材**
-基于 Python 与 GitHub Actions 开发个人主页 README 自动生成工具 ProfileReadmeAgent，通过 CI/CD 工作流自动化采集仓库统计数据、生成精选项目卡片，并集成 Anthropic API 输出 AI 中文简介，支持无 API Key 的数据版降级方案，大幅降低 GitHub profile 的维护成本，附带完整使用文档。
+简历素材：基于 Python 与 GitHub Actions 开发 ProfileReadmeAgent 模板项目，实现个人主页 README 的自动生成与每周定时更新；通过增量检测机制跳过无变化数据以节省 AI 调用额度，支持多模型中文简介生成、仓库统计可视化卡片及精选项目配置，AI 生成内容经 Pull Request 人工审核后发布。
