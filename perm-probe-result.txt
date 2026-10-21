@@ -1,0 +1,4 @@
+PLAIN_OK=0
+PLAIN_ERR=remote:  remote: Create a pull request for 'perm-probe-plain' on GitHub by visiting:         remote:      https://github.com/ningbojian/ningbojian/pull/new/perm-probe-plain         remote: 
+WF_OK=1
+WF_ERR=To https://github.com/ningbojian/ningbojian  ! [remote rejected] perm-probe-wf -> perm-probe-wf (refusing to allow a GitHub App to create or update workflow `.github/workflows/perm-probe.yml` without `workflows` permission) error: failed to push some refs to 'https://github.com/ningbojian/ningbojian'
