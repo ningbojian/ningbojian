@@ -106,3 +106,32 @@ def test_fallback_username_ignored_when_set(tmp_path):
     path = _write(tmp_path, 'github:\n  username: "alice"\n')
     cfg = load_config(path, fallback_username="other")
     assert cfg.github.username == "alice"
+
+
+def test_ai_provider_openai_fields(tmp_path):
+    path = _write(
+        tmp_path,
+        """
+github:
+  username: "a"
+ai:
+  provider: "openai"
+  base_url: "https://api.deepseek.com"
+  key_env: "DEEPSEEK_API_KEY"
+  model: "deepseek-chat"
+""",
+    )
+    cfg = load_config(path)
+    assert cfg.ai.provider == "openai"
+    assert cfg.ai.base_url == "https://api.deepseek.com"
+    assert cfg.ai.key_env == "DEEPSEEK_API_KEY"
+    assert cfg.ai.model == "deepseek-chat"
+
+
+def test_ai_invalid_provider_raises(tmp_path):
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nai:\n  provider: "bogus"\n',
+    )
+    with pytest.raises(ConfigError, match="provider"):
+        load_config(path)

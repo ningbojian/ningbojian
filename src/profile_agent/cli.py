@@ -116,7 +116,7 @@ def run(
     prev = load_snapshot(snap_path)
     proj_targets = _project_targets(repos, featured, cfg) if projects_active else []
     ai_active = bool(
-        not no_ai and cfg.ai.enabled and os.environ.get("ANTHROPIC_API_KEY")
+        not no_ai and cfg.ai.enabled and os.environ.get(cfg.ai.key_env_name)
     )
     payload = build_bio_payload(user, featured, cfg.ai)
     cur_hash = bio_input_hash(payload, cfg.ai)

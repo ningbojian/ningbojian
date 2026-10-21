@@ -37,7 +37,35 @@ python -m profile_agent --force            # 忽略增量检测
 python -m profile_agent --fixture tests/fixtures --no-ai --dry-run   # 完全离线演示
 ```
 
-环境变量：`GITHUB_TOKEN`（可选，不填走匿名配额 60 次/小时；建议去 GitHub → Settings → Developer settings 生成一个 classic PAT）、`ANTHROPIC_API_KEY`（AI 简介用）。
+环境变量：`GITHUB_TOKEN`（可选，不填走匿名配额 60 次/小时；建议去 GitHub → Settings → Developer settings 生成一个 classic PAT）、AI key（见下一节，名字由 `ai.key_env` 决定，默认 `ANTHROPIC_API_KEY`）。
+
+## 换用其他模型（DeepSeek / 千问 / Kimi / MiMo / Ollama）
+
+AI 后端支持两种 provider：
+
+```yaml
+ai:
+  provider: "anthropic"          # Claude 官方（默认）
+  # ---- 或者用任意 OpenAI 兼容接口 ----
+  provider: "openai"
+  base_url: "https://api.deepseek.com"  # 服务商文档里的接口地址（通常带 /v1），照抄
+  key_env: "AI_API_KEY"                # 建议统一叫 AI_API_KEY（见下方说明）
+  model: "deepseek-chat"                # 服务商文档里的模型名
+```
+
+> **Secret 命名建议**：用 Claude 就叫 `ANTHROPIC_API_KEY`；用其他任何服务商统一叫 **`AI_API_KEY`**（workflow 会把它注入运行环境，任何服务商都通用，换服务商不用改 secret）。
+
+常见服务商照抄这三行即可（地址以你开通时文档显示的为准）：
+
+| 服务商 | base_url（示例） | model（示例） |
+| --- | --- | --- |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
+| Kimi（月之暗面） | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+| MiMo（小米） | 以你开通 MiMo API 时文档显示的接口地址为准 | 以文档模型名为准 |
+| Ollama（本地，免费） | `http://localhost:11434/v1` | `qwen2.5:7b` 等 |
+
+改完配置，在 Secrets 里添加对应名字的 key（如 `DEEPSEEK_API_KEY`），然后手动触发一次 force 即可。数据没变化时不会调用任何模型，换 provider 不会产生额外开销。
 
 ## 控制开销（重要）
 

@@ -61,6 +61,9 @@ class ReadmeConfig:
 @dataclass
 class AIConfig:
     enabled: bool = True
+    provider: str = "anthropic"  # anthropic | openai（OpenAI 兼容：DeepSeek/千问/Kimi/Ollama 等）
+    base_url: str = ""  # provider=openai 时必填，如 https://api.deepseek.com
+    key_env: str = ""  # API key 所在环境变量名；默认 anthropic→ANTHROPIC_API_KEY, openai→OPENAI_API_KEY
     model: str = "claude-opus-5-5"
     max_repos: int = 15
     max_age_days: int = 14
@@ -68,6 +71,16 @@ class AIConfig:
     bio_max_chars: int = 150
     language: str = "zh-CN"
     prompt_version: int = 1
+
+    @property
+    def key_env_name(self) -> str:
+        if self.key_env:
+            return self.key_env
+        return "OPENAI_API_KEY" if self.provider == "openai" else "ANTHROPIC_API_KEY"
+
+    @property
+    def default_model(self) -> str:
+        return "deepseek-chat" if self.provider == "openai" and not self.model else self.model
 
 
 @dataclass
@@ -183,9 +196,22 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
     )
 
     ai = _section(data, "ai")
+    provider = str(ai.get("provider") or "anthropic")
+    if provider not in ("anthropic", "openai"):
+        raise ConfigError(
+            f'ai.provider 只能是 "anthropic" 或 "openai"（OpenAI 兼容接口），收到：{provider}'
+        )
+    base_url = str(ai.get("base_url") or "")
+    if provider == "openai" and not base_url:
+        raise ConfigError(
+            'ai.provider="openai" 时必须填 ai.base_url（如 https://api.deepseek.com）'
+        )
     cfg.ai = AIConfig(
         enabled=bool(ai.get("enabled", True)),
-        model=str(ai.get("model") or "claude-opus-5-5"),
+        provider=provider,
+        base_url=base_url.rstrip("/"),
+        key_env=str(ai.get("key_env") or ""),
+        model=str(ai.get("model") or ("deepseek-chat" if provider == "openai" else "claude-opus-5-5")),
         max_repos=int(ai.get("max_repos", 15)),
         max_age_days=int(ai.get("max_age_days", 14)),
         bio_min_chars=int(ai.get("bio_min_chars", 100)),

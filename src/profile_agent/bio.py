@@ -13,6 +13,54 @@ _SYSTEM = (
 )
 
 
+def chat_text(
+    cfg: AIConfig,
+    system: str,
+    user_content: str,
+    *,
+    client=None,
+    http_post=None,
+) -> str:
+    """按 provider 调用模型，返回原始回复文本。
+
+    - anthropic：官方 SDK（默认）
+    - openai：OpenAI 兼容 /chat/completions（DeepSeek/千问/Kimi/MiMo/Ollama 等）
+    """
+    if cfg.provider == "openai":
+        import os
+
+        import requests
+
+        post = http_post or requests.post
+        key = os.environ.get(cfg.key_env_name) or ""
+        resp = post(
+            f"{cfg.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={
+                "model": cfg.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_content},
+                ],
+            },
+            timeout=180,
+        )
+        resp.raise_for_status()
+        return str(resp.json()["choices"][0]["message"]["content"] or "")
+
+    if client is None:
+        import anthropic
+
+        client = anthropic.Anthropic()
+    message = client.messages.create(
+        model=cfg.model,
+        max_tokens=4096,
+        system=system,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    return extract_text(message.content)
+
+
 class BioError(Exception):
     """简介生成失败（消息为中文）。"""
 
@@ -67,6 +115,7 @@ def generate_bio(
     prev_text: str,
     prev_generated_at: str,
     client=None,
+    http_post=None,
 ) -> tuple[str, bool]:
     """生成简介。返回 (text, generated)。
 
@@ -77,26 +126,18 @@ def generate_bio(
     if prev_text and input_hash == prev_hash and _is_fresh(prev_generated_at, cfg.max_age_days):
         return prev_text, False
 
-    if client is None:
-        import anthropic
-
-        client = anthropic.Anthropic()
-
     try:
-        message = client.messages.create(
-            model=cfg.model,
-            max_tokens=4096,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": build_prompt(payload, cfg)}],
+        raw = chat_text(
+            cfg, _SYSTEM, build_prompt(payload, cfg), client=client, http_post=http_post
         )
     except Exception as exc:
         if prev_text:
             return prev_text, False
-        raise BioError(f"调用 Claude 生成简介失败：{exc}") from exc
+        raise BioError(f"调用模型生成简介失败（{cfg.provider}）：{exc}") from exc
 
-    text = extract_text(message.content).strip().strip('「」"\'')
+    text = raw.strip().strip('「」"\'')
     if not text:
         if prev_text:
             return prev_text, False
-        raise BioError("Claude 返回了空简介")
+        raise BioError("模型返回了空简介")
     return text, True

@@ -13,7 +13,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .bio import extract_text
 from .config import AIConfig, ProjectsConfig
 from .models import Repo
 
@@ -98,21 +97,17 @@ def _data_stub(repo: Repo) -> str:
     return "\n".join(parts)
 
 
-def generate_project_intro(repo: Repo, cfg: AIConfig, *, client=None) -> str:
-    """调 Claude 生成项目介绍正文（无文件头）。"""
-    if client is None:
-        import anthropic
+def generate_project_intro(
+    repo: Repo, cfg: AIConfig, *, client=None, http_post=None
+) -> str:
+    """调用配置的模型生成项目介绍正文（无文件头）。"""
+    from .bio import chat_text
 
-        client = anthropic.Anthropic()
-    message = client.messages.create(
-        model=cfg.model,
-        max_tokens=4096,
-        system=_SYSTEM,
-        messages=[{"role": "user", "content": build_intro_prompt(repo)}],
-    )
-    text = extract_text(message.content).strip()
+    text = chat_text(
+        cfg, _SYSTEM, build_intro_prompt(repo), client=client, http_post=http_post
+    ).strip()
     if not text:
-        raise RuntimeError("Claude 返回了空的项目介绍")
+        raise RuntimeError("模型返回了空的项目介绍")
     return text
 
 

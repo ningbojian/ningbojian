@@ -134,3 +134,53 @@ def test_generate_no_previous_and_error_raises():
             prev_generated_at="",
             client=client,
         )
+
+
+# ---- OpenAI 兼容接口（DeepSeek/千问/Kimi/Ollama 等）----
+
+
+def test_openai_provider_chat(monkeypatch):
+    import profile_agent.bio as bio_mod
+
+    captured = {}
+
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "「来自其他模型的简介正文」"}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        return FakeResp()
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    cfg = AIConfig(provider="openai", base_url="https://api.deepseek.com", key_env="DEEPSEEK_API_KEY", model="deepseek-chat")
+    text, generated = generate_bio(
+        PAYLOAD, cfg,
+        input_hash="h1", prev_hash="", prev_text="", prev_generated_at="",
+        http_post=fake_post,
+    )
+    assert generated is True
+    assert "其他模型" in text
+    assert captured["url"] == "https://api.deepseek.com/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer sk-test"
+    assert captured["json"]["model"] == "deepseek-chat"
+    # system 与 user 两条消息都传了
+    roles = [m["role"] for m in captured["json"]["messages"]]
+    assert roles == ["system", "user"]
+
+
+def test_openai_provider_reuses_fresh_bio_without_http(monkeypatch):
+    called = []
+    cfg = AIConfig(provider="openai", base_url="http://x", key_env="K")
+    text, generated = generate_bio(
+        PAYLOAD, cfg,
+        input_hash="same", prev_hash="same", prev_text="旧简介",
+        prev_generated_at="2099-01-01T00:00:00+00:00",
+        http_post=lambda *a, **k: called.append(1),
+    )
+    assert text == "旧简介" and generated is False and called == []
