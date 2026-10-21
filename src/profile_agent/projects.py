@@ -139,10 +139,12 @@ def update_project_intros(
     client=None,
     allow_ai: bool = True,
     fetch_readme=None,
+    force: bool = False,
 ) -> dict[str, dict]:
     """按仓库增量生成/更新介绍文件。返回每仓库的新状态。
 
     - hash 匹配且文件存在 → 跳过（不调 API、不写文件、不拉 README），沿用旧状态
+    - force=True（点名重跑 / --force）→ 忽略 hash 复用，重新生成
     - 否则重新生成：AI 可用且成功 → AI 正文（用 fetch_readme 拉到的 README
       作为事实来源）；否则 → 数据版占位
     - fetch_readme 失败不影响生成（退回只用 API 事实）
@@ -156,8 +158,11 @@ def update_project_intros(
         out_path = out_dir / intro_filename(repo)
         prev = prev_states.get(repo.full_name) or {}
 
-        if prev.get("intro_hash") == h and out_path.exists():
-            states[repo.full_name] = dict(prev)
+        if not force and prev.get("intro_hash") == h and out_path.exists():
+            # regenerated 只标记「本次运行」，复用时剥掉，防止残留到下次判断
+            states[repo.full_name] = {
+                k: v for k, v in prev.items() if k != "regenerated"
+            }
             continue
 
         body = None
@@ -183,6 +188,7 @@ def update_project_intros(
             "intro_hash": h,
             "intro_generated_at": now_iso,
             "ai_generated": ai_generated,
+            "regenerated": True,
         }
 
     return states

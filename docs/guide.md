@@ -107,11 +107,16 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
-**勾选框选仓库（推荐，不用打名字）**：Actions →「仓库选择板」→ Run workflow → 会创建/刷新一个「🎛 仓库更新选择板」Issue，里面用**勾选框**列出你的全部公开仓库。想更新哪几个就在 Issue 里打勾，然后评论 **`/run`**——只更新勾选的仓库（即使它不在精选/白名单里也行），完成后会在 Issue 里回帖并链接到本次运行明细。跑完取消勾选，方便下次选择。
+**勾选框选仓库（推荐，不用打名字）**——所有入口都在同一个 workflow 里，侧边栏只有「Update Profile README」一个：
+
+1. **首次**：Actions → Update Profile README → Run workflow → 勾选「只生成/刷新选择板」→ 自动创建一个「🎛 仓库更新选择板」Issue，里面用**勾选框**列出你的全部公开仓库（之后仓库有增减时重复这一步刷新列表即可）。
+2. **之后每次**：打开这个 Issue，勾选想更新的仓库，评论 **`/run`**——只**强制重新生成**勾选的仓库（即使数据没变、即使它不在精选/白名单里），跑完会在 Issue 里回帖并链接到本次运行明细。取消勾选，方便下次选择。
+
+日常操作就是「Issue 里打勾 + 评论」，不需要再进 Actions 页面。
 
 > 为什么不用 Actions 的输入框选？GitHub 的手动触发界面只有布尔/单选/文本三种输入，做不出动态多选框；Issue 任务清单是网页上最接近的原生勾选体验。
 
-**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在 Actions 手动触发时填 `projects_repos` 输入框（逗号分隔仓库名；留空=按 config 的 include/exclude；`all`=全部精选）。
+**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在 Actions 手动触发时填 `projects_repos` 输入框（逗号分隔仓库名；留空=按 config 的 include/exclude；`all`=全部精选）。点名的仓库同样是强制重新生成语义。
 
 **每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败），表尾还会列出你全部公开仓库名——直接复制粘贴进 `projects_repos` 就能点名。
 

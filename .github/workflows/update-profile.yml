@@ -1,5 +1,9 @@
 name: Update Profile README
 
+# 全部入口都在这一个 workflow 里：
+#   - 定时（schedule）：每周自动更新
+#   - 手动 Run workflow：立即更新；勾选「只生成/刷新选择板」则只维护勾选框 Issue
+#   - 选择板 Issue 里勾选仓库后评论 /run：只重跑勾选的仓库
 on:
   schedule:
     - cron: "23 2 * * 1" # 每周一 02:23 UTC ≈ 北京时间 10:23；改频率只需改这里
@@ -21,15 +25,14 @@ on:
         description: "点名要更新的仓库（逗号分隔仓库名，如 shiyuan,agri-ecommerce-platform）；留空=按 config 的 include/exclude；填 all=全部精选"
         type: string
         default: ""
-  # 供「仓库选择板」workflow 勾选后复用调用
-  workflow_call:
-    inputs:
-      projects_repos:
-        description: "点名要更新的仓库（逗号分隔）"
-        type: string
-        default: ""
+      build_board:
+        description: "只生成/刷新「仓库选择板」Issue（勾选框列表），本次不执行更新"
+        type: boolean
+        default: false
+  issue_comment:
+    types: [created]
 
-# 防止定时与手动同时运行；不取消进行中的运行
+# 防止定时/手动/勾选板同时运行；不取消进行中的运行
 concurrency:
   group: update-profile
   cancel-in-progress: false
@@ -37,9 +40,112 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write        # 创建/编辑选择板 Issue、回帖
 
 jobs:
+  # ---- 选择板 Issue 里评论 /run：解析勾选的仓库 ----
+  parse-checks:
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.body, '<!-- repo-menu -->') &&
+      contains(github.event.comment.body, '/run') &&
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.parse.outputs.repos }}
+    steps:
+      - name: 解析勾选的仓库
+        id: parse
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -e
+          gh issue view "$ISSUE_NUMBER" --json body --jq .body > issue_body.md
+          # 只提取勾选行（- [x]）反引号里的仓库名，字符集白名单防注入
+          REPOS=$(sed -n 's/^- \[[xX]\] `\([A-Za-z0-9._-][A-Za-z0-9._-]*\)`.*/\1/p' issue_body.md | paste -sd, -)
+          if [ -z "$REPOS" ]; then
+            echo "::error::没有勾选任何仓库：请把想更新的仓库前的 [ ] 点成 [x]，再评论 /run"
+            exit 1
+          fi
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
+          echo "已勾选：$REPOS"
+
+  # ---- 手动触发且勾选 build_board：生成/刷新选择板 Issue ----
+  build-board:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_board
+    runs-on: ubuntu-latest
+    steps:
+      - name: 渲染并更新选择板
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -e
+          cat > build_menu.py <<'PY'
+          import json
+          import os
+          import sys
+
+          owner = os.environ["OWNER"]
+          repos = [json.loads(line) for line in sys.stdin if line.strip()]
+          # 只放公开、非 fork、非 profile 自身的仓库（与工具默认过滤一致）
+          repos = [
+              r for r in repos
+              if not r.get("private") and not r.get("fork")
+              and r.get("full_name") != f"{owner}/{owner}"
+          ]
+          repos.sort(key=lambda r: (-r.get("stargazers_count", 0), r.get("name", "")))
+
+          lines = [
+              "<!-- repo-menu -->",
+              "勾选想更新**项目介绍/简历素材**的仓库，然后在本 Issue 评论 **`/run`** 触发（仅仓库维护者有效）。",
+              "",
+              "> 主页 overview 与统计不受影响；「暂无描述」的补位短文案是自动的，不用勾。",
+              "> 勾选的仓库会**强制重新生成**（即使数据没变）；跑完可取消勾选，方便下次选择。",
+              "> 仓库列表可在 Actions → Update Profile README → Run workflow → 勾选「只生成/刷新选择板」重新生成。",
+              "",
+              "## 仓库列表（按 star 排序）",
+              "",
+          ]
+          for r in repos:
+              desc = (r.get("description") or "").replace("\n", " ").replace("\r", " ")[:60]
+              parts = [f"- [ ] `{r['name']}` ⭐{r.get('stargazers_count', 0)}"]
+              if r.get("language"):
+                  parts.append(r["language"])
+              if r.get("archived"):
+                  parts.append("📦已归档")
+              if desc:
+                  parts.append(desc)
+              lines.append(" · ".join(parts))
+          if not repos:
+              lines.append("（没有找到公开仓库）")
+          sys.stdout.write("\n".join(lines) + "\n")
+          PY
+          gh api --paginate "users/${OWNER}/repos?per_page=100" --jq '.[] | @json' \
+            | python3 build_menu.py > menu.md
+          TITLE='🎛 仓库更新选择板'
+          num=$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"${TITLE}\") | .number" | head -1)
+          if [ -n "$num" ]; then
+            gh issue edit "$num" --body-file menu.md
+            echo "已刷新选择板 Issue #${num}"
+          else
+            gh issue create --title "$TITLE" --body-file menu.md
+          fi
+
+  # ---- 主更新（定时 / 手动 / 勾选板 /run 三条路都走这里）----
   update:
+    needs: [parse-checks, build-board]
+    if: >
+      always() &&
+      (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && !inputs.build_board && needs.build-board.result == 'skipped') ||
+        (github.event_name == 'issue_comment' && needs.parse-checks.result == 'success')
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -84,9 +190,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          INPUT_REPOS: ${{ inputs.projects_repos }}
+          # 勾选板 /run 时是勾选的仓库；手动触发时是 projects_repos 输入；定时为空
+          INPUT_REPOS: ${{ needs.parse-checks.outputs.repos || inputs.projects_repos }}
         run: |
-          # 手动触发/选择板复用时 inputs 才有值；定时跑时全部为空，不加任何 flag
+          # 手动触发时 inputs 才有值；定时/勾选板跑时为空，不加对应 flag
           FLAGS=""
           [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
           [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
@@ -148,7 +255,7 @@ jobs:
                 break
               fi
               echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
-              # autostash：PR 模式下工作区还有未暂存的 docs/projects 改动，rebase 前要先收起来
+              # autostash：PR 模式下工作区还有未暂存的 docs 改动，rebase 前要先收起来
               git pull --rebase --autostash origin main
               sleep 5
             done
@@ -190,3 +297,27 @@ jobs:
               fi
             fi
           fi
+
+  # ---- 勾选板 /run 后回帖反馈结果 ----
+  notify:
+    needs: [parse-checks, update]
+    if: always() && github.event_name == 'issue_comment' && needs.parse-checks.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 回帖反馈
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PARSE: ${{ needs.parse-checks.result }}
+          UPD: ${{ needs.update.result }}
+          REPOS: ${{ needs.parse-checks.outputs.repos }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$UPD" = "success" ]; then
+            body="✅ 已按勾选（$REPOS）重新生成。明细见 $RUN_URL（Summary 里有逐仓库表格）。跑完可取消勾选，方便下次选择。"
+          elif [ "$PARSE" = "success" ]; then
+            body="⚠️ 更新失败，请打开 $RUN_URL 查看日志。"
+          else
+            body="⚠️ 没有解析到勾选的仓库：请把想更新仓库前的 \`[ ]\` 点成 \`[x]\`，再评论 /run。详见 $RUN_URL"
+          fi
+          gh issue comment "$ISSUE_NUMBER" --body "$body"

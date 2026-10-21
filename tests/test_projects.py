@@ -60,6 +60,31 @@ def test_generate_project_intro_content():
     assert client.calls[0]["model"] == "m"
 
 
+def test_force_regenerates_even_when_hash_unchanged(tmp_path: Path, monkeypatch):
+    """force=True（点名重跑/--force）：hash 没变也强制重新生成。"""
+    import profile_agent.projects as projects_mod
+
+    calls = []
+
+    def fake_gen(repo, cfg, **kwargs):
+        calls.append(repo.name)
+        return f"第 {len(calls)} 版介绍"
+
+    monkeypatch.setattr(projects_mod, "generate_project_intro", fake_gen)
+    proj = ProjectsConfig(dir=str(tmp_path / "docs" / "projects"))
+    ai = AIConfig()
+    s1 = update_project_intros([REPO], proj, ai, {})
+    assert len(calls) == 1
+    s2 = update_project_intros([REPO], proj, ai, s1)
+    assert len(calls) == 1  # hash 未变 → 复用
+    assert "regenerated" not in s2[REPO.full_name]  # 复用状态不带重跑标记
+    s3 = update_project_intros([REPO], proj, ai, s2, force=True)
+    assert len(calls) == 2  # 强制重跑
+    assert s3[REPO.full_name].get("regenerated") is True
+    body = (tmp_path / "docs" / "projects" / "cool-tool.md").read_text(encoding="utf-8")
+    assert "第 2 版介绍" in body
+
+
 def test_update_intros_skips_unchanged_and_missing_file(tmp_path: Path):
     proj = ProjectsConfig(dir=str(tmp_path / "docs/projects"))
     ai = AIConfig()

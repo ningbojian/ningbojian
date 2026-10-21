@@ -402,6 +402,40 @@ snapshot:
     assert files == {"old-thing.md"}
 
 
+def test_only_repos_forces_regenerate_when_unchanged(tmp_path, monkeypatch, capsys):
+    """点名 --repos：即使数据/哈希没变也强制重新生成（勾选板 /run 的核心语义）。"""
+    import profile_agent.cli as cli_mod
+    import profile_agent.projects as projects_mod
+
+    cfg = _write_config(tmp_path)
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    versions = []
+
+    def fake_gen(repo, cfg_ai, **kwargs):
+        versions.append(repo.name)
+        return f"介绍第{len(versions)}版"
+
+    monkeypatch.setattr(projects_mod, "generate_project_intro", fake_gen)
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    monkeypatch.setattr(cli_mod, "generate_short_intro", lambda *a, **k: "不该被调用")
+
+    assert run(cfg, fixture=FIXTURES) == 0
+    n_first = len(versions)
+    assert n_first >= 1
+    # 数据没变的普通运行 → 增量门跳过，零调用
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(versions) == n_first
+    capsys.readouterr()
+    # 点名重跑 cool-tool：哈希没变也重新生成
+    assert run(cfg, fixture=FIXTURES, only_repos=["cool-tool"]) == 0
+    assert len(versions) == n_first + 1
+    assert versions[-1] == "cool-tool"
+    body = (tmp_path / "docs" / "projects" / "cool-tool.md").read_text(encoding="utf-8")
+    assert "介绍第" in body and "版" in body
+    out = capsys.readouterr().out
+    assert "已重新生成" in out  # 明细表如实反映强制重跑
+
+
 def test_run_writes_step_summary_table(tmp_path, monkeypatch):
     """Actions 的 GITHUB_STEP_SUMMARY 存在时，写出逐仓库动作明细表。"""
     cfg_path = tmp_path / "config.yaml"

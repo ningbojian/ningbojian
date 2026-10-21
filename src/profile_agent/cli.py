@@ -122,8 +122,10 @@ def run(
         print(f"配置错误：{exc}", file=sys.stderr)
         return 2
 
-    # 手动点名仓库（--repos）：精确到仓库一级，即使不在精选名单也生成
-    if only_repos and only_repos != ["all"]:
+    # 手动点名仓库（--repos / 勾选板 /run）：精确到仓库一级，即使不在精选名单也生成；
+    # 点名即「重跑」语义——忽略仓库级 hash 复用，强制重新生成
+    named_repos = bool(only_repos and only_repos != ["all"])
+    if named_repos:
         cfg.projects.include = list(only_repos)
         cfg.projects.featured_only = False
 
@@ -182,6 +184,7 @@ def run(
 
     if (
         not force
+        and not named_repos  # 点名即重跑：不走整体增量门
         and prev is not None
         and prev.stats_fingerprint == fingerprint
         and prev.stats_config_hash == cfg_hash
@@ -241,6 +244,8 @@ def run(
             allow_ai=ai_active,
             # 真实抓取时把各仓库 README 拉下来喂给模型（介绍内容的信息密度来源）
             fetch_readme=gh_client.get_repo_readme if gh_client else None,
+            # --force 或点名重跑：忽略仓库级 hash 复用
+            force=force or named_repos,
         )
 
     now_bj = datetime.now(_BEIJING)
@@ -330,9 +335,9 @@ def run(
         for r in proj_targets:
             st = prev_states_all.get(r.full_name) or {}
             new_st = project_states.get(r.full_name) or {}
-            if st.get("intro_hash") == intro_input_hash(r, cfg.ai) and (
-                proj_dir / intro_filename(r)
-            ).exists():
+            if not new_st.get("regenerated") and st.get("intro_hash") == intro_input_hash(
+                r, cfg.ai
+            ) and (proj_dir / intro_filename(r)).exists():
                 action = "跳过（无变化）"
             elif new_st.get("ai_generated"):
                 action = "已重新生成（AI，走 PR 审核）"
