@@ -1,4 +1,4 @@
-"""命令行入口与编排：拉数据 → 聚合 → 增量判断 → AI 简介 → 渲染 → 写入。"""
+"""命令行入口与编排：拉数据 → 聚合 → 增量判断 → AI 简介/项目介绍 → 渲染 → 写入。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import dataclasses
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .aggregate import (
@@ -15,15 +15,20 @@ from .aggregate import (
     build_bio_payload,
     compute_totals,
     normalize_repos,
+    render_fingerprint,
     select_featured,
     stats_fingerprint,
 )
-from .bio import BioError, generate_bio
+from .bio import BioError, _is_fresh, generate_bio
 from .config import Config, ConfigError, load_config
 from .github_client import GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
+from .projects import intro_filename, intro_input_hash, update_project_intros
 from .render import render_readme, write_if_changed
 from .snapshot import load_snapshot, save_snapshot
+
+# README 展示时间统一按北京时间（UTC+8）标注
+_BEIJING = timezone(timedelta(hours=8))
 
 
 def _load_fixture(fixture: Path, username: str) -> tuple[dict, list[dict]]:
@@ -33,21 +38,57 @@ def _load_fixture(fixture: Path, username: str) -> tuple[dict, list[dict]]:
     return user, repos
 
 
+def _prev_repo_states(prev: Snapshot | None) -> dict[str, dict]:
+    if prev is None:
+        return {}
+    return {r["full_name"]: r for r in prev.repos if isinstance(r, dict) and r.get("full_name")}
+
+
+def _project_targets(repos, featured, cfg: Config) -> list:
+    """按 featured_only + include/exclude 白黑名单选出要生成介绍的仓库。"""
+    base = featured if cfg.projects.featured_only else repos
+    inc = set(cfg.projects.include)
+    exc = set(cfg.projects.exclude)
+    return [r for r in base if r.name not in exc and (not inc or r.name in inc)]
+
+
+def _projects_clean(
+    targets, cfg: Config, prev: Snapshot | None, root: Path
+) -> bool:
+    """全部目标仓库的介绍文件都已是最新且存在 → 无待生成内容。"""
+    states = _prev_repo_states(prev)
+    out_dir = root / cfg.projects.dir
+    for r in targets:
+        st = states.get(r.full_name) or {}
+        if st.get("intro_hash") != intro_input_hash(r, cfg.ai):
+            return False
+        if not (out_dir / intro_filename(r)).exists():
+            return False
+    return True
+
+
 def run(
     cfg_path: Path,
     *,
     dry_run: bool = False,
     force: bool = False,
     no_ai: bool = False,
+    skip_readme: bool = False,
+    skip_projects: bool = False,
     fixture: Path | None = None,
 ) -> int:
+    fallback = os.environ.get("GITHUB_REPOSITORY_OWNER")
     try:
-        cfg: Config = load_config(cfg_path)
+        cfg: Config = load_config(cfg_path, fallback_username=fallback)
     except ConfigError as exc:
         print(f"配置错误：{exc}", file=sys.stderr)
         return 2
 
     root = cfg_path.parent
+    readme_path = root / cfg.readme.path
+    template_path = root / cfg.readme.template
+    readme_active = cfg.readme.enabled and not skip_readme
+    projects_active = cfg.projects.enabled and not skip_projects
 
     # 1. 取数
     try:
@@ -66,27 +107,46 @@ def run(
     repos = normalize_repos(raw_repos, cfg.repos)
     totals = compute_totals(user, repos)
     featured = select_featured(repos, cfg.featured)
-    fingerprint = stats_fingerprint(totals, repos)
+    fingerprint = stats_fingerprint(totals, repos, featured)
+    template_bytes = template_path.read_bytes() if template_path.exists() else b""
+    cfg_hash = render_fingerprint(cfg, template_bytes, user)
 
-    # 3. 增量判断
+    # 3. 增量门：数据、配置/模板/资料、README 存在、简介新鲜、项目介绍齐备 全部无变化才跳过
     snap_path = root / cfg.snapshot.path
     prev = load_snapshot(snap_path)
+    proj_targets = _project_targets(repos, featured, cfg) if projects_active else []
+    ai_active = bool(
+        not no_ai and cfg.ai.enabled and os.environ.get("ANTHROPIC_API_KEY")
+    )
+    payload = build_bio_payload(user, featured, cfg.ai)
+    cur_hash = bio_input_hash(payload, cfg.ai)
+    if ai_active and prev is not None:
+        bio_fresh = (
+            bool(prev.bio.text)
+            and prev.bio.input_hash == cur_hash
+            and _is_fresh(prev.bio.generated_at, cfg.ai.max_age_days)
+        )
+    else:
+        bio_fresh = True
+
     if (
         not force
         and prev is not None
         and prev.stats_fingerprint == fingerprint
+        and prev.stats_config_hash == cfg_hash
+        and (not readme_active or readme_path.exists())
+        and bio_fresh
+        and (not projects_active or _projects_clean(proj_targets, cfg, prev, root))
     ):
         print("无变化，跳过更新")
         return 0
 
-    # 4. AI 简介
+    # 4. AI 简介（只在更新 overview 时生成；失败保留旧简介，任务不失败）
     bio_text = prev.bio.text if prev else ""
-    payload = build_bio_payload(user, featured, cfg.ai)
-    cur_hash = bio_input_hash(payload, cfg.ai)
-    ai_failed = False
-    if not no_ai and cfg.ai.enabled and os.environ.get("ANTHROPIC_API_KEY"):
+    bio_generated = False
+    if ai_active and readme_active:
         try:
-            bio_text = generate_bio(
+            bio_text, bio_generated = generate_bio(
                 payload,
                 cfg.ai,
                 input_hash=cur_hash,
@@ -96,36 +156,76 @@ def run(
             )
         except BioError as exc:
             print(f"简介生成失败，沿用旧简介：{exc}", file=sys.stderr)
-            ai_failed = True
 
-    now = datetime.now(timezone.utc)
-    ctx = TemplateContext(
-        username=cfg.github.username,
-        display_name=user.get("name") or cfg.github.username,
-        blog=user.get("blog") or "",
-        totals=totals,
-        featured=featured,
-        bio_text=bio_text,
-        cards_theme=cfg.readme.cards.theme,
-        cards_show=cfg.readme.cards.show,
-        include_update_time=cfg.readme.include_update_time,
-        updated_at=now.strftime("%Y-%m-%d %H:%M"),
-    )
+    # 5. 项目介绍（方向二：仓库级增量；include/exclude 多选控制）
+    intro_urls: dict[str, str] = {}
+    project_states: dict[str, dict] = {}
+    if projects_active and proj_targets:
+        project_states = update_project_intros(
+            proj_targets,
+            dataclasses.replace(cfg.projects, dir=str(root / cfg.projects.dir)),
+            cfg.ai,
+            _prev_repo_states(prev),
+            allow_ai=ai_active,
+        )
+        intro_urls = {
+            name: (Path(cfg.projects.dir) / intro_filename(r)).as_posix()
+            for name in project_states
+            for r in proj_targets
+            if r.full_name == name
+        }
 
-    template_path = root / cfg.readme.template
-    content = render_readme(ctx, template_path)
+    now_bj = datetime.now(_BEIJING)
+    changed = False
+    if readme_active:
+        ctx = TemplateContext(
+            username=cfg.github.username,
+            display_name=user.get("name") or cfg.github.username,
+            blog=user.get("blog") or "",
+            totals=totals,
+            featured=featured,
+            bio_text=bio_text,
+            cards_theme=cfg.readme.cards.theme,
+            cards_show=cfg.readme.cards.show,
+            include_update_time=cfg.readme.include_update_time,
+            updated_at=now_bj.strftime("%Y-%m-%d %H:%M") + "（北京时间）",
+            intro_urls=intro_urls,
+        )
+        content = render_readme(ctx, template_path)
 
-    if dry_run:
-        print(content)
+        if dry_run:
+            print(content)
+            return 0
+
+        changed = write_if_changed(readme_path, content)
+    elif dry_run:
+        print("readme 已禁用（readme.enabled=false 或 --skip-readme），跳过 overview 生成")
         return 0
 
-    readme_path = root / cfg.readme.path
-    changed = write_if_changed(readme_path, content)
+    # 6. 快照：bio 的 hash/时间只在本次真正生成时前进，复用/回退时保留旧值
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if bio_generated:
+        bio_info = dataclasses.replace(
+            prev.bio if prev else Snapshot().bio,
+            text=bio_text,
+            input_hash=cur_hash,
+            generated_at=now_iso,
+            model=cfg.ai.model,
+            prompt_version=cfg.ai.prompt_version,
+        )
+    else:
+        bio_info = dataclasses.replace(
+            prev.bio if prev else Snapshot().bio,
+            text=bio_text,
+        )
 
+    merged_states = _prev_repo_states(prev)
+    merged_states.update(project_states)
     new_snap = Snapshot(
-        schema=1,
+        schema=2,
         username=cfg.github.username,
         stats_fingerprint=fingerprint,
+        stats_config_hash=cfg_hash,
         totals={
             "public_repos": totals.public_repos,
             "followers": totals.followers,
@@ -136,31 +236,36 @@ def run(
                 "full_name": r.full_name,
                 "stars": r.stars,
                 "language": r.language,
+                **{
+                    k: v
+                    for k, v in (merged_states.get(r.full_name) or {}).items()
+                    if k.startswith("intro_") or k == "ai_generated"
+                },
             }
-            for r in featured
+            for r in repos
         ],
-        bio=dataclasses.replace(
-            prev.bio if prev else Snapshot().bio,
-            text=bio_text,
-            input_hash=cur_hash,
-            generated_at=(prev.bio.generated_at if prev and bio_text == prev.bio.text else now.isoformat()),
-            model=cfg.ai.model,
-            prompt_version=cfg.ai.prompt_version,
-        ),
-        generated_at=now.isoformat(),
+        bio=bio_info,
+        generated_at=now_iso,
     )
     save_snapshot(snap_path, new_snap)
 
     print("已更新" if changed else "内容无差异")
-    return 1 if ai_failed else 0
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
     parser = argparse.ArgumentParser(description="自动维护 GitHub Profile README")
     parser.add_argument("--config", default="config.yaml", help="配置文件路径")
     parser.add_argument("--dry-run", action="store_true", help="打印到 stdout，不写文件")
     parser.add_argument("--force", action="store_true", help="忽略增量检测，强制重新生成")
-    parser.add_argument("--no-ai", action="store_true", help="跳过 AI 简介")
+    parser.add_argument("--no-ai", action="store_true", help="跳过 AI 调用（仍生成数据版内容）")
+    parser.add_argument("--skip-readme", action="store_true", help="本次不更新 overview README")
+    parser.add_argument("--skip-projects", action="store_true", help="本次不生成项目介绍")
     parser.add_argument("--fixture", default=None, help="从本地 fixture 目录读取数据（离线测试）")
     args = parser.parse_args(argv)
     return run(
@@ -168,6 +273,8 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         force=args.force,
         no_ai=args.no_ai,
+        skip_readme=args.skip_readme,
+        skip_projects=args.skip_projects,
         fixture=Path(args.fixture) if args.fixture else None,
     )
 

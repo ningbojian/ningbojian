@@ -94,3 +94,15 @@ def test_invalid_card_name_raises(tmp_path):
     )
     with pytest.raises(ConfigError, match="pie"):
         load_config(path)
+
+
+def test_fallback_username_used_when_empty(tmp_path):
+    path = _write(tmp_path, 'github:\n  username: ""\n')
+    cfg = load_config(path, fallback_username="repo-owner")
+    assert cfg.github.username == "repo-owner"
+
+
+def test_fallback_username_ignored_when_set(tmp_path):
+    path = _write(tmp_path, 'github:\n  username: "alice"\n')
+    cfg = load_config(path, fallback_username="other")
+    assert cfg.github.username == "alice"

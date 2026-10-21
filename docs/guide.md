@@ -12,15 +12,18 @@
 
 > **只扫公开仓库**：工具调用的 `/users/{用户名}/repos` 接口只会返回 public 仓库；即使返回里混入 private 条目也会被强制跳过，私有仓库永远不会出现在 README 或统计里。
 
-## 快速开始（5 分钟）
+## 快速开始（零克隆，全程网页操作，约 3 分钟）
 
-1. **建 profile 仓库**：新建名为 `你的用户名/你的用户名` 的仓库（勾选"使用 README 初始化"），把本仓库的全部文件复制进去（或直接 fork 后改名）。
-2. **填用户名**：编辑 `config.yaml`，把 `github.username` 改成你的 GitHub 用户名。
-3. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用，只是没有 AI 简介（该区块会显示占位注释）。
-4. **启用 Actions**：进入 Actions 页面，如果提示就点 "Enable"。
-5. **手动跑一次**：Actions → Update Profile README → Run workflow → 勾选 force → 等待完成，回仓库看生成的 `README.md`。
+**不需要 clone、不需要本地环境**，全程在浏览器里完成：
 
-之后每周一定时自动更新（北京时间约 10:23），也可以随时手动触发。
+1. **一键获取仓库**：点本仓库的 "Use this template"（或 fork），把新仓库改名为 `你的用户名/你的用户名`。
+   > 用户名不用填：工具会自动读取仓库所有者作为用户名。
+2. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用（AI 内容降级为数据版）。
+3. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
+   - **overview 更新**直接出现在 README；
+   - **项目介绍 / 简历素材**（AI 生成内容）会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才发布；不想要就点 **Close**（同一内容之后不会重复打扰你）。
+
+之后每周一定时自动更新（北京时间约 10:23），也可随时手动触发。所有可选项都在 `config.yaml` 里，网页上点 Edit 就能改。
 
 ## 本地运行
 
@@ -51,11 +54,40 @@ python -m profile_agent --fixture tests/fixtures --no-ai --dry-run   # 完全离
 | 频率 | cron（UTC） | 北京时间 |
 | --- | --- | --- |
 | 每天 | `23 2 * * *` | 每天 10:23 |
-| 每 3 天 | `23 2 */3 * *` | 每 3 天 10:23 |
 | 每周一（默认） | `23 2 * * 1` | 周一 10:23 |
 | 每月 1 号 | `23 2 1 * *` | 每月 1 日 10:23 |
 
-> GitHub 的 cron 按 UTC 计，且高峰期可能有几分钟延迟；避开整点（如 23 分）更稳定。
+> GitHub 的 cron 按 UTC 计，且高峰期可能有几分钟延迟；避开整点（如 23 分）更稳定。`*/N` 之类的写法在 GitHub cron 里语义与直觉不同（每月 1 号重置），想更高频请用上表的明确写法。
+
+## 灵活开关：只更新其中一部分
+
+overview 和项目介绍（简历素材）互相独立，三种玩法：
+
+| 想要的效果 | 配置（config.yaml） | 或手动触发时 |
+| --- | --- | --- |
+| 两者都更新 | 默认 | 默认 |
+| 只更新 overview | `projects.enabled: false` | 取消勾选 update_projects |
+| 只更新项目介绍 | `readme.enabled: false` | 取消勾选 update_readme |
+
+**选择给哪些仓库生成介绍**（多选，也可以都不选）：
+
+```yaml
+projects:
+  include: ["cool-tool"]   # 只给这些仓库生成（仓库名）
+  exclude: ["old-thing"]   # 这些仓库永远跳过
+```
+
+在网页上编辑 `config.yaml` 保存即可，下次运行生效。
+
+## AI 内容审核流（Pull Request）
+
+你没有直接审核窗口的问题不存在——**所有 AI 写的项目介绍都必须经过你的 PR 审核才会公开**：
+
+1. 运行发现介绍有变化（新仓库、数据变了、prompt 升级）→ 自动开一个 PR「AI 项目介绍更新（待审核）」
+2. 你在 PR 的 **Files changed** 里看 Diff，不满意可以直接在网页上编辑文件
+3. 点 **Merge** → 内容发布到你的主页；点 **Close** → 不发布，且**同一批内容之后不会重复开 PR**打扰你（想强制重新生成：改 `config.yaml` 里 `ai.prompt_version` 为 2 再手动触发 force）
+
+纯统计/overview 的机械更新不走 PR、直接生效，不打断你。想关掉审核流直接提交：`projects.review_via_pr: false`（不建议）。
 
 ## 配置项参考（config.yaml）
 
@@ -63,7 +95,7 @@ python -m profile_agent --fixture tests/fixtures --no-ai --dry-run   # 完全离
 schedule:
   enabled: true            # false = 关掉定时更新（手动仍可触发）
 github:
-  username: "your-name"    # 必填
+  username: ""             # 留空 = 自动用仓库所有者（fork 即用）
   token_env: "GITHUB_TOKEN"  # token 读哪个环境变量
 repos:
   exclude_forks: true      # 不展示 fork 的仓库
@@ -77,6 +109,7 @@ featured:
   score_stars_weight: 1.0
   score_recency_weight: 0.5
 readme:
+  enabled: true            # false = 不更新 overview
   path: "README.md"
   template: "templates/profile.md.j2"
   cards:
@@ -89,6 +122,13 @@ ai:
   max_repos: 15            # 最多把多少仓库喂给 AI
   max_age_days: 14         # 简介最长复用天数
   prompt_version: 1        # 改了 prompt 后 +1 可强制重新生成
+projects:
+  enabled: true            # false = 不生成项目介绍/简历素材
+  dir: "docs/projects"
+  featured_only: true      # false = 给全部仓库生成
+  include: []              # 多选白名单，非空时只生成这些仓库
+  exclude: []              # 黑名单
+  review_via_pr: true      # AI 内容走 PR 审核（推荐）
 ```
 
 改完 `ai.prompt_version` 或想立刻刷新简介时，手动触发并勾选 force。

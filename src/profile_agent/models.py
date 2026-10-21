@@ -50,6 +50,7 @@ class TemplateContext:
     cards_show: list[str] = field(default_factory=lambda: ["stats", "top_langs", "streak"])
     include_update_time: bool = True
     updated_at: str = ""
+    intro_urls: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -63,9 +64,10 @@ class BioInfo:
 
 @dataclass
 class Snapshot:
-    schema: int = 1
+    schema: int = 2
     username: str = ""
     stats_fingerprint: str = ""
+    stats_config_hash: str = ""
     totals: dict = field(default_factory=dict)
     repos: list[dict] = field(default_factory=list)
     bio: BioInfo = field(default_factory=BioInfo)

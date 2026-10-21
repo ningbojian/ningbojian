@@ -51,3 +51,19 @@ def test_creates_parent_dirs(tmp_path):
     path = tmp_path / "data" / "nested" / "snapshot.json"
     save_snapshot(path, _sample())
     assert path.exists()
+
+
+def test_roundtrip_includes_config_hash(tmp_path):
+    snap = _sample()
+    snap.stats_config_hash = "sha256:cfg"
+    path = tmp_path / "s.json"
+    save_snapshot(path, snap)
+    loaded = load_snapshot(path)
+    assert loaded is not None
+    assert loaded.stats_config_hash == "sha256:cfg"
+
+
+def test_load_non_dict_json_returns_none(tmp_path):
+    path = tmp_path / "s.json"
+    path.write_text("[]", encoding="utf-8")
+    assert load_snapshot(path) is None

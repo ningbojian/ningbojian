@@ -16,9 +16,12 @@ def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def normalize_repos(raw: list[dict], cfg: ReposConfig) -> list[Repo]:
@@ -109,8 +112,11 @@ def select_featured(
     return candidates[: cfg.count]
 
 
-def stats_fingerprint(totals: Totals, repos: list[Repo]) -> str:
-    """影响渲染的统计数据的稳定指纹，用于增量检测。"""
+def stats_fingerprint(totals: Totals, repos: list[Repo], featured: list[Repo] | None = None) -> str:
+    """影响渲染的数据的稳定指纹，用于增量检测。
+
+    含精选结果：仓库随时间“老化”导致精选名单变化时指纹也会变化。
+    """
     payload = {
         "totals": {
             "public_repos": totals.public_repos,
@@ -132,6 +138,38 @@ def stats_fingerprint(totals: Totals, repos: list[Repo]) -> str:
             ),
             key=lambda d: d["full_name"],
         ),
+        "featured": [r.full_name for r in (featured or [])],
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def render_fingerprint(cfg, template_bytes: bytes, user: dict) -> str:
+    """渲染相关配置 + 模板内容 + 用户资料的指纹。
+
+    改配置（主题/精选数等）、改模板、改 GitHub 资料都会让它变化，
+    使增量门重新渲染 README。
+    """
+    from dataclasses import asdict
+
+    payload = {
+        "featured": asdict(cfg.featured),
+        "readme": asdict(cfg.readme),
+        "ai": {
+            "enabled": cfg.ai.enabled,
+            "model": cfg.ai.model,
+            "max_repos": cfg.ai.max_repos,
+            "bio_min_chars": cfg.ai.bio_min_chars,
+            "bio_max_chars": cfg.ai.bio_max_chars,
+            "prompt_version": cfg.ai.prompt_version,
+        },
+        "projects": asdict(cfg.projects),
+        "template_sha256": hashlib.sha256(template_bytes).hexdigest(),
+        "user": {
+            "name": user.get("name") or "",
+            "blog": user.get("blog") or "",
+            "bio": user.get("bio") or "",
+        },
     }
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()

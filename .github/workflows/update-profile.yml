@@ -9,6 +9,14 @@ on:
         description: "忽略增量检测，强制重新生成"
         type: boolean
         default: false
+      update_readme:
+        description: "更新个人主页 overview"
+        type: boolean
+        default: true
+      update_projects:
+        description: "生成/更新项目介绍（简历素材）"
+        type: boolean
+        default: true
 
 # 防止定时与手动同时运行；不取消进行中的运行
 concurrency:
@@ -17,6 +25,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -24,15 +33,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 不装任何依赖，纯 grep 判断定时开关
       - name: 检查定时开关（schedule.enabled）
         if: github.event_name == 'schedule'
         id: check
         run: |
-          pip install pyyaml -q
-          enabled=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml',encoding='utf-8')) or {}; print('true' if (c.get('schedule') or {}).get('enabled', True) else 'false')")
-          echo "schedule=$enabled" >> "$GITHUB_OUTPUT"
-          if [ "$enabled" != "true" ]; then
+          if grep -A3 '^schedule:' config.yaml | grep -qE 'enabled:[[:space:]]*false'; then
+            echo "schedule=false" >> "$GITHUB_OUTPUT"
             echo "定时更新已关闭（config.yaml 中 schedule.enabled=false），本次跳过"
+          else
+            echo "schedule=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-python@v5
@@ -45,21 +55,64 @@ jobs:
         if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
         run: pip install .
 
-      - name: 生成 README
+      - name: 读取配置路径
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        id: paths
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import yaml
+          c = yaml.safe_load(open('config.yaml', encoding='utf-8')) or {}
+          print(f"readme={(c.get('readme') or {}).get('path', 'README.md')}")
+          print(f"snapshot={(c.get('snapshot') or {}).get('path', 'data/snapshot.json')}")
+          PY
+
+      - name: 生成 README 与项目介绍
         if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python -m profile_agent --config config.yaml ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
-
-      - name: 提交变更（仅有差异时）
-        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
         run: |
+          FLAGS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
+            [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
+            [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
+          fi
+          python -m profile_agent --config config.yaml $FLAGS
+
+      # 项目介绍（AI 生成内容）走 PR 人工审核；纯 README/统计更新直接提交
+      - name: 提交变更（项目介绍有变化时开 PR 审核）
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md data/snapshot.json
+          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}" docs/projects 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "无变更，跳过提交"
+            exit 0
+          fi
+          review_via_pr=true
+          grep -A6 '^projects:' config.yaml | grep -qE 'review_via_pr:[[:space:]]*false' && review_via_pr=false
+          if [ "$review_via_pr" = "true" ] && ! git diff --cached --quiet -- docs/projects; then
+            fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
+            # 同样内容此前被 Close 过 → 不再反复骚扰
+            if gh pr list --state closed --head auto/profile-update --limit 30 --json body -q '.[].body' | grep -qF "$fingerprint"; then
+              echo "这批内容上次审核未合并，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
+              git reset
+              exit 0
+            fi
+            git checkout -B auto/profile-update
+            git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
+            git push -u origin auto/profile-update --force
+            gh pr create --title "AI 项目介绍更新（待审核）" \
+              --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
+
+          数据指纹: $fingerprint" \
+              --head auto/profile-update --base main \
+              || gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。数据指纹: $fingerprint"
           else
             git commit -m "chore: 自动更新 Profile README [skip ci]"
             git push

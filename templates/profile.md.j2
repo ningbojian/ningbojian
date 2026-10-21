@@ -45,7 +45,9 @@
 
 {{ repo.description or "（暂无描述）" }}
 
-{% if repo.language %}`{{ repo.language }}`{% endif %}{% if repo.forks %} · 🍴 {{ repo.forks }}{% endif %}
+{% if intro_urls.get(repo.full_name) %}📄 [项目介绍与简历素材]({{ intro_urls[repo.full_name] }})
+
+{% endif %}{% if repo.language %}`{{ repo.language }}`{% endif %}{% if repo.forks %} · 🍴 {{ repo.forks }}{% endif %}
 
 {% else %}
 <!-- 暂无符合条件的精选项目 -->

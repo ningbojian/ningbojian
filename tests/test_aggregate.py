@@ -119,3 +119,37 @@ def test_bio_payload_and_hash():
     # prompt_version 变化 → hash 变化（强制重新生成）
     ai_cfg2 = AIConfig(max_repos=2, prompt_version=2)
     assert bio_input_hash(payload, ai_cfg2) != h1
+
+
+def test_fingerprint_changes_when_featured_selection_changes():
+    """同一份仓库数据，精选结果不同（如时间推移导致 aged out）→ 指纹必须变化。"""
+    from profile_agent.config import Config
+    from profile_agent.aggregate import render_fingerprint
+
+    repos = normalize_repos(_raw_repos(), ReposConfig(exclude=["alice/old-profile"]))
+    totals = compute_totals(_user(), repos)
+    feat_a = select_featured(repos, FeaturedConfig(count=2, recency_days=0), now=NOW)
+    feat_b = select_featured(repos, FeaturedConfig(count=1, recency_days=0), now=NOW)
+    assert stats_fingerprint(totals, repos, feat_a) != stats_fingerprint(totals, repos, feat_b)
+
+
+def test_render_fingerprint_sensitive_to_config_and_template_and_profile():
+    import dataclasses
+    from profile_agent.aggregate import render_fingerprint
+    from profile_agent.config import Config
+
+    cfg = Config()
+    user = _user()
+    fp1 = render_fingerprint(cfg, b"template-bytes", user)
+    assert fp1.startswith("sha256:")
+    assert render_fingerprint(cfg, b"template-bytes", user) == fp1
+    # 主题变化 → 指纹变化
+    cfg2 = dataclasses.replace(cfg)
+    cfg2.readme = dataclasses.replace(cfg.readme)
+    cfg2.readme.cards = dataclasses.replace(cfg.readme.cards, theme="github_light")
+    assert render_fingerprint(cfg2, b"template-bytes", user) != fp1
+    # 模板内容变化 → 指纹变化
+    assert render_fingerprint(cfg, b"other-template", user) != fp1
+    # 用户资料变化 → 指纹变化
+    user2 = dict(user, name="Bob")
+    assert render_fingerprint(cfg, b"template-bytes", user2) != fp1
