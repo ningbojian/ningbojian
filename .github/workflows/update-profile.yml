@@ -3,7 +3,7 @@ name: Update Profile README
 # 全部入口就这一个 workflow：
 #   - 定时（schedule）：每周自动更新
 #   - 手动 Run workflow：对话框里每个公开仓库一个勾选框，勾选后一键只更新它们
-#     （勾选框由每次运行结尾自动同步进本文件，无需手动维护）
+#     勾选框由每次运行自动同步（需要配置 WORKFLOW_PAT secret，见 docs/guide.md）
 on:
   schedule:
     - cron: "23 2 * * 1" # 每周一 02:23 UTC ≈ 北京时间 10:23；改频率只需改这里
@@ -26,7 +26,26 @@ on:
         type: string
         default: ""
       # <<REPO_CHECKBOXES_START>>
-      # （还没有勾选框：先手动跑一次，之后这里会自动列出每个仓库一个勾选框）
+      MultiFuncCalculator:
+        description: "MultiFuncCalculator（⭐0 · Python）"
+        type: boolean
+        default: false
+      RoboArmDev-Showcase:
+        description: "RoboArmDev-Showcase（⭐0 · Python）"
+        type: boolean
+        default: false
+      agri-ecommerce-platform:
+        description: "agri-ecommerce-platform（⭐0 · JavaScript）"
+        type: boolean
+        default: false
+      phone-hotspot-proxy:
+        description: "phone-hotspot-proxy（⭐0 · Python）"
+        type: boolean
+        default: false
+      shiyuan:
+        description: "shiyuan（⭐0 · Python）"
+        type: boolean
+        default: false
       # <<REPO_CHECKBOXES_END>>
 
 # 防止定时与手动同时运行；不取消进行中的运行
@@ -77,25 +96,18 @@ jobs:
           print(f"snapshot={(c.get('snapshot') or {}).get('path', 'data/snapshot.json')}")
           PY
 
-      - name: 生成 README 与项目介绍
+      # 解析本次要点名的仓库：勾选框优先，其次 projects_repos 字符串输入
+      - name: 解析勾选/点名的仓库
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
+        id: resolve
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           INPUT_REPOS: ${{ inputs.projects_repos }}
-          # 勾选框的全部输入（true/false），配合 data/repo_inputs.json 映射出勾选的仓库
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
-          FLAGS=""
-          [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
-          [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
-          [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
-          # 勾选框优先：读映射文件找出勾选的仓库（映射由每次运行结尾同步）
-          CHECKED=$(python3 - <<'PY'
+          REPOS=$(python3 - <<'PY'
           import json
           import os
+          import re
 
           try:
               inputs = json.loads(os.environ.get("INPUTS_JSON") or "{}")
@@ -105,26 +117,57 @@ jobs:
               mapping = json.load(open("data/repo_inputs.json", encoding="utf-8"))
           except Exception:
               mapping = {}
-          picked = sorted(name for box, name in mapping.items() if inputs.get(box) is True)
+          # 勾选框命中的仓库（映射文件由同步步骤维护；值同样过字符集白名单）
+          picked = sorted(
+              name
+              for box, name in mapping.items()
+              if inputs.get(box) is True and re.fullmatch(r"[A-Za-z0-9._-]+", name or "")
+          )
+          if not picked:
+              # 退回字符串输入：逐 token 校验仓库名字符集（非法 token 直接丢弃，防注入）
+              raw = os.environ.get("INPUT_REPOS") or ""
+              picked = [
+                  t
+                  for t in (x.strip() for x in raw.split(","))
+                  if t and re.fullmatch(r"[A-Za-z0-9._-]+", t)
+              ]
           print(",".join(picked))
           PY
           )
-          if [ -n "$CHECKED" ]; then
-            # 勾选的仓库：点名即强制重跑
-            CLEAN=$(printf '%s' "$CHECKED" | tr -cd 'A-Za-z0-9,._-')
-            [ -n "$CLEAN" ] && FLAGS="$FLAGS --repos $CLEAN"
-          elif [ -n "$INPUT_REPOS" ]; then
-            # 脚本/命令行点名（也做字符白名单防注入）
-            CLEAN=$(printf '%s' "$INPUT_REPOS" | tr -cd 'A-Za-z0-9,._-')
-            [ -n "$CLEAN" ] && FLAGS="$FLAGS --repos $CLEAN"
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
+          if [ -n "$REPOS" ]; then
+            echo "本次点名仓库：$REPOS"
+          else
+            echo "未点名仓库：按 config 规则全量处理"
+          fi
+
+      - name: 生成 README 与项目介绍
+        if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          INPUT_REPOS: ${{ steps.resolve.outputs.repos }}
+        run: |
+          FLAGS=""
+          [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
+          [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
+          [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
+          # 点名的仓库（勾选框/输入框）：点名即强制重跑
+          if [ -n "$INPUT_REPOS" ]; then
+            FLAGS="$FLAGS --repos $INPUT_REPOS"
           fi
           python -m profile_agent --config config.yaml $FLAGS
 
-      # 把当前仓库列表同步成 Run workflow 对话框里的勾选框（纯 stdlib，不调 AI、不调 API）
+      # 把当前仓库列表同步成 Run workflow 对话框里的勾选框。
+      # 改 workflow 文件需要仓库写权限，内置 GITHUB_TOKEN 没有（GitHub 硬限制），
+      # 所以自动同步依赖可选的 WORKFLOW_PAT secret；没配则只同步映射文件，勾选框保持现状。
       - name: 同步勾选框（仓库列表 → workflow 输入）
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         env:
           OWNER: ${{ github.repository_owner }}
+          WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }}
         run: |
           python3 - <<'PY'
           import json
@@ -181,7 +224,15 @@ jobs:
           updated = re.sub(re.escape(START) + r".*?" + re.escape(END), lambda _m: replacement, text, count=1, flags=re.S)
           MAPPING.parent.mkdir(parents=True, exist_ok=True)
           MAPPING.write_text(json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          if updated == text:
+          if not os.environ.get("WORKFLOW_PAT"):
+              # GITHUB_TOKEN 无权改 workflow 文件：只留映射，提示新仓库的处理办法
+              boxes = set(re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", text, re.M))
+              missing = sorted(set(mapping) - boxes)
+              if missing:
+                  print(f"::warning::未配置 WORKFLOW_PAT secret，新仓库 {'、'.join(missing)} 暂时进不了勾选框；可先用 projects_repos 输入点名。配置带 workflow 权限的 PAT 后会自动同步（见 docs/guide.md）")
+              else:
+                  print("未配置 WORKFLOW_PAT：勾选框已覆盖全部仓库（映射已同步）")
+          elif updated == text:
               print(f"勾选框无变化（{len(mapping)} 个仓库）")
           else:
               WF.write_text(updated, encoding="utf-8")
@@ -193,6 +244,9 @@ jobs:
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }}
+          NAMED_REPOS: ${{ steps.resolve.outputs.repos }}
+          INPUT_FORCE: ${{ inputs.force }}
         run: |
           set -e
           git config user.name "github-actions[bot]"
@@ -232,18 +286,44 @@ jobs:
             exit 0
           fi
 
+          # 有 WORKFLOW_PAT 时用它推送（内置 token 无权改 workflow 文件）；
+          # 认证头方式传递，不写进 remote URL，避免 token 泄漏进日志
+          AUTH=""
+          if [ -n "$WORKFLOW_PAT" ]; then
+            AUTH=$(printf 'x-access-token:%s' "$WORKFLOW_PAT" | base64 | tr -d '\n')
+          fi
+          git_push() {
+            if [ -n "$AUTH" ]; then
+              git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push "$@"
+            else
+              git push "$@"
+            fi
+          }
+          git_pull_rebase() {
+            if [ -n "$AUTH" ]; then
+              git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" pull --rebase --autostash origin main
+            else
+              git pull --rebase --autostash origin main
+            fi
+          }
+
           # ---- 1. 直接提交 main：README/统计/勾选框（非 PR 模式下也含项目介绍）----
           if [ "$has_direct" = "true" ]; then
             git commit -m "chore: 自动更新 Profile README [skip ci]"
             pushed=false
             for i in 1 2 3; do
-              if git push; then
+              if err=$(git_push 2>&1); then
                 pushed=true
                 break
               fi
+              echo "$err"
+              # 权限/认证类失败重试也没用，直接给出修法
+              if echo "$err" | grep -qE 'workflows` permission|Authentication failed|invalid username or password|Support for password authentication'; then
+                echo "::error::push 因权限/认证被拒：修改 workflow 文件需要配置 WORKFLOW_PAT secret（classic PAT 勾选 workflow 权限，见 docs/guide.md）；若已配置请检查是否过期"
+                exit 1
+              fi
               echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
-              # autostash：PR 模式下工作区还有未暂存的 docs 改动，rebase 前要先收起来
-              git pull --rebase --autostash origin main
+              git_pull_rebase
               sleep 5
             done
             if [ "$pushed" != "true" ]; then
@@ -255,11 +335,14 @@ jobs:
           # ---- 2. 项目介绍走 PR 人工审核（分支只含 docs/projects）----
           if [ "$pr_route" = "true" ]; then
             fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
-            # 只有「closed 且未合并」（你点了 Close 拒绝）的 PR 才算拒绝过；
-            # merged 的 PR 也是 closed 状态，不能算，否则合并过的批次会永远压制后续生成
-            if gh pr list --state closed --head auto/profile-update --limit 30 --json body,mergedAt \
+            # 「closed 且未合并」（你点了 Close 拒绝）的批次，常规/定时跑不再重复开 PR；
+            # 但点名重跑（勾选框/--repos/force）是显式要求，不受此压制
+            explicit=false
+            [ -n "$NAMED_REPOS" ] && explicit=true
+            [ "$INPUT_FORCE" = "true" ] && explicit=true
+            if [ "$explicit" = "false" ] && gh pr list --state closed --head auto/profile-update --limit 30 --json body,mergedAt \
                 -q '.[] | select(.mergedAt == null) | .body' | grep -qF "$fingerprint"; then
-              echo "这批内容上次被 Close 拒绝过，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
+              echo "这批内容上次被 Close 拒绝过，本次跳过（想重跑可勾选具体仓库或勾 force）"
               exit 0
             fi
             git checkout -B auto/profile-update

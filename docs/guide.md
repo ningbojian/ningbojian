@@ -111,7 +111,15 @@ projects:
 
 > **勾选框和增量检测各管一件事**：你在 GitHub 上改了仓库描述、推了代码、加了 topic——数据哈希变了，**不勾也会自动重新生成**（定时跑就是这样）。勾选框是用来对付增量检测管不到的情况：「数据没变，但我对 AI 写的这篇文案不满意，重写一版」。也就是说：数据变了等自动更新即可；想重写某篇介绍才勾它。成本上，不勾=增量零浪费，勾几个=花几次 AI 调用，明码选择。
 
-> 勾选框从哪来？工具在每次运行结束时自动把当前仓库列表同步进 workflow 文件（新仓库自动出现、删除的自动消失），首次手动运行一次后勾选框就有了，之后无需任何维护。GitHub 的触发框本身不支持动态列表，这是在它之上实现「原生勾选」的方式。
+> 勾选框从哪来？工具在每次运行结束时自动把当前仓库列表同步进 workflow 文件（新仓库自动出现、删除的自动消失）。模板仓库已预置好初始勾选框，开箱即用；GitHub 的触发框本身不支持动态列表，这是在它之上实现「原生勾选」的方式。
+
+**让新仓库自动出现在勾选框（可选，推荐花 2 分钟配一次）**：GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 永远无权修改 `.github/workflows/` 下的文件，所以「勾选框自动同步」需要你自己提供一个有 `workflow` 权限的令牌：
+
+1. 右上角头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) → **Generate new token (classic)**，只勾 **workflow** 这一项权限，有效期自选
+2. 回到本仓库 → Settings → Secrets and variables → Actions → **New repository secret**，名称填 `WORKFLOW_PAT`，值粘贴刚生成的 token
+3. 完成。之后每次运行会自动把新增/删除的仓库同步进勾选框，无需再管
+
+> **不配置也完全能用**：已有的勾选框照常勾选、照常生效；只是新建仓库暂时不会出现在勾选框里（运行日志会有一条 warning 提醒），期间想更新新仓库就用 `projects_repos` 输入框点名，或在本地跑 `--repos 仓库名`。配置 `WORKFLOW_PAT` 后新仓库自动补进勾选框。另外注意：如果你编辑过 workflow 文件（比如改了 cron），内置 token 同样推不上去，也会需要这个 secret。
 
 **命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在对话框的 `projects_repos` 输入框填逗号分隔仓库名（留空=按 config 规则；`all`=全部精选）。点名的仓库同样是强制重新生成语义。
 
@@ -161,6 +169,7 @@ readme:
     theme: "github_dark"   # github_dark | github_light 等
     show: ["stats", "top_langs", "streak"]  # 三种卡片任选
   include_update_time: true
+  visitors_badge: false   # true = 主页嵌入「主页访问量」计数徽章（komarev.com 免费第三方服务，页面渲染一次 +1；GitHub 不提供官方的主页访问量 API，这是业界通行做法）
 ai:
   enabled: true
   model: "claude-opus-5-5" # 降本可换 "claude-haiku-5-5"
@@ -182,7 +191,7 @@ projects:
 ## 常见问题
 
 - **想关掉自动更新**：`config.yaml` 里 `schedule.enabled: false` 提交即可；或在 Actions 页面 Disable workflow。
-- **Run workflow 对话框里没有仓库勾选框**：勾选框是第一次运行后自动生成的——先什么都不勾手动跑一次，再打开对话框就有了。
+- **Run workflow 对话框里没有仓库勾选框**：模板预置了初始勾选框；如果对话框里没有（或缺了你新建的仓库），说明自动同步未配置——按上文「让新仓库自动出现在勾选框」配置 `WORKFLOW_PAT`，急用可先在 `projects_repos` 里点名。
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **README 被我改坏了**：手动改动会被下次运行覆盖——所有可定制内容都在 `config.yaml` 与 `templates/profile.md.j2` 里改。
 - **数据是旧的**：Actions 手动触发 + force 即可刷新。
