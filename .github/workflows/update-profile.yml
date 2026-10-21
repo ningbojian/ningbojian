@@ -227,18 +227,24 @@ jobs:
           body = "\n".join(lines) if lines else "      # （暂无公开仓库）"
           replacement = START + "\n" + body + "\n      " + END
           updated = re.sub(re.escape(START) + r".*?" + re.escape(END), lambda _m: replacement, text, count=1, flags=re.S)
+          pat = bool(os.environ.get("WORKFLOW_PAT"))
+          # 只看标记区块内部的输入项（比全文扫描更精确，无需排除保留字）
+          block = re.search(re.escape(START) + r"\n(.*?)(?:\n[ \t]*)?" + re.escape(END), text, re.S)
+          file_boxes = (
+              set(re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", block.group(1), re.M))
+              if block
+              else set()
+          )
+          missing = sorted(set(mapping) - file_boxes)
+          stale = sorted(file_boxes - set(mapping))
+          if not pat and not file_boxes:
+              # 模板纯净原则：区块为空 + 无 PAT → 连映射也不写，不把任何仓库名留进文件
+              print("::warning::未配置 WORKFLOW_PAT：对话框还没有勾选框（模板保持纯净，不写入任何仓库名）。配置后第一次运行会自动生成你自己的勾选框（见 docs/guide.md）；期间可用 projects_repos 输入框点名")
+              raise SystemExit(0)
           MAPPING.parent.mkdir(parents=True, exist_ok=True)
           MAPPING.write_text(json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          if not os.environ.get("WORKFLOW_PAT"):
+          if not pat:
               # GITHUB_TOKEN 无权改 workflow 文件：只留映射，提示新仓库与残留勾选框
-              FIXED = {"force", "update_readme", "update_projects", "projects_repos"}
-              boxes = {
-                  b
-                  for b in re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", text, re.M)
-                  if b not in FIXED
-              }
-              missing = sorted(set(mapping) - boxes)
-              stale = sorted(boxes - set(mapping))
               if missing:
                   print(f"::warning::未配置 WORKFLOW_PAT secret，新仓库 {'、'.join(missing)} 暂时进不了勾选框；可先用 projects_repos 输入点名。配置带 repo/workflow 权限的 classic PAT 后会自动同步（见 docs/guide.md）")
               if stale:
