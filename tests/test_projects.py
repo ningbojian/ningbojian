@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from profile_agent.config import AIConfig, ProjectsConfig
 from profile_agent.models import Repo
 from profile_agent.projects import (
+    build_intro_prompt,
     generate_project_intro,
     intro_filename,
     intro_input_hash,
@@ -129,3 +130,81 @@ def test_update_intros_ai_error_keeps_data_stub(tmp_path: Path):
     infos = update_project_intros([REPO], proj, AIConfig(), {}, client=Boom(), allow_ai=True)
     assert infos["alice/cool-tool"]["ai_generated"] is False
     assert (tmp_path / "docs" / "projects" / "cool-tool.md").exists()
+
+
+# ---- 信息熵优化：README 作为事实来源喂给模型 ----
+
+
+def test_build_intro_prompt_includes_readme_context():
+    prompt = build_intro_prompt(REPO, readme="# cool-tool\n实现了 X 编译器，支持插件化架构")
+    assert "README" in prompt
+    assert "X 编译器" in prompt and "插件化架构" in prompt
+    assert "一个很酷的工具" in prompt  # 已知事实仍在
+
+
+def test_build_intro_prompt_without_readme_says_so():
+    prompt = build_intro_prompt(REPO)
+    assert "没有可用的 README" in prompt
+    assert "一个很酷的工具" in prompt
+
+
+def test_build_intro_prompt_truncates_long_readme():
+    prompt = build_intro_prompt(REPO, readme="x" * 20000)
+    assert "已截断" in prompt
+    assert len(prompt) < 10000  # 不会把超长 README 原样塞进 prompt
+
+
+def test_update_intros_feeds_readme_to_ai_when_generating(tmp_path: Path):
+    proj = ProjectsConfig(dir=str(tmp_path / "docs/projects"))
+    ai = AIConfig(model="m")
+    client = FakeClient(["有内容的项目介绍"])
+    fetched: list[str] = []
+
+    def fetch(full_name: str) -> str:
+        fetched.append(full_name)
+        return "# 工具说明\n支持插件化架构与热加载"
+
+    infos = update_project_intros(
+        [REPO], proj, ai, {}, client=client, allow_ai=True, fetch_readme=fetch
+    )
+    assert fetched == ["alice/cool-tool"]
+    prompt = client.calls[0]["messages"][0]["content"]
+    assert "支持插件化架构与热加载" in prompt
+    assert infos["alice/cool-tool"]["ai_generated"] is True
+
+
+def test_update_intros_fetch_failure_still_generates(tmp_path: Path):
+    proj = ProjectsConfig(dir=str(tmp_path / "docs/projects"))
+    client = FakeClient(["降级后的项目介绍。"])
+
+    def boom(full_name: str) -> str:
+        raise RuntimeError("网络错误")
+
+    infos = update_project_intros(
+        [REPO], proj, AIConfig(), {}, client=client, allow_ai=True, fetch_readme=boom
+    )
+    prompt = client.calls[0]["messages"][0]["content"]
+    assert "没有可用的 README" in prompt  # 读取失败 → 退回只用事实
+    assert infos["alice/cool-tool"]["ai_generated"] is True
+    assert (tmp_path / "docs" / "projects" / "cool-tool.md").exists()
+
+
+def test_update_intros_skips_fetch_when_unchanged(tmp_path: Path):
+    proj = ProjectsConfig(dir=str(tmp_path / "docs/projects"))
+    ai = AIConfig()
+    client = FakeClient(["不该被调用"])
+    out_dir = tmp_path / "docs" / "projects"
+    out_dir.mkdir(parents=True)
+    (out_dir / "cool-tool.md").write_text("已有内容", encoding="utf-8")
+    fetched: list[str] = []
+
+    update_project_intros(
+        [REPO],
+        proj,
+        ai,
+        {"alice/cool-tool": {"intro_hash": intro_input_hash(REPO, ai), "ai_generated": True}},
+        client=client,
+        allow_ai=True,
+        fetch_readme=lambda name: fetched.append(name) or "README",
+    )
+    assert fetched == []  # 无变化 → 不拉 README、不调 AI

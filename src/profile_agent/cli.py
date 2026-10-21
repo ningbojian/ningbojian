@@ -91,14 +91,15 @@ def run(
     projects_active = cfg.projects.enabled and not skip_projects
 
     # 1. 取数
+    gh_client: GitHubClient | None = None
     try:
         if fixture is not None:
             user, raw_repos = _load_fixture(fixture, cfg.github.username)
         else:
             token = os.environ.get(cfg.github.token_env) or None
-            client = GitHubClient(token)
-            user = client.get_user(cfg.github.username)
-            raw_repos = client.list_repos(cfg.github.username)
+            gh_client = GitHubClient(token)
+            user = gh_client.get_user(cfg.github.username)
+            raw_repos = gh_client.list_repos(cfg.github.username)
     except (GitHubError, OSError) as exc:
         print(f"获取数据失败：{exc}", file=sys.stderr)
         return 3
@@ -158,7 +159,6 @@ def run(
             print(f"简介生成失败，沿用旧简介：{exc}", file=sys.stderr)
 
     # 5. 项目介绍（方向二：仓库级增量；include/exclude 多选控制）
-    intro_urls: dict[str, str] = {}
     project_states: dict[str, dict] = {}
     if projects_active and proj_targets:
         project_states = update_project_intros(
@@ -167,13 +167,9 @@ def run(
             cfg.ai,
             _prev_repo_states(prev),
             allow_ai=ai_active,
+            # 真实抓取时把各仓库 README 拉下来喂给模型（介绍内容的信息密度来源）
+            fetch_readme=gh_client.get_repo_readme if gh_client else None,
         )
-        intro_urls = {
-            name: (Path(cfg.projects.dir) / intro_filename(r)).as_posix()
-            for name in project_states
-            for r in proj_targets
-            if r.full_name == name
-        }
 
     now_bj = datetime.now(_BEIJING)
     changed = False
@@ -189,7 +185,6 @@ def run(
             cards_show=cfg.readme.cards.show,
             include_update_time=cfg.readme.include_update_time,
             updated_at=now_bj.strftime("%Y-%m-%d %H:%M") + "（北京时间）",
-            intro_urls=intro_urls,
         )
         content = render_readme(ctx, template_path)
 

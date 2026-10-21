@@ -1,5 +1,7 @@
 """github_client.py 测试：用假 session，无网络。"""
 
+import base64
+
 import pytest
 
 from profile_agent.github_client import GitHubClient, GitHubError
@@ -74,3 +76,18 @@ def test_not_found_raises_chinese_error():
     client = GitHubClient(token=None, session=session)
     with pytest.raises(GitHubError, match="不存在"):
         client.get_user("ghost-user-xyz")
+
+
+def test_get_repo_readme_decodes_base64_content():
+    text = "# cool-tool\n一个很酷的工具，支持 A/B。"
+    b64 = base64.b64encode(text.encode("utf-8")).decode()
+    session = FakeSession([FakeResponse(json_data={"content": b64, "encoding": "base64"})])
+    client = GitHubClient(token=None, session=session)
+    assert client.get_repo_readme("alice/cool-tool") == text
+    assert session.requests[0]["url"] == "https://api.github.com/repos/alice/cool-tool/readme"
+
+
+def test_get_repo_readme_missing_returns_empty_string():
+    session = FakeSession([FakeResponse(status=404, text="not found")])
+    client = GitHubClient(token=None, session=session)
+    assert client.get_repo_readme("alice/no-readme") == ""

@@ -91,7 +91,11 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}" docs/projects 2>/dev/null || true
+          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}"
+          # docs/projects 不存在时不能进 git add 参数（pathspec 未匹配会让整个 add 失败）
+          if [ -d docs/projects ]; then
+            git add docs/projects
+          fi
           if git diff --cached --quiet; then
             echo "无变更，跳过提交"
             exit 0
@@ -126,12 +130,18 @@ jobs:
           else
             git commit -m "chore: 自动更新 Profile README [skip ci]"
             # 运行期间 main 可能被网页编辑推进过 → 自动 rebase 重试，避免非快失败
+            pushed=false
             for i in 1 2 3; do
               if git push; then
+                pushed=true
                 break
               fi
               echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
               git pull --rebase origin main
               sleep 5
             done
+            if [ "$pushed" != "true" ]; then
+              echo "::error::push 失败（可能与 main 上的手工修改冲突），请打开本次运行日志检查，或手动合并后重新运行工作流"
+              exit 1
+            fi
           fi

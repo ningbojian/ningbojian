@@ -113,3 +113,30 @@ def test_render_shows_topic_chips():
     assert "`#python`" in out and "`#cli`" in out
     # 无 topics 的仓库不出现标签行残留
     assert "#javascript" not in out
+
+
+def test_render_has_no_per_repo_intro_links():
+    """主页不再逐仓库链接 docs/projects 文件（信息熵低 + 多余点击）。"""
+    out = render_readme(_ctx(), TEMPLATE)
+    assert "项目介绍与简历素材" not in out
+    assert "docs/projects" not in out
+    assert "📄" not in out
+
+
+def test_render_meta_line_is_single_line():
+    """语言 · forks · topics 合并成一行，条目之间有空行分隔。"""
+    ctx = _ctx()
+    ctx.featured[0].topics = ["python", "cli"]
+    out = render_readme(ctx, TEMPLATE)
+    assert "`Python` · 🍴 12 · `#python` · `#cli`" in out
+    assert "`#cli`\n\n### [web-app]" in out  # 下一条目前有空行
+
+
+def test_render_meta_line_without_language_has_no_leading_separator():
+    ctx = _ctx()
+    ctx.featured[0].language = ""
+    ctx.featured[0].topics = ["python"]
+    out = render_readme(ctx, TEMPLATE)
+    section = out.split("[web-app]")[0]  # 只看第一个仓库的段落
+    assert "🍴 12 · `#python`" in section
+    assert "· 🍴" not in section

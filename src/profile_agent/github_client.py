@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import re
 import time
 from typing import Callable
@@ -33,7 +34,7 @@ class GitHubClient:
         self._sleep = sleep
         self._max_retries = max_retries
 
-    def _get(self, url: str) -> tuple[dict | list | None, dict]:
+    def _get(self, url: str, *, allow_404: bool = False) -> tuple[dict | list | None, dict]:
         for attempt in range(self._max_retries + 1):
             resp = self._session.get(url, headers=self._headers, timeout=30)
             if resp.status_code == 200:
@@ -44,6 +45,8 @@ class GitHubClient:
                     f"GitHub API 限流（速率已达上限），重置时间戳：{reset}，请稍后再试"
                 )
             if resp.status_code == 404:
+                if allow_404:
+                    return None, resp.headers
                 raise GitHubError("GitHub API 返回 404：用户不存在或仓库不可见")
             if resp.status_code >= 500 and attempt < self._max_retries:
                 self._sleep(0.5 * (attempt + 1))
@@ -67,3 +70,19 @@ class GitHubClient:
             match = _NEXT_RE.search(headers.get("Link", ""))
             url = match.group(1) if match else None
         return repos
+
+    def get_repo_readme(self, full_name: str) -> str:
+        """读取仓库 README 文本；无 README 或读取失败时返回空串（不报错）。"""
+        try:
+            data, _ = self._get(f"{API}/repos/{full_name}/readme", allow_404=True)
+        except GitHubError:
+            return ""
+        if not isinstance(data, dict):
+            return ""
+        content = str(data.get("content") or "")
+        if data.get("encoding") != "base64" or not content:
+            return ""
+        try:
+            return base64.b64decode(content).decode("utf-8", errors="replace")
+        except (ValueError, OSError):
+            return ""

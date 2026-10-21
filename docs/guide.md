@@ -21,7 +21,7 @@
 2. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用（AI 内容降级为数据版）。
 3. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
    - **overview 更新**直接出现在 README；
-   - **项目介绍 / 简历素材**（AI 生成内容）会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才发布；不想要就点 **Close**（同一内容之后不会重复打扰你）。
+   - **项目介绍 / 简历素材**（AI 生成内容）会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才把文件放进 `docs/projects/`（你的简历素材库，**不会逐个链接到主页**，主页保持干净）；不想要就点 **Close**（同一内容之后不会重复打扰你）。
 
 之后每周一定时自动更新（北京时间约 10:23），也可随时手动触发。所有可选项都在 `config.yaml` 里，网页上点 Edit 就能改。
 
@@ -107,13 +107,15 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
+介绍内容以**各仓库的 README 为主要事实来源**（只有真正要生成/更新某个仓库的介绍时才会去拉它的 README，无变化不调用）；仓库没有 README 时退回只用 GitHub 上的描述等事实信息。
+
 ## AI 内容审核流（Pull Request）
 
 你没有直接审核窗口的问题不存在——**所有 AI 写的项目介绍都必须经过你的 PR 审核才会公开**：
 
 1. 运行发现介绍有变化（新仓库、数据变了、prompt 升级）→ 自动开一个 PR「AI 项目介绍更新（待审核）」
 2. 你在 PR 的 **Files changed** 里看 Diff，不满意可以直接在网页上编辑文件
-3. 点 **Merge** → 内容发布到你的主页；点 **Close** → 不发布，且**同一批内容之后不会重复开 PR**打扰你（想强制重新生成：改 `config.yaml` 里 `ai.prompt_version` 为 2 再手动触发 force）
+3. 点 **Merge** → 文件进入 `docs/projects/`（简历素材库，不占用主页）；点 **Close** → 不发布，且**同一批内容之后不会重复开 PR**打扰你（想强制重新生成：改 `config.yaml` 里 `ai.prompt_version` 为 2 再手动触发 force）
 
 纯统计/overview 的机械更新不走 PR、直接生效，不打断你。想关掉审核流直接提交：`projects.review_via_pr: false`（不建议）。
 

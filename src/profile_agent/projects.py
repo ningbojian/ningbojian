@@ -21,6 +21,9 @@ _SYSTEM = (
     "只输出正文，不要 markdown 一级标题、代码块或解释。"
 )
 
+# 喂给模型的 README 最大长度（字符），防止超长 README 撑爆 prompt
+_README_MAX_CHARS = 6000
+
 
 def intro_filename(repo: Repo) -> str:
     safe = re.sub(r"[^\w.\-]+", "-", repo.name).strip("-") or "repo"
@@ -41,7 +44,12 @@ def intro_input_hash(repo: Repo, cfg: AIConfig) -> str:
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
-def build_intro_prompt(repo: Repo) -> str:
+def build_intro_prompt(repo: Repo, readme: str = "") -> str:
+    """构建项目介绍 prompt。
+
+    有仓库 README 时把它作为主要事实来源（信息密度的关键：只靠
+    description+stars 一句话事实，模型写不出有内容的介绍）；没有则退回已知事实。
+    """
     facts = json.dumps(
         {
             "name": repo.name,
@@ -49,17 +57,28 @@ def build_intro_prompt(repo: Repo) -> str:
             "language": repo.language,
             "stars": repo.stars,
             "forks": repo.forks,
+            "topics": repo.topics,
             "pushed_at": repo.pushed_at.isoformat() if repo.pushed_at else None,
         },
         ensure_ascii=False,
         indent=2,
     )
+    text = (readme or "").strip()
+    if len(text) > _README_MAX_CHARS:
+        text = text[:_README_MAX_CHARS] + "\n……（README 过长，已截断）"
+    if text:
+        context = f"仓库 README 内容（主要事实来源，从中提取功能、架构与技术选型）：\n{text}"
+    else:
+        context = "仓库没有可用的 README，只能使用上面的已知事实，缺失的信息不要虚构。"
     return (
-        f"请为下面这个 GitHub 项目写中文介绍，包含三部分：\n"
-        f"1. “项目介绍”：2-3 句话说明它解决什么问题、怎么解决；\n"
-        f"2. “亮点”：3-5 条要点，每条以“- ”开头、不超过 30 字，只写可验证的事实；\n"
-        f"3. “简历素材”：一段 40-80 字、可直接放进简历项目经历的描述，突出技术栈与成果，不要夸大。\n"
-        f"已知事实（不得编造超出这些事实的内容，缺失的信息不要虚构）：\n{facts}\n"
+        f"请为下面这个 GitHub 项目写中文介绍，读者是招聘方与潜在协作者，"
+        f"要求信息密度高、只写可验证的事实：\n"
+        f"1. “项目介绍”：2-4 句话，说明它解决什么问题、核心功能与实现方式；\n"
+        f"2. “亮点”：3-5 条以“- ”开头的要点（每条不超过 40 字），"
+        f"优先从 README 提取架构、关键功能、技术选型等具体信息；\n"
+        f"3. “简历素材”：一段 60-100 字、可直接放进简历项目经历的描述，"
+        f"突出技术栈与可量化成果，不要夸大。\n"
+        f"已知事实（不得编造超出这些事实的内容）：\n{facts}\n\n{context}\n"
     )
 
 
@@ -98,13 +117,13 @@ def _data_stub(repo: Repo) -> str:
 
 
 def generate_project_intro(
-    repo: Repo, cfg: AIConfig, *, client=None, http_post=None
+    repo: Repo, cfg: AIConfig, *, client=None, http_post=None, readme: str = ""
 ) -> str:
     """调用配置的模型生成项目介绍正文（无文件头）。"""
     from .bio import chat_text
 
     text = chat_text(
-        cfg, _SYSTEM, build_intro_prompt(repo), client=client, http_post=http_post
+        cfg, _SYSTEM, build_intro_prompt(repo, readme), client=client, http_post=http_post
     ).strip()
     if not text:
         raise RuntimeError("模型返回了空的项目介绍")
@@ -119,11 +138,14 @@ def update_project_intros(
     *,
     client=None,
     allow_ai: bool = True,
+    fetch_readme=None,
 ) -> dict[str, dict]:
     """按仓库增量生成/更新介绍文件。返回每仓库的新状态。
 
-    - hash 匹配且文件存在 → 跳过（不调 API、不写文件），沿用旧状态
-    - 否则重新生成：AI 可用且成功 → AI 正文；否则 → 数据版占位
+    - hash 匹配且文件存在 → 跳过（不调 API、不写文件、不拉 README），沿用旧状态
+    - 否则重新生成：AI 可用且成功 → AI 正文（用 fetch_readme 拉到的 README
+      作为事实来源）；否则 → 数据版占位
+    - fetch_readme 失败不影响生成（退回只用 API 事实）
     """
     out_dir = Path(proj_cfg.dir)
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -141,8 +163,14 @@ def update_project_intros(
         body = None
         ai_generated = False
         if allow_ai:
+            readme = ""
+            if fetch_readme is not None:
+                try:
+                    readme = fetch_readme(repo.full_name) or ""
+                except Exception:
+                    readme = ""
             try:
-                body = generate_project_intro(repo, ai_cfg, client=client)
+                body = generate_project_intro(repo, ai_cfg, client=client, readme=readme)
                 ai_generated = True
             except Exception:
                 body = None

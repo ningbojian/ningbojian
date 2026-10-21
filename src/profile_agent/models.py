@@ -51,7 +51,6 @@ class TemplateContext:
     cards_show: list[str] = field(default_factory=lambda: ["stats", "top_langs", "streak"])
     include_update_time: bool = True
     updated_at: str = ""
-    intro_urls: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

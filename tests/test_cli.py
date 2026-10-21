@@ -97,6 +97,19 @@ def _with_env(monkeypatch, **env):
         monkeypatch.setenv(k, v)
 
 
+def _block_project_ai(monkeypatch):
+    """挡掉项目介绍的真实 AI 调用：让 update_project_intros 快速降级为数据版。
+
+    这些测试关注的是 bio/门控逻辑；不挡的话 anthropic SDK 会真的去连网络。
+    """
+    import profile_agent.projects as projects_mod
+
+    def fake(repo, cfg, **kwargs):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(projects_mod, "generate_project_intro", fake)
+
+
 def test_env_username_fallback_zero_config(tmp_path, monkeypatch):
     """fork 即用：config 里 username 留空，靠 GITHUB_REPOSITORY_OWNER 兜底。"""
     cfg = tmp_path / "config.yaml"
@@ -132,6 +145,7 @@ def _gen(monkeypatch, texts, calls):
 def test_ai_bio_generated_then_gate_skips(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path)
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    _block_project_ai(monkeypatch)
     calls = []
     _gen(monkeypatch, [("初始简介", True)], calls)
     assert run(cfg, fixture=FIXTURES) == 0
@@ -145,6 +159,7 @@ def test_ai_bio_generated_then_gate_skips(tmp_path, monkeypatch):
 def test_stale_bio_regenerates_even_when_data_unchanged(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path)
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    _block_project_ai(monkeypatch)
     calls = []
     _gen(monkeypatch, [("初始简介", True), ("刷新后的简介", True)], calls)
     run(cfg, fixture=FIXTURES)
@@ -185,6 +200,7 @@ def test_ai_failure_with_no_previous_bio_returns_zero(tmp_path, monkeypatch):
 
     cfg = _write_config(tmp_path)
     _with_env(monkeypatch, ANTHROPIC_API_KEY="bad-key")
+    _block_project_ai(monkeypatch)
     monkeypatch.setattr(
         cli_mod, "generate_bio", lambda *a, **k: (_ for _ in ()).throw(BioError("boom"))
     )

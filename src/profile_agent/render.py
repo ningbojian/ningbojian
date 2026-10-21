@@ -29,7 +29,6 @@ def render_readme(ctx: TemplateContext, template_path: Path) -> str:
         cards_show=ctx.cards_show,
         include_update_time=ctx.include_update_time,
         updated_at=ctx.updated_at,
-        intro_urls=ctx.intro_urls,
     )
 
 
