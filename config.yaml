@@ -1,0 +1,43 @@
+# GitHub Overview Auto Agent 配置文件
+# 使用指南见 docs/guide.md
+
+schedule:
+  enabled: true # false = 关闭定时自动更新（GitHub Actions 手动触发仍可用）
+
+github:
+  username: "" # 必填：你的 GitHub 用户名
+  token_env: "GITHUB_TOKEN" # token 所在环境变量名（Actions 内置 GITHUB_TOKEN 即可）
+
+repos:
+  exclude_forks: true
+  exclude_archived: false
+  exclude: [] # 仓库名黑名单，如 ["you/you"]（profile 仓库自身）
+
+featured:
+  count: 6
+  min_stars: 0
+  recency_days: 365 # 只考虑此时间内有 push 的仓库；0 = 不限
+  sort_by: "score" # score | stars | updated
+  score_stars_weight: 1.0
+  score_recency_weight: 0.5
+
+readme:
+  path: "README.md"
+  template: "templates/profile.md.j2"
+  cards:
+    theme: "github_dark"
+    show: ["stats", "top_langs", "streak"] # 可选: stats, top_langs, streak
+  include_update_time: true
+
+ai:
+  enabled: true
+  model: "claude-opus-5-5" # 降本可改 "claude-haiku-5-5"
+  max_repos: 15 # 喂给模型的仓库数上限
+  max_age_days: 14 # 简介最长复用天数，超过才重新生成
+  bio_min_chars: 100
+  bio_max_chars: 150
+  language: "zh-CN"
+  prompt_version: 1 # 改 prompt 时 +1，强制重新生成简介
+
+snapshot:
+  path: "data/snapshot.json"

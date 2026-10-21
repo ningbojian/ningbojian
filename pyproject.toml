@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "profile-agent"
+version = "0.1.0"
+description = "自动维护 GitHub Profile README 的小工具"
+readme = "docs/guide.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+profile-agent = "profile_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
