@@ -1,0 +1,66 @@
+name: Update Profile README
+
+on:
+  schedule:
+    - cron: "23 2 * * 1" # 每周一 02:23 UTC ≈ 北京时间 10:23；改频率只需改这里
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "忽略增量检测，强制重新生成"
+        type: boolean
+        default: false
+
+# 防止定时与手动同时运行；不取消进行中的运行
+concurrency:
+  group: update-profile
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查定时开关（schedule.enabled）
+        if: github.event_name == 'schedule'
+        id: check
+        run: |
+          pip install pyyaml -q
+          enabled=$(python3 -c "import yaml; c=yaml.safe_load(open('config.yaml',encoding='utf-8')) or {}; print('true' if (c.get('schedule') or {}).get('enabled', True) else 'false')")
+          echo "schedule=$enabled" >> "$GITHUB_OUTPUT"
+          if [ "$enabled" != "true" ]; then
+            echo "定时更新已关闭（config.yaml 中 schedule.enabled=false），本次跳过"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        run: pip install .
+
+      - name: 生成 README
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m profile_agent --config config.yaml ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+
+      - name: 提交变更（仅有差异时）
+        if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md data/snapshot.json
+          if git diff --cached --quiet; then
+            echo "无变更，跳过提交"
+          else
+            git commit -m "chore: 自动更新 Profile README [skip ci]"
+            git push
+          fi
