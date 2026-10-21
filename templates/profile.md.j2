@@ -1,0 +1,58 @@
+<!-- 此 README 由 profile-agent 自动生成，请勿手动修改。
+     配置见 config.yaml，使用指南见 docs/guide.md -->
+
+# 👋 你好，我是 {{ display_name or username }}
+
+{% if bio_text %}
+{{ bio_text }}
+{% else %}
+<!-- AI 简介暂不可用：配置 ANTHROPIC_API_KEY 后运行 profile-agent 即可生成 -->
+{% endif %}
+
+{% if cards_show %}
+<p align="center">
+{% if "stats" in cards_show %}
+  <img src="https://github-readme-stats.vercel.app/api?username={{ username }}&amp;theme={{ cards_theme }}&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
+{% endif %}
+{% if "top_langs" in cards_show %}
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username={{ username }}&amp;layout=compact&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="语言分布卡片" />
+{% endif %}
+{% if "streak" in cards_show %}
+  <img src="https://streak-stats.demolab.com/?user={{ username }}&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="连续贡献卡片" />
+{% endif %}
+</p>
+{% endif %}
+
+## 📊 仓库统计
+
+| 指标 | 数值 |
+| --- | --- |
+| 公开仓库 | {{ totals.public_repos }} |
+| Followers | {{ totals.followers }} |
+| 总 Star | {{ totals.total_stars }} |
+
+{% if totals.top_languages %}
+**主要语言**：
+{% for lang, stars in totals.top_languages[:5] %}
+`{{ lang }}`（{{ stars }}★）{{ " · " if not loop.last else "" }}
+{% endfor %}
+{% endif %}
+
+## 🌟 精选项目
+
+{% for repo in featured %}
+### [{{ repo.name }}]({{ repo.html_url }}) ⭐ {{ repo.stars }}
+
+{{ repo.description or "（暂无描述）" }}
+
+{% if repo.language %}`{{ repo.language }}`{% endif %}{% if repo.forks %} · 🍴 {{ repo.forks }}{% endif %}
+
+{% else %}
+<!-- 暂无符合条件的精选项目 -->
+{% endfor %}
+
+{% if include_update_time %}
+---
+
+> ⏱️ 本页面由机器人于 {{ updated_at }} 自动更新
+{% endif %}
