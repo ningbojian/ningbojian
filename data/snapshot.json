@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:b6c2f218296117cd4af80f54c8599d9a1f01766792cce4e07ccee24ff145c24c",
+  "stats_fingerprint": "sha256:5dda16c4f796afa9141fbbd7ec90c916b7bb4714ada98e10c2351117bfdab124",
   "stats_config_hash": "sha256:ed9033a9837b942e42eb981f5a6ee641cc864406849840a1f3c1ed048b21edb9",
   "totals": {
     "public_repos": 9,
@@ -10,20 +10,21 @@
   },
   "repos": [
     {
-      "full_name": "ningbojian/ningbojian",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-21T15:21:10+00:00",
-      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
-    },
-    {
       "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T15:22:41+00:00",
-      "short_intro": "自动维护 GitHub 个人主页 README：仓库统计、项目卡片、中文 AI 简介与简历素材，定时增量更新，AI 内容经 PR 审核后合并。",
-      "short_intro_hash": "sha256:fe4a8485a989f380cd20ae88eeed93fe5f2e04bfb1ddb1809ee41dfc594845bd"
+      "intro_hash": "sha256:5f28685b121c4b81f36d4eb1b0cb904774b863f85514821f635fcf54a3c852a7",
+      "intro_generated_at": "2026-10-21T15:33:37.508058+00:00",
+      "ai_generated": true
+    },
+    {
+      "full_name": "ningbojian/ningbojian",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-21T15:31:56+00:00",
+      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
+      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -66,8 +67,9 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-09-26T12:05:44+00:00",
-      "short_intro": "连上手机热点后双击即可自动探测手机侧代理并接入 Windows 系统代理，无需手动查 IP 和端口，关窗自动关闭，原设置备份可随时还原，单文件零依赖，仅用 Py",
-      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
+      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
+      "intro_generated_at": "2026-10-21T15:33:37.508058+00:00",
+      "ai_generated": true
     }
   ],
   "bio": {
@@ -77,5 +79,5 @@
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
-  "generated_at": "2026-10-21T15:29:26.270371+00:00"
+  "generated_at": "2026-10-21T15:34:21.322807+00:00"
 }
