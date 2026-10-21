@@ -27,23 +27,27 @@ on:
         default: ""
       # <<REPO_CHECKBOXES_START>>
       MultiFuncCalculator:
-        description: "MultiFuncCalculator（⭐0 · Python）"
+        description: "MultiFuncCalculator（2026-10-19 推送）"
+        type: boolean
+        default: false
+      ProfileReadmeAgent:
+        description: "ProfileReadmeAgent（2026-10-21 推送）"
         type: boolean
         default: false
       RoboArmDev-Showcase:
-        description: "RoboArmDev-Showcase（⭐0 · Python）"
+        description: "RoboArmDev-Showcase（2026-10-19 推送）"
         type: boolean
         default: false
       agri-ecommerce-platform:
-        description: "agri-ecommerce-platform（⭐0 · JavaScript）"
+        description: "agri-ecommerce-platform（2026-10-20 推送）"
         type: boolean
         default: false
       phone-hotspot-proxy:
-        description: "phone-hotspot-proxy（⭐0 · Python）"
+        description: "phone-hotspot-proxy（2026-09-26 推送）"
         type: boolean
         default: false
       shiyuan:
-        description: "shiyuan（⭐0 · Python）"
+        description: "shiyuan（2026-10-20 推送）"
         type: boolean
         default: false
       # <<REPO_CHECKBOXES_END>>

@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:e06e71fad8bcc1026ec7439a7e4b432c2de673e085e45a59918abf498eda6658",
-  "stats_config_hash": "sha256:7e4d3601df15fdc122049d2dac9aa9b8f368bc35f1c76fda2487d4da2ada4001",
+  "stats_fingerprint": "sha256:074f6f5e3de509558084993cd1b4639d1628ac9c89d96fa47fbd483997dc83f4",
+  "stats_config_hash": "sha256:cdec9a72f6781bf89b62f0121736e68770beab0a2c09ce7b3d9bcff24d83e04b",
   "totals": {
-    "public_repos": 8,
+    "public_repos": 9,
     "followers": 2,
     "total_stars": 0
   },
@@ -13,14 +13,23 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "intro_hash": "sha256:fbf43fad8f26bcdd19dda146fb07169b417d5e521853821ee8eb9dde2962cf22",
-      "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
-      "ai_generated": false
+      "pushed_at": "2026-10-21T13:37:03+00:00",
+      "short_intro": "个人主页 README 源仓库，由 profile-agent 根据 config.yaml 自动生成，展示统计数据、语言分布与精选项目列表。",
+      "short_intro_hash": "sha256:c0e05e124cdacebb65f8d1454fa20cdbe57b828f61a00d346a84517f962ce833"
+    },
+    {
+      "full_name": "ningbojian/ProfileReadmeAgent",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-21T13:23:29+00:00",
+      "short_intro": "通过 GitHub Actions workflow 自动生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介，可通过配置 ANTHROPI",
+      "short_intro_hash": "sha256:174f8525a316653319ef19918ef79b23ac01951e750a3955c3f9c8ead881f784"
     },
     {
       "full_name": "ningbojian/shiyuan",
       "stars": 0,
       "language": "Python",
+      "pushed_at": "2026-10-20T18:27:15+00:00",
       "intro_hash": "sha256:48557513b6c07f4d69a146d1f656a5323465c593dc0e8616f064cd7b2a76ff3d",
       "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
       "ai_generated": false
@@ -29,6 +38,7 @@
       "full_name": "ningbojian/agri-ecommerce-platform",
       "stars": 0,
       "language": "JavaScript",
+      "pushed_at": "2026-10-20T10:25:06+00:00",
       "intro_hash": "sha256:820c57992f159e8417cf955b887616859c6058a1097e0720aef9fc91da5b8c65",
       "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
       "ai_generated": false
@@ -37,6 +47,7 @@
       "full_name": "ningbojian/RoboArmDev-Showcase",
       "stars": 0,
       "language": "Python",
+      "pushed_at": "2026-10-19T17:03:05+00:00",
       "intro_hash": "sha256:4b56b8f43143b17f3f14f6fb9f4c0f96c0038b229f6aabed78c57aff4d3c14b6",
       "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
       "ai_generated": false
@@ -45,6 +56,7 @@
       "full_name": "ningbojian/MultiFuncCalculator",
       "stars": 0,
       "language": "Python",
+      "pushed_at": "2026-10-19T12:55:22+00:00",
       "intro_hash": "sha256:92f1d231cc511c54d4e0b910e68493ec439ba4b67a99ee94c9c938a9a383f308",
       "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
       "ai_generated": false
@@ -53,17 +65,18 @@
       "full_name": "ningbojian/phone-hotspot-proxy",
       "stars": 0,
       "language": "Python",
+      "pushed_at": "2026-09-26T12:05:44+00:00",
       "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
       "intro_generated_at": "2026-10-21T06:14:32.182780+00:00",
       "ai_generated": false
     }
   ],
   "bio": {
-    "text": "",
-    "input_hash": "",
-    "generated_at": "",
-    "model": "",
-    "prompt_version": 0
+    "text": "热爱软件与视觉技术的开发者，专注 Python 应用开发与数据可视化。代表项目包括姓氏文化查询可视化网站 shiyuan（Django + Pyecharts）、电商助农全栈平台（微信小程序 + Spring Boot）以及基于 OpenCV/HALCON 的机械臂绘画系统。另有多功能计算器等桌面工具实践，涵盖前后端、计算机视觉与机器人控制等方向。\n\n亮点：\n- shiyuan：Django + Pyecharts 姓氏文化查询可视化网站\n- 电商助农：微信小程序与 Spring Boot 订单平台两阶段\n- RoboArmDev：OpenCV/HALCON 机械臂绘画执行链路",
+    "input_hash": "sha256:3032912863def38414da54be2b8c974e8240d99c6914601352f1ab8f198269ad",
+    "generated_at": "2026-10-21T13:41:36.213723+00:00",
+    "model": "mimo-v2.6-flash",
+    "prompt_version": 1
   },
-  "generated_at": "2026-10-21T06:14:32.205610+00:00"
+  "generated_at": "2026-10-21T13:41:36.213723+00:00"
 }

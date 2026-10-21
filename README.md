@@ -3,7 +3,12 @@
 
 # 👋 你好，我是 ningbojian
 
-<!-- AI 简介暂不可用：配置 ANTHROPIC_API_KEY 后运行 profile-agent 即可生成 -->
+热爱软件与视觉技术的开发者，专注 Python 应用开发与数据可视化。代表项目包括姓氏文化查询可视化网站 shiyuan（Django + Pyecharts）、电商助农全栈平台（微信小程序 + Spring Boot）以及基于 OpenCV/HALCON 的机械臂绘画系统。另有多功能计算器等桌面工具实践，涵盖前后端、计算机视觉与机器人控制等方向。
+
+亮点：
+- shiyuan：Django + Pyecharts 姓氏文化查询可视化网站
+- 电商助农：微信小程序与 Spring Boot 订单平台两阶段
+- RoboArmDev：OpenCV/HALCON 机械臂绘画执行链路
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -11,11 +16,15 @@
   <img src="https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true" alt="连续贡献卡片" />
 </p>
 
+<p align="center">
+  <img src="https://komarev.com/ghpvc/?username=ningbojian" alt="主页访问计数" />
+</p>
+
 ## 📊 仓库统计
 
 | 指标 | 数值 |
 | --- | --- |
-| 公开仓库 | 8 |
+| 公开仓库 | 9 |
 | Followers | 2 |
 | 总 Star | 0 |
 
@@ -27,7 +36,13 @@
 
 ### [ningbojian](https://github.com/ningbojian/ningbojian) ⭐ 0
 
-（暂无描述）
+个人主页 README 源仓库，由 profile-agent 根据 config.yaml 自动生成，展示统计数据、语言分布与精选项目列表。
+
+`Python`
+
+### [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) ⭐ 0
+
+通过 GitHub Actions workflow 自动生成个人主页 README，包含仓库统计、精选项目卡片与 AI 中文简介，可通过配置 ANTHROPI
 
 `Python`
 
@@ -55,13 +70,7 @@ Django + 姓氏文化查询与可视化网站
 
 `Python` · `#2048` · `#calculator` · `#desktop-app` · `#huarongdao` · `#pygame`
 
-### [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) ⭐ 0
-
-（暂无描述）
-
-`Python`
-
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 14:14（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 21:41（北京时间） 自动更新
