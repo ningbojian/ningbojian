@@ -31,7 +31,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 不装任何依赖，纯 grep 判断定时开关
       - name: 检查定时开关（schedule.enabled）
@@ -45,7 +45,7 @@ jobs:
             echo "schedule=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: github.event_name == 'workflow_dispatch' || steps.check.outputs.schedule == 'true'
         with:
           python-version: "3.12"
@@ -109,12 +109,18 @@ jobs:
             git checkout -B auto/profile-update
             git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
             git push -u origin auto/profile-update --force
-            gh pr create --title "AI 项目介绍更新（待审核）" \
+            if ! gh pr create --title "AI 项目介绍更新（待审核）" \
               --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
 
           数据指纹: $fingerprint" \
-              --head auto/profile-update --base main \
-              || gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。数据指纹: $fingerprint"
+              --head auto/profile-update --base main; then
+              if gh pr view auto/profile-update >/dev/null 2>&1; then
+                gh pr edit auto/profile-update --body "🤖 待审核更新（已刷新）。数据指纹: $fingerprint"
+              else
+                echo "::error::创建 PR 被拒绝。请到仓库 Settings → Actions → General → Workflow permissions，勾选 Allow GitHub Actions to create and approve pull requests，然后重新运行本工作流。"
+                exit 1
+              fi
+            fi
           else
             git commit -m "chore: 自动更新 Profile README [skip ci]"
             git push
