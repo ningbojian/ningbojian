@@ -42,7 +42,7 @@
 
 ### [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) ⭐ 0
 
-自动维护 GitHub 个人主页 README：仓库统计、项目卡片、中文 AI 简介与简历素材，定时增量更新，AI 内容经 PR 审核后合并。
+基于模板一键生成自动更新的 GitHub 个人主页 README，含仓库统计卡片、项目展示与 AI 中文简介，增量更新省额度，内容经 PR 审核后公开。
 
 `Python`
 
@@ -66,7 +66,7 @@
 
 ### [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) ⭐ 0
 
-连上手机热点后双击即可自动探测手机侧代理并接入 Windows 系统代理，无需手动查 IP 和端口，关窗自动关闭，原设置备份可随时还原，单文件零依赖，仅用 Py
+连接手机热点后自动探测手机上的代理并一键接入 Windows 系统代理，关窗自动关闭，内置备份还原、连通性测试，零依赖单文件。
 
 `Python`
 
@@ -79,4 +79,4 @@ Django + 姓氏文化查询与可视化网站
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 23:34（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 23:41（北京时间） 自动更新
