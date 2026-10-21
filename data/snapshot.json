@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:5891d85425634cf6dcb1d4f963af5be111f120efea3bd6d61ab7ca70b3e9af45",
-  "stats_config_hash": "sha256:ed9033a9837b942e42eb981f5a6ee641cc864406849840a1f3c1ed048b21edb9",
+  "stats_fingerprint": "sha256:d9a2600dfaed74befc6ea8d7b37573cb19facc50e85e20826fb6c4c35ae2d6d7",
+  "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
   "totals": {
     "public_repos": 9,
     "followers": 2,
@@ -10,20 +10,20 @@
   },
   "repos": [
     {
-      "full_name": "ningbojian/ningbojian",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-21T15:39:54+00:00",
-      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
-    },
-    {
       "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-21T15:22:41+00:00",
-      "short_intro": "基于模板一键生成自动更新的 GitHub 个人主页 README，含仓库统计卡片、项目展示与 AI 中文简介，增量更新省额度，内容经 PR 审核后公开。",
-      "short_intro_hash": "sha256:fe4a8485a989f380cd20ae88eeed93fe5f2e04bfb1ddb1809ee41dfc594845bd"
+      "pushed_at": "2026-10-21T16:06:28+00:00",
+      "short_intro": "基于模板一键生成会自动更新的 GitHub 个人主页：统计、项目卡片、中文 AI 简介与简历素材，定时刷新，数据无变化不浪费额度。",
+      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
+    },
+    {
+      "full_name": "ningbojian/ningbojian",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-21T16:05:53+00:00",
+      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
+      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -66,8 +66,9 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-09-26T12:05:44+00:00",
-      "short_intro": "连接手机热点后自动探测手机上的代理并一键接入 Windows 系统代理，关窗自动关闭，内置备份还原、连通性测试，零依赖单文件。",
-      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
+      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
+      "intro_generated_at": "2026-10-21T16:12:28.750627+00:00",
+      "ai_generated": true
     }
   ],
   "bio": {
@@ -77,5 +78,5 @@
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
-  "generated_at": "2026-10-21T15:41:26.796560+00:00"
+  "generated_at": "2026-10-21T16:14:26.130828+00:00"
 }
