@@ -1,0 +1,69 @@
+{
+  "schema": 2,
+  "username": "ningbojian",
+  "stats_fingerprint": "sha256:7e8083d6dee064b98c1cb51c64c162a49d2ece7dba8c45d4dd46bec11efe7b11",
+  "stats_config_hash": "sha256:58a1434ffd5787aa08fb528f0369b0282558367a27bdb5fa8c48bdb4579b4e61",
+  "totals": {
+    "public_repos": 8,
+    "followers": 2,
+    "total_stars": 0
+  },
+  "repos": [
+    {
+      "full_name": "ningbojian/ningbojian",
+      "stars": 0,
+      "language": "Python",
+      "intro_hash": "sha256:9c47e22a9f94d8f82d2d6cd3af5f6a18d902243c2097c8e40940d67174f28f3e",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/shiyuan",
+      "stars": 0,
+      "language": "Python",
+      "intro_hash": "sha256:48557513b6c07f4d69a146d1f656a5323465c593dc0e8616f064cd7b2a76ff3d",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/agri-ecommerce-platform",
+      "stars": 0,
+      "language": "JavaScript",
+      "intro_hash": "sha256:820c57992f159e8417cf955b887616859c6058a1097e0720aef9fc91da5b8c65",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/RoboArmDev-Showcase",
+      "stars": 0,
+      "language": "Python",
+      "intro_hash": "sha256:4b56b8f43143b17f3f14f6fb9f4c0f96c0038b229f6aabed78c57aff4d3c14b6",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/MultiFuncCalculator",
+      "stars": 0,
+      "language": "Python",
+      "intro_hash": "sha256:92f1d231cc511c54d4e0b910e68493ec439ba4b67a99ee94c9c938a9a383f308",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/phone-hotspot-proxy",
+      "stars": 0,
+      "language": "Python",
+      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
+      "intro_generated_at": "2026-10-21T03:38:58.648279+00:00",
+      "ai_generated": false
+    }
+  ],
+  "bio": {
+    "text": "",
+    "input_hash": "",
+    "generated_at": "",
+    "model": "",
+    "prompt_version": 0
+  },
+  "generated_at": "2026-10-21T03:38:58.664600+00:00"
+}
