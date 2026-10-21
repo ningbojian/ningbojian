@@ -107,7 +107,11 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
-**临时点名某几个仓库**（不动配置）：Actions → Run workflow 时在 `projects_repos` 输入框填逗号分隔的仓库名，如 `shiyuan,agri-ecommerce-platform`——只重跑这些仓库，即使它不在精选/白名单里也行；留空则按 config 的规则；填 `all` 表示全部精选。配合 force 勾选可以强制重新生成指定仓库。
+**勾选框选仓库（推荐，不用打名字）**：Actions →「仓库选择板」→ Run workflow → 会创建/刷新一个「🎛 仓库更新选择板」Issue，里面用**勾选框**列出你的全部公开仓库。想更新哪几个就在 Issue 里打勾，然后评论 **`/run`**——只更新勾选的仓库（即使它不在精选/白名单里也行），完成后会在 Issue 里回帖并链接到本次运行明细。跑完取消勾选，方便下次选择。
+
+> 为什么不用 Actions 的输入框选？GitHub 的手动触发界面只有布尔/单选/文本三种输入，做不出动态多选框；Issue 任务清单是网页上最接近的原生勾选体验。
+
+**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在 Actions 手动触发时填 `projects_repos` 输入框（逗号分隔仓库名；留空=按 config 的 include/exclude；`all`=全部精选）。
 
 **每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败），表尾还会列出你全部公开仓库名——直接复制粘贴进 `projects_repos` 就能点名。
 
@@ -176,6 +180,7 @@ projects:
 ## 常见问题
 
 - **想关掉自动更新**：`config.yaml` 里 `schedule.enabled: false` 提交即可；或在 Actions 页面 Disable workflow。
+- **选择板评论 `/run` 没反应**：只有仓库维护者（OWNER/MEMBER/COLLABORATOR）的评论会触发；确认是在「🎛 仓库更新选择板」Issue 里评论的，且至少勾选了一个仓库。触发条件依赖 Issue 正文开头的隐藏标记，正常勾选/编辑不会破坏它。
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **README 被我改坏了**：手动改动会被下次运行覆盖——所有可定制内容都在 `config.yaml` 与 `templates/profile.md.j2` 里改。
 - **数据是旧的**：Actions 手动触发 + force 即可刷新。
