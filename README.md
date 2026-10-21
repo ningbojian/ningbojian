@@ -36,7 +36,7 @@
 
 ### [ningbojian](https://github.com/ningbojian/ningbojian) ⭐ 0
 
-个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。
+（暂无描述）
 
 `Python`
 
@@ -73,4 +73,4 @@ Django + 姓氏文化查询与可视化网站
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 22:10（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 22:23（北京时间） 自动更新
