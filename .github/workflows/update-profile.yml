@@ -145,15 +145,18 @@ jobs:
           # ---- 2. 项目介绍走 PR 人工审核（分支只含 docs/projects）----
           if [ "$pr_route" = "true" ]; then
             fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
-            # 同样内容此前被 Close 过 → 不再反复骚扰
-            if gh pr list --state closed --head auto/profile-update --limit 30 --json body -q '.[].body' | grep -qF "$fingerprint"; then
-              echo "这批内容上次审核未合并，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
+            # 只有「closed 且未合并」（你点了 Close 拒绝）的 PR 才算拒绝过；
+            # merged 的 PR 也是 closed 状态，不能算，否则合并过的批次会永远压制后续生成
+            if gh pr list --state closed --head auto/profile-update --limit 30 --json body,mergedAt \
+                -q '.[] | select(.mergedAt == null) | .body' | grep -qF "$fingerprint"; then
+              echo "这批内容上次被 Close 拒绝过，本次跳过。如需重新生成：改 config.yaml 的 ai.prompt_version 后手动触发 force"
               exit 0
             fi
             git checkout -B auto/profile-update
             git add docs/projects
             git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
             git push -u origin auto/profile-update --force
+            echo "已推送分支 auto/profile-update（PR 将基于最新 main，无冲突）"
             if ! gh pr create --title "AI 项目介绍更新（待审核）" \
               --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
 
