@@ -29,45 +29,39 @@
 
 （暂无描述）
 
-📄 [项目介绍与简历素材](docs/projects/ningbojian.md)
-
 `Python`
+
 ### [shiyuan](https://github.com/ningbojian/shiyuan) ⭐ 0
 
 Django + 姓氏文化查询与可视化网站
 
-📄 [项目介绍与简历素材](docs/projects/shiyuan.md)
+`Python` · `#data-visualization` · `#django` · `#mysql` · `#pyecharts` · `#python`
 
-`Python`
 ### [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) ⭐ 0
 
 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台
 
-📄 [项目介绍与简历素材](docs/projects/agri-ecommerce-platform.md)
+`JavaScript` · `#ecommerce` · `#mybatis-plus` · `#mysql` · `#portfolio-project` · `#rural-revitalization`
 
-`JavaScript`
 ### [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) ⭐ 0
 
 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路
 
-📄 [项目介绍与简历素材](docs/projects/RoboArmDev-Showcase.md)
+`Python` · `#computer-vision` · `#halcon` · `#image-processing` · `#opencv` · `#python`
 
-`Python`
 ### [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) ⭐ 0
 
 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame）
 
-📄 [项目介绍与简历素材](docs/projects/MultiFuncCalculator.md)
+`Python` · `#2048` · `#calculator` · `#desktop-app` · `#huarongdao` · `#pygame`
 
-`Python`
 ### [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) ⭐ 0
 
 （暂无描述）
 
-📄 [项目介绍与简历素材](docs/projects/phone-hotspot-proxy.md)
-
 `Python`
+
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 12:27（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 14:14（北京时间） 自动更新
