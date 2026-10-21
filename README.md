@@ -3,12 +3,12 @@
 
 # 👋 你好，我是 ningbojian
 
-热爱软件与视觉技术的开发者，专注 Python 应用开发与数据可视化。代表项目包括姓氏文化查询可视化网站 shiyuan（Django + Pyecharts）、电商助农全栈平台（微信小程序 + Spring Boot）以及基于 OpenCV/HALCON 的机械臂绘画系统。另有多功能计算器等桌面工具实践，涵盖前后端、计算机视觉与机器人控制等方向。
+关注计算机视觉与机器人控制方向，实践涵盖 Python 桌面应用、Web 开发与微信小程序。代表项目包括基于 Tkinter/Pygame 的多功能计算器与益智游戏合集、基于 OpenCV/HALCON 的六自由度机械臂绘画系统，以及 Spring Boot + 微信小程序的助农电商平台。持续学习与迭代中，欢迎交流。
 
 亮点：
-- shiyuan：Django + Pyecharts 姓氏文化查询可视化网站
-- 电商助农：微信小程序与 Spring Boot 订单平台两阶段
-- RoboArmDev：OpenCV/HALCON 机械臂绘画执行链路
+- 用 Python/Tkinter/Pygame 实现计算器与益智游戏合集
+- 完成基于 OpenCV/HALCON 的机械臂绘画链路
+- 使用 Spring Boot + 小程序搭建助农电商前后端
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -32,7 +32,31 @@
 `JavaScript`（0★） · 
 `Python`（0★）
 
-## 🌟 精选项目
+## 🌟 我的项目
+
+### [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) ⭐ 0
+
+多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame）
+
+`Python` · `#2048` · `#calculator` · `#desktop-app` · `#huarongdao` · `#pygame`
+
+### [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) ⭐ 0
+
+自动维护 GitHub 个人主页 README：仓库统计、项目卡片、中文 AI 简介与简历素材，定时增量更新，AI 内容经 PR 审核后合并。
+
+`Python`
+
+### [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) ⭐ 0
+
+六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路
+
+`Python` · `#computer-vision` · `#halcon` · `#image-processing` · `#opencv` · `#python`
+
+### [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) ⭐ 0
+
+电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台
+
+`JavaScript` · `#ecommerce` · `#mybatis-plus` · `#mysql` · `#portfolio-project` · `#rural-revitalization`
 
 ### [ningbojian](https://github.com/ningbojian/ningbojian) ⭐ 0
 
@@ -40,9 +64,9 @@
 
 `Python`
 
-### [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) ⭐ 0
+### [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) ⭐ 0
 
-通过模板一键生成自动更新的 GitHub 个人主页 README，包含仓库统计、精选项目、中文 AI 简介与简历素材，支持增量更新与人工审核。
+连上手机热点后双击即可自动探测手机侧代理并接入 Windows 系统代理，无需手动查 IP 和端口，关窗自动关闭，原设置备份可随时还原，单文件零依赖，仅用 Py
 
 `Python`
 
@@ -52,25 +76,7 @@ Django + 姓氏文化查询与可视化网站
 
 `Python` · `#data-visualization` · `#django` · `#mysql` · `#pyecharts` · `#python`
 
-### [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) ⭐ 0
-
-电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台
-
-`JavaScript` · `#ecommerce` · `#mybatis-plus` · `#mysql` · `#portfolio-project` · `#rural-revitalization`
-
-### [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) ⭐ 0
-
-六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路
-
-`Python` · `#computer-vision` · `#halcon` · `#image-processing` · `#opencv` · `#python`
-
-### [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) ⭐ 0
-
-多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame）
-
-`Python` · `#2048` · `#calculator` · `#desktop-app` · `#huarongdao` · `#pygame`
-
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-21 23:08（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-21 23:29（北京时间） 自动更新
