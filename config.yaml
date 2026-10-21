@@ -5,7 +5,7 @@ schedule:
   enabled: true # false = 关闭定时自动更新（GitHub Actions 手动触发仍可用）
 
 github:
-  username: "" # 必填：你的 GitHub 用户名
+  username: "ningbojian" # 必填：你的 GitHub 用户名
   token_env: "GITHUB_TOKEN" # token 所在环境变量名（Actions 内置 GITHUB_TOKEN 即可）
 
 repos:
@@ -40,9 +40,9 @@ ai:
   #   key_env: "AI_API_KEY"                ← secret 名字（workflow 已内置注入，建议就叫这个）
   #   model: "mimo-..."                      ← 填服务商文档里的模型名
   provider: "anthropic"
-  base_url: ""
-  key_env: ""
-  model: "claude-opus-5-5" # 降本可改 "claude-haiku-5-5"
+  base_url: "https://api.xiaomimimo.com/anthropic"
+  key_env: "AI_API_KEY"
+  model: "mimo-v2.6-flash" # 降本可改 "claude-haiku-5-5"
   max_repos: 15 # 喂给模型的仓库数上限
   max_age_days: 14 # 简介最长复用天数，超过才重新生成
   bio_min_chars: 100
