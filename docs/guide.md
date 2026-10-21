@@ -62,7 +62,7 @@ ai:
 | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
 | 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` |
 | Kimi（月之暗面） | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
-| MiMo（小米） | 以你开通 MiMo API 时文档显示的接口地址为准 | 以文档模型名为准 |
+| MiMo（小米） | 保持 `provider: "anthropic"` + `base_url: https://api.xiaomimimo.com/anthropic` | `mimo-v2.6-flash` |
 | Ollama（本地，免费） | `http://localhost:11434/v1` | `qwen2.5:7b` 等 |
 
 改完配置，在 Secrets 里添加对应名字的 key（如 `DEEPSEEK_API_KEY`），然后手动触发一次 force 即可。数据没变化时不会调用任何模型，换 provider 不会产生额外开销。

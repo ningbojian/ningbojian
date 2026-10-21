@@ -49,9 +49,18 @@ def chat_text(
         return str(resp.json()["choices"][0]["message"]["content"] or "")
 
     if client is None:
+        import os
+
         import anthropic
 
-        client = anthropic.Anthropic()
+        # base_url/key_env 可指向 Anthropic 兼容端点（如 MiMo 的 /anthropic 接口）
+        kwargs = {}
+        if cfg.base_url:
+            kwargs["base_url"] = cfg.base_url
+        key = os.environ.get(cfg.key_env_name)
+        if key:
+            kwargs["api_key"] = key
+        client = anthropic.Anthropic(**kwargs)
     message = client.messages.create(
         model=cfg.model,
         max_tokens=4096,

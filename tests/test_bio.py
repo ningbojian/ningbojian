@@ -184,3 +184,43 @@ def test_openai_provider_reuses_fresh_bio_without_http(monkeypatch):
         http_post=lambda *a, **k: called.append(1),
     )
     assert text == "旧简介" and generated is False and called == []
+
+
+def test_anthropic_custom_base_url_and_key_env(monkeypatch):
+    """provider=anthropic 且填了 base_url（如 MiMo 的 Anthropic 兼容端点）时，创建默认 client 要带上。"""
+    import sys
+    import types
+
+    import profile_agent.bio as bio_mod
+
+    captured = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured["create"] = kwargs
+            return SimpleNamespace(content=[_block("自定义端点的简介")])
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs):
+            captured["init"] = kwargs
+            self.messages = FakeMessages()
+
+    fake_sdk = types.ModuleType("anthropic")
+    fake_sdk.Anthropic = FakeAnthropic
+    monkeypatch.setitem(sys.modules, "anthropic", fake_sdk)
+    monkeypatch.setenv("AI_API_KEY", "mimo-key")
+
+    cfg = AIConfig(
+        provider="anthropic",
+        base_url="https://api.xiaomimimo.com/anthropic",
+        key_env="AI_API_KEY",
+        model="mimo-v2.6-flash",
+    )
+    text, generated = generate_bio(
+        PAYLOAD, cfg,
+        input_hash="h", prev_hash="", prev_text="", prev_generated_at="",
+    )
+    assert generated is True and "自定义端点" in text
+    assert captured["init"]["base_url"] == "https://api.xiaomimimo.com/anthropic"
+    assert captured["init"]["api_key"] == "mimo-key"
+    assert captured["create"]["model"] == "mimo-v2.6-flash"
