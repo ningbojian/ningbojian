@@ -140,3 +140,20 @@ def test_render_meta_line_without_language_has_no_leading_separator():
     section = out.split("[web-app]")[0]  # 只看第一个仓库的段落
     assert "🍴 12 · `#python`" in section
     assert "· 🍴" not in section
+
+
+def test_render_empty_description_falls_back_to_short_intro():
+    """description 为空时展示 AI 补位文案，而不是「暂无描述」。"""
+    ctx = _ctx()
+    ctx.featured[0].description = ""
+    ctx.short_intros = {"alice/cool-tool": "命令行密码生成器，支持自定义字符集。"}
+    out = render_readme(ctx, TEMPLATE)
+    assert "命令行密码生成器" in out
+    assert "（暂无描述）" not in out.split("[web-app]")[0]
+
+
+def test_render_without_short_intro_shows_placeholder():
+    ctx = _ctx()
+    ctx.featured[0].description = ""
+    out = render_readme(ctx, TEMPLATE)
+    assert "（暂无描述）" in out

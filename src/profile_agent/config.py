@@ -71,6 +71,7 @@ class AIConfig:
     bio_max_chars: int = 150
     language: str = "zh-CN"
     prompt_version: int = 1
+    fill_empty_descriptions: bool = True  # 精选仓库缺描述时用 AI 基于其 README 生成主页补位文案
 
     @property
     def key_env_name(self) -> str:
@@ -221,6 +222,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         bio_max_chars=int(ai.get("bio_max_chars", 150)),
         language=str(ai.get("language") or "zh-CN"),
         prompt_version=int(ai.get("prompt_version", 1)),
+        fill_empty_descriptions=bool(ai.get("fill_empty_descriptions", True)),
     )
 
     proj = _section(data, "projects")

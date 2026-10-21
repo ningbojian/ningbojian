@@ -215,7 +215,7 @@ def test_force_bypasses_gate(tmp_path, capsys):
     capsys.readouterr()
     assert run(cfg, fixture=FIXTURES, force=True) == 0
     out = capsys.readouterr().out
-    assert "跳过" not in out
+    assert "无变化，跳过更新" not in out  # 增量门没有拦截（明细表里的逐仓库「跳过」是另一回事）
 
 
 def test_skip_projects_keeps_intros_untouched(tmp_path):
@@ -265,3 +265,167 @@ snapshot:
     assert run(cfg_path, fixture=FIXTURES, no_ai=True) == 0
     files = {p.name for p in (tmp_path / "docs" / "projects").iterdir()}
     assert files == {"cool-tool.md"}  # include 白名单外的仓库不生成
+
+
+# ---- 描述补位 + 逐仓库精细化 ----
+
+
+def _empty_desc_fixture(tmp_path: Path) -> Path:
+    """造一个 description 为空的精选仓库 fixture。"""
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "user.json").write_text(
+        json.dumps({"login": "alice", "name": "Alice", "public_repos": 1, "followers": 0}),
+        encoding="utf-8",
+    )
+    (fx / "repos.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "mystery",
+                    "full_name": "alice/mystery",
+                    "description": None,
+                    "language": "Python",
+                    "stargazers_count": 3,
+                    "forks_count": 0,
+                    "private": False,
+                    "fork": False,
+                    "archived": False,
+                    "pushed_at": "2026-10-01T00:00:00Z",
+                    "html_url": "https://github.com/alice/mystery",
+                    "topics": [],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return fx
+
+
+def test_short_intro_generated_for_empty_description_then_reused(tmp_path, monkeypatch):
+    """description 为空的精选仓库：AI 生成补位文案，第二次运行复用不重调。"""
+    import profile_agent.cli as cli_mod
+
+    cfg_path = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()
+    cfg_path.write_text(
+        f"""
+github:
+  username: "alice"
+projects:
+  enabled: false
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    calls = []
+
+    def fake(repo, cfg_ai, **kwargs):
+        calls.append(repo.full_name)
+        return "一个命令行密码生成器。"
+
+    monkeypatch.setattr(cli_mod, "generate_short_intro", fake)
+    fx = _empty_desc_fixture(tmp_path)
+
+    assert run(cfg_path, fixture=fx) == 0
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "一个命令行密码生成器" in readme
+    assert "（暂无描述）" not in readme
+    assert calls == ["alice/mystery"]
+    # 第二次：指纹命中 → 整体增量门跳过（含补位文案），不再调用
+    assert run(cfg_path, fixture=fx) == 0
+    assert calls == ["alice/mystery"]
+
+
+def test_short_intro_disabled_by_config(tmp_path, monkeypatch):
+    import profile_agent.cli as cli_mod
+
+    cfg_path = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()
+    cfg_path.write_text(
+        f"""
+github:
+  username: "alice"
+ai:
+  fill_empty_descriptions: false
+projects:
+  enabled: false
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    calls = []
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_short_intro",
+        lambda *a, **k: calls.append(1) or "不该被调用",
+    )
+    fx = _empty_desc_fixture(tmp_path)
+    assert run(cfg_path, fixture=fx) == 0
+    assert calls == []
+    assert "（暂无描述）" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_only_repos_targets_named_repo_even_outside_featured(tmp_path):
+    """--repos 精确指定：即使仓库不在精选名单也生成介绍。"""
+    cfg_path = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()
+    # old-thing 很久没动，默认会被 recency 过滤出精选；用 --repos 强制点名
+    cfg_path.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    assert run(cfg_path, fixture=FIXTURES, no_ai=True, only_repos=["old-thing"]) == 0
+    files = {p.name for p in (tmp_path / "docs" / "projects").iterdir()}
+    assert files == {"old-thing.md"}
+
+
+def test_run_writes_step_summary_table(tmp_path, monkeypatch):
+    """Actions 的 GITHUB_STEP_SUMMARY 存在时，写出逐仓库动作明细表。"""
+    cfg_path = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()
+    cfg_path.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+projects:
+  include: ["cool-tool"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    summary = tmp_path / "step_summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert run(cfg_path, fixture=FIXTURES, no_ai=True) == 0
+    text = summary.read_text(encoding="utf-8")
+    assert "项目介绍" in text
+    assert "cool-tool" in text
+    assert "已生成数据版" in text  # 无 AI key → 数据版占位

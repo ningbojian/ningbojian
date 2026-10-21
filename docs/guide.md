@@ -97,7 +97,7 @@ overview 和项目介绍（简历素材）互相独立，三种玩法：
 | 只更新 overview | `projects.enabled: false` | 取消勾选 update_projects |
 | 只更新项目介绍 | `readme.enabled: false` | 取消勾选 update_readme |
 
-**选择给哪些仓库生成介绍**（多选，也可以都不选）：
+**选择给哪些仓库生成介绍**（多选，也可以都不选），两种方式：
 
 ```yaml
 projects:
@@ -106,6 +106,12 @@ projects:
 ```
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
+
+**临时点名某几个仓库**（不动配置）：Actions → Run workflow 时在 `projects_repos` 输入框填逗号分隔的仓库名，如 `shiyuan,agri-ecommerce-platform`——只重跑这些仓库，即使它不在精选/白名单里也行；留空则按 config 的规则；填 `all` 表示全部精选。配合 force 勾选可以强制重新生成指定仓库。
+
+**每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败），表尾还会列出你全部公开仓库名——直接复制粘贴进 `projects_repos` 就能点名。
+
+**主页「暂无描述」自动补位**：精选项目里 description 为空的仓库，会用它自己 README 的内容生成一句 ≤80 字的中文短描述顶上（不再显示「暂无描述」）。不想要这个行为：`ai.fill_empty_descriptions: false`。
 
 介绍内容以**各仓库的 README 为主要事实来源**（只有真正要生成/更新某个仓库的介绍时才会去拉它的 README，无变化不调用）；仓库没有 README 时退回只用 GitHub 上的描述等事实信息。
 
@@ -155,6 +161,7 @@ ai:
   max_repos: 15            # 最多把多少仓库喂给 AI
   max_age_days: 14         # 简介最长复用天数
   prompt_version: 1        # 改了 prompt 后 +1 可强制重新生成
+  fill_empty_descriptions: true  # 精选项目 description 为空时，用其 README 生成短描述补位
 projects:
   enabled: false           # true = 生成项目介绍/简历素材（默认关闭，开启前先配好 AI key）
   dir: "docs/projects"

@@ -135,3 +135,16 @@ def test_ai_invalid_provider_raises(tmp_path):
     )
     with pytest.raises(ConfigError, match="provider"):
         load_config(path)
+
+
+def test_ai_fill_empty_descriptions_default_on(tmp_path):
+    path = _write(tmp_path, 'github:\n  username: "a"\n')
+    assert load_config(path).ai.fill_empty_descriptions is True
+
+
+def test_ai_fill_empty_descriptions_can_disable(tmp_path):
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nai:\n  fill_empty_descriptions: false\n',
+    )
+    assert load_config(path).ai.fill_empty_descriptions is False

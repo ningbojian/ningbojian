@@ -164,6 +164,7 @@ def render_fingerprint(cfg, template_bytes: bytes, user: dict) -> str:
             "bio_min_chars": cfg.ai.bio_min_chars,
             "bio_max_chars": cfg.ai.bio_max_chars,
             "prompt_version": cfg.ai.prompt_version,
+            "fill_empty_descriptions": cfg.ai.fill_empty_descriptions,
         },
         "projects": asdict(cfg.projects),
         "template_sha256": hashlib.sha256(template_bytes).hexdigest(),

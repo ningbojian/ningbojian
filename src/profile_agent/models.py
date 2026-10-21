@@ -51,6 +51,7 @@ class TemplateContext:
     cards_show: list[str] = field(default_factory=lambda: ["stats", "top_langs", "streak"])
     include_update_time: bool = True
     updated_at: str = ""
+    short_intros: dict[str, str] = field(default_factory=dict)  # full_name → AI 补位文案
 
 
 @dataclass

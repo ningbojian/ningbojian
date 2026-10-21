@@ -43,7 +43,7 @@
 {% for repo in featured %}
 ### [{{ repo.name }}]({{ repo.html_url }}) ⭐ {{ repo.stars }}
 
-{{ repo.description or "（暂无描述）" }}
+{{ repo.description or short_intros.get(repo.full_name, '') or "（暂无描述）" }}
 
 {% set meta = namespace(parts=[]) %}{% if repo.language %}{% set meta.parts = meta.parts + ['`' ~ repo.language ~ '`'] %}{% endif %}{% if repo.forks %}{% set meta.parts = meta.parts + ['🍴 ' ~ repo.forks] %}{% endif %}{% for t in repo.topics[:5] %}{% set meta.parts = meta.parts + ['`#' ~ t ~ '`'] %}{% endfor %}
 {% if meta.parts %}{{ meta.parts | join(' · ') }}
