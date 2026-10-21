@@ -1,9 +1,9 @@
 name: Update Profile README
 
-# 全部入口都在这一个 workflow 里：
+# 全部入口就这一个 workflow：
 #   - 定时（schedule）：每周自动更新
-#   - 手动 Run workflow：立即更新；勾选「只生成/刷新选择板」则只维护勾选框 Issue
-#   - 选择板 Issue 里勾选仓库后评论 /run：只重跑勾选的仓库
+#   - 手动 Run workflow：对话框里每个公开仓库一个勾选框，勾选后一键只更新它们
+#     （勾选框由每次运行结尾自动同步进本文件，无需手动维护）
 on:
   schedule:
     - cron: "23 2 * * 1" # 每周一 02:23 UTC ≈ 北京时间 10:23；改频率只需改这里
@@ -22,17 +22,14 @@ on:
         type: boolean
         default: true
       projects_repos:
-        description: "点名要更新的仓库（逗号分隔仓库名，如 shiyuan,agri-ecommerce-platform）；留空=按 config 的 include/exclude；填 all=全部精选"
+        description: "点名要更新的仓库（逗号分隔，脚本自动化用；日常请用下方勾选框）；留空=按 config 规则；填 all=全部精选"
         type: string
         default: ""
-      build_board:
-        description: "只生成/刷新「仓库选择板」Issue（勾选框列表），本次不执行更新"
-        type: boolean
-        default: false
-  issue_comment:
-    types: [created]
+      # <<REPO_CHECKBOXES_START>>
+      # （还没有勾选框：先手动跑一次，之后这里会自动列出每个仓库一个勾选框）
+      # <<REPO_CHECKBOXES_END>>
 
-# 防止定时/手动/勾选板同时运行；不取消进行中的运行
+# 防止定时与手动同时运行；不取消进行中的运行
 concurrency:
   group: update-profile
   cancel-in-progress: false
@@ -40,112 +37,9 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  issues: write        # 创建/编辑选择板 Issue、回帖
 
 jobs:
-  # ---- 选择板 Issue 里评论 /run：解析勾选的仓库 ----
-  parse-checks:
-    if: >
-      github.event_name == 'issue_comment' &&
-      github.event.issue.state == 'open' &&
-      contains(github.event.issue.body, '<!-- repo-menu -->') &&
-      contains(github.event.comment.body, '/run') &&
-      github.event.comment.user.login != 'github-actions[bot]' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
-    runs-on: ubuntu-latest
-    outputs:
-      repos: ${{ steps.parse.outputs.repos }}
-    steps:
-      - name: 解析勾选的仓库
-        id: parse
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-        run: |
-          set -e
-          gh issue view "$ISSUE_NUMBER" --json body --jq .body > issue_body.md
-          # 只提取勾选行（- [x]）反引号里的仓库名，字符集白名单防注入
-          REPOS=$(sed -n 's/^- \[[xX]\] `\([A-Za-z0-9._-][A-Za-z0-9._-]*\)`.*/\1/p' issue_body.md | paste -sd, -)
-          if [ -z "$REPOS" ]; then
-            echo "::error::没有勾选任何仓库：请把想更新的仓库前的 [ ] 点成 [x]，再评论 /run"
-            exit 1
-          fi
-          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
-          echo "已勾选：$REPOS"
-
-  # ---- 手动触发且勾选 build_board：生成/刷新选择板 Issue ----
-  build-board:
-    if: github.event_name == 'workflow_dispatch' && inputs.build_board
-    runs-on: ubuntu-latest
-    steps:
-      - name: 渲染并更新选择板
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-        run: |
-          set -e
-          cat > build_menu.py <<'PY'
-          import json
-          import os
-          import sys
-
-          owner = os.environ["OWNER"]
-          repos = [json.loads(line) for line in sys.stdin if line.strip()]
-          # 只放公开、非 fork、非 profile 自身的仓库（与工具默认过滤一致）
-          repos = [
-              r for r in repos
-              if not r.get("private") and not r.get("fork")
-              and r.get("full_name") != f"{owner}/{owner}"
-          ]
-          repos.sort(key=lambda r: (-r.get("stargazers_count", 0), r.get("name", "")))
-
-          lines = [
-              "<!-- repo-menu -->",
-              "勾选想更新**项目介绍/简历素材**的仓库，然后在本 Issue 评论 **`/run`** 触发（仅仓库维护者有效）。",
-              "",
-              "> 主页 overview 与统计不受影响；「暂无描述」的补位短文案是自动的，不用勾。",
-              "> 勾选的仓库会**强制重新生成**（即使数据没变）；跑完可取消勾选，方便下次选择。",
-              "> 仓库列表可在 Actions → Update Profile README → Run workflow → 勾选「只生成/刷新选择板」重新生成。",
-              "",
-              "## 仓库列表（按 star 排序）",
-              "",
-          ]
-          for r in repos:
-              desc = (r.get("description") or "").replace("\n", " ").replace("\r", " ")[:60]
-              parts = [f"- [ ] `{r['name']}` ⭐{r.get('stargazers_count', 0)}"]
-              if r.get("language"):
-                  parts.append(r["language"])
-              if r.get("archived"):
-                  parts.append("📦已归档")
-              if desc:
-                  parts.append(desc)
-              lines.append(" · ".join(parts))
-          if not repos:
-              lines.append("（没有找到公开仓库）")
-          sys.stdout.write("\n".join(lines) + "\n")
-          PY
-          gh api --paginate "users/${OWNER}/repos?per_page=100" --jq '.[] | @json' \
-            | python3 build_menu.py > menu.md
-          TITLE='🎛 仓库更新选择板'
-          num=$(gh issue list --state open --limit 100 --json number,title \
-            --jq ".[] | select(.title == \"${TITLE}\") | .number" | head -1)
-          if [ -n "$num" ]; then
-            gh issue edit "$num" --body-file menu.md
-            echo "已刷新选择板 Issue #${num}"
-          else
-            gh issue create --title "$TITLE" --body-file menu.md
-          fi
-
-  # ---- 主更新（定时 / 手动 / 勾选板 /run 三条路都走这里）----
   update:
-    needs: [parse-checks, build-board]
-    if: >
-      always() &&
-      (
-        github.event_name == 'schedule' ||
-        (github.event_name == 'workflow_dispatch' && !inputs.build_board && needs.build-board.result == 'skipped') ||
-        (github.event_name == 'issue_comment' && needs.parse-checks.result == 'success')
-      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -190,20 +84,109 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          # 勾选板 /run 时是勾选的仓库；手动触发时是 projects_repos 输入；定时为空
-          INPUT_REPOS: ${{ needs.parse-checks.outputs.repos || inputs.projects_repos }}
+          INPUT_REPOS: ${{ inputs.projects_repos }}
+          # 勾选框的全部输入（true/false），配合 data/repo_inputs.json 映射出勾选的仓库
+          INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
-          # 手动触发时 inputs 才有值；定时/勾选板跑时为空，不加对应 flag
           FLAGS=""
           [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
           [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
           [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
-          # 点名仓库：只保留仓库名安全字符，防 shell 注入
-          if [ -n "$INPUT_REPOS" ]; then
+          # 勾选框优先：读映射文件找出勾选的仓库（映射由每次运行结尾同步）
+          CHECKED=$(python3 - <<'PY'
+          import json
+          import os
+
+          try:
+              inputs = json.loads(os.environ.get("INPUTS_JSON") or "{}")
+          except json.JSONDecodeError:
+              inputs = {}
+          try:
+              mapping = json.load(open("data/repo_inputs.json", encoding="utf-8"))
+          except Exception:
+              mapping = {}
+          picked = sorted(name for box, name in mapping.items() if inputs.get(box) is True)
+          print(",".join(picked))
+          PY
+          )
+          if [ -n "$CHECKED" ]; then
+            # 勾选的仓库：点名即强制重跑
+            CLEAN=$(printf '%s' "$CHECKED" | tr -cd 'A-Za-z0-9,._-')
+            [ -n "$CLEAN" ] && FLAGS="$FLAGS --repos $CLEAN"
+          elif [ -n "$INPUT_REPOS" ]; then
+            # 脚本/命令行点名（也做字符白名单防注入）
             CLEAN=$(printf '%s' "$INPUT_REPOS" | tr -cd 'A-Za-z0-9,._-')
             [ -n "$CLEAN" ] && FLAGS="$FLAGS --repos $CLEAN"
           fi
           python -m profile_agent --config config.yaml $FLAGS
+
+      # 把当前仓库列表同步成 Run workflow 对话框里的勾选框（纯 stdlib，不调 AI、不调 API）
+      - name: 同步勾选框（仓库列表 → workflow 输入）
+        if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          WF = Path(".github/workflows/update-profile.yml")
+          MAPPING = Path("data/repo_inputs.json")
+          START = "# <<REPO_CHECKBOXES_START>>"
+          END = "# <<REPO_CHECKBOXES_END>>"
+          snap_path = Path("data/snapshot.json")
+          if not snap_path.exists():
+              print("无快照，跳过勾选框同步")
+              raise SystemExit(0)
+          text = WF.read_text(encoding="utf-8")
+          if START not in text or END not in text:
+              print("未找到勾选框标记，跳过同步")
+              raise SystemExit(0)
+          snap = json.loads(snap_path.read_text(encoding="utf-8"))
+          owner = os.environ.get("OWNER", "")
+          repos = [r for r in snap.get("repos", []) if isinstance(r, dict) and r.get("full_name")]
+          # 排除 profile 仓库自身（与工具默认过滤一致；快照里已是公开非 fork 仓库）
+          repos = [r for r in repos if r["full_name"] != f"{owner}/{owner}"]
+          repos.sort(key=lambda r: (-(r.get("stars") or 0), r["full_name"]))
+
+          # 输入 id 必须字母/下划线开头且只含字母数字-_；保留字与撞名的加前缀/序号
+          RESERVED = {"force", "update_readme", "update_projects", "projects_repos"}
+          used: set = set()
+          mapping: dict = {}
+          lines = []
+          for r in repos:
+              name = r["full_name"].split("/", 1)[1]
+              if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", name) and name not in RESERVED:
+                  box = name
+              else:
+                  box = "repo-" + re.sub(r"[^A-Za-z0-9_-]", "-", name)
+              base, i = box, 2
+              while box in used:
+                  box = f"{base}-{i}"
+                  i += 1
+              used.add(box)
+              mapping[box] = name
+              meta = f"⭐{r.get('stars') or 0}"
+              if r.get("language"):
+                  meta += f" · {r['language']}"
+              lines.append(f"      {box}:")
+              lines.append(f'        description: "{name}（{meta}）"')
+              lines.append("        type: boolean")
+              lines.append("        default: false")
+
+          body = "\n".join(lines) if lines else "      # （暂无公开仓库）"
+          replacement = START + "\n" + body + "\n      " + END
+          updated = re.sub(re.escape(START) + r".*?" + re.escape(END), lambda _m: replacement, text, count=1, flags=re.S)
+          MAPPING.parent.mkdir(parents=True, exist_ok=True)
+          MAPPING.write_text(json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          if updated == text:
+              print(f"勾选框无变化（{len(mapping)} 个仓库）")
+          else:
+              WF.write_text(updated, encoding="utf-8")
+              print(f"勾选框已同步：{len(mapping)} 个仓库")
+          PY
 
       # 项目介绍（AI 生成内容）走 PR 人工审核；纯 README/统计更新直接提交
       - name: 提交变更（项目介绍有变化时开 PR 审核）
@@ -224,7 +207,7 @@ jobs:
             projects_changed=true
           fi
 
-          # 走 PR 时分支里只放 docs/projects：README/统计直接进 main，
+          # 走 PR 时分支里只放 docs/projects：README/统计/勾选框直接进 main，
           # 两者文件永不相交 → PR 开着期间 main 再怎么更新都不会产生冲突
           pr_route=false
           if [ "$review_via_pr" = "true" ] && [ "$projects_changed" = "true" ]; then
@@ -232,6 +215,10 @@ jobs:
           fi
 
           git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}"
+          # 勾选框同步产物（workflow 输入块 + 仓库映射）跟 README 一起直接进 main
+          for p in .github/workflows/update-profile.yml data/repo_inputs.json; do
+            if [ -e "$p" ]; then git add "$p"; fi
+          done
           if [ "$pr_route" = "false" ] && [ "$projects_changed" = "true" ]; then
             git add docs/projects
           fi
@@ -245,7 +232,7 @@ jobs:
             exit 0
           fi
 
-          # ---- 1. 直接提交 main：README/统计（非 PR 模式下也含项目介绍）----
+          # ---- 1. 直接提交 main：README/统计/勾选框（非 PR 模式下也含项目介绍）----
           if [ "$has_direct" = "true" ]; then
             git commit -m "chore: 自动更新 Profile README [skip ci]"
             pushed=false
@@ -297,27 +284,3 @@ jobs:
               fi
             fi
           fi
-
-  # ---- 勾选板 /run 后回帖反馈结果 ----
-  notify:
-    needs: [parse-checks, update]
-    if: always() && github.event_name == 'issue_comment' && needs.parse-checks.result != 'skipped'
-    runs-on: ubuntu-latest
-    steps:
-      - name: 回帖反馈
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          PARSE: ${{ needs.parse-checks.result }}
-          UPD: ${{ needs.update.result }}
-          REPOS: ${{ needs.parse-checks.outputs.repos }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ "$UPD" = "success" ]; then
-            body="✅ 已按勾选（$REPOS）重新生成。明细见 $RUN_URL（Summary 里有逐仓库表格）。跑完可取消勾选，方便下次选择。"
-          elif [ "$PARSE" = "success" ]; then
-            body="⚠️ 更新失败，请打开 $RUN_URL 查看日志。"
-          else
-            body="⚠️ 没有解析到勾选的仓库：请把想更新仓库前的 \`[ ]\` 点成 \`[x]\`，再评论 /run。详见 $RUN_URL"
-          fi
-          gh issue comment "$ISSUE_NUMBER" --body "$body"

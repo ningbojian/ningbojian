@@ -107,18 +107,13 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
-**勾选框选仓库（推荐，不用打名字）**——所有入口都在同一个 workflow 里，侧边栏只有「Update Profile README」一个：
+**勾选框选仓库（推荐，一步到位）**：Actions → Update Profile README → **Run workflow**，对话框里每个公开仓库都有一个独立勾选框（带 star/语言说明）——勾选想更新的仓库，点 Run workflow，完成。勾选的仓库会**强制重新生成**（即使数据没变、即使不在精选/白名单里）；一个都不勾则按 config 的 include/exclude 规则正常更新。
 
-1. **首次**：Actions → Update Profile README → Run workflow → 勾选「只生成/刷新选择板」→ 自动创建一个「🎛 仓库更新选择板」Issue，里面用**勾选框**列出你的全部公开仓库（之后仓库有增减时重复这一步刷新列表即可）。
-2. **之后每次**：打开这个 Issue，勾选想更新的仓库，评论 **`/run`**——只**强制重新生成**勾选的仓库（即使数据没变、即使它不在精选/白名单里），跑完会在 Issue 里回帖并链接到本次运行明细。取消勾选，方便下次选择。
+> 勾选框从哪来？工具在每次运行结束时自动把当前仓库列表同步进 workflow 文件（新仓库自动出现、删除的自动消失），首次手动运行一次后勾选框就有了，之后无需任何维护。GitHub 的触发框本身不支持动态列表，这是在它之上实现「原生勾选」的方式。
 
-日常操作就是「Issue 里打勾 + 评论」，不需要再进 Actions 页面。
+**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在对话框的 `projects_repos` 输入框填逗号分隔仓库名（留空=按 config 规则；`all`=全部精选）。点名的仓库同样是强制重新生成语义。
 
-> 为什么不用 Actions 的输入框选？GitHub 的手动触发界面只有布尔/单选/文本三种输入，做不出动态多选框；Issue 任务清单是网页上最接近的原生勾选体验。
-
-**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在 Actions 手动触发时填 `projects_repos` 输入框（逗号分隔仓库名；留空=按 config 的 include/exclude；`all`=全部精选）。点名的仓库同样是强制重新生成语义。
-
-**每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败），表尾还会列出你全部公开仓库名——直接复制粘贴进 `projects_repos` 就能点名。
+**每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败）。
 
 **主页「暂无描述」自动补位**：精选项目里 description 为空的仓库，会用它自己 README 的内容生成一句 ≤80 字的中文短描述顶上（不再显示「暂无描述」）。不想要这个行为：`ai.fill_empty_descriptions: false`。
 
@@ -185,7 +180,7 @@ projects:
 ## 常见问题
 
 - **想关掉自动更新**：`config.yaml` 里 `schedule.enabled: false` 提交即可；或在 Actions 页面 Disable workflow。
-- **选择板评论 `/run` 没反应**：只有仓库维护者（OWNER/MEMBER/COLLABORATOR）的评论会触发；确认是在「🎛 仓库更新选择板」Issue 里评论的，且至少勾选了一个仓库。触发条件依赖 Issue 正文开头的隐藏标记，正常勾选/编辑不会破坏它。
+- **Run workflow 对话框里没有仓库勾选框**：勾选框是第一次运行后自动生成的——先什么都不勾手动跑一次，再打开对话框就有了。
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **README 被我改坏了**：手动改动会被下次运行覆盖——所有可定制内容都在 `config.yaml` 与 `templates/profile.md.j2` 里改。
 - **数据是旧的**：Actions 手动触发 + force 即可刷新。
