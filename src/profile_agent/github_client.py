@@ -122,10 +122,14 @@ class GitHubClient:
             url = match.group(1) if match else None
         return repos
 
-    def get_repo_readme(self, full_name: str) -> str:
-        """读取仓库 README 文本；无 README 或读取失败时返回空串（不报错）。"""
+    def get_repo_readme(self, full_name: str, ref: str | None = None) -> str:
+        """读取仓库 README 文本；无 README 或读取失败时返回空串（不报错）。
+
+        ref 指定分支/提交（§5.6 规则 2：open PR 仓从 readme-auto 分支读，防回退旧文）。
+        """
+        url = f"{API}/repos/{full_name}/readme" + (f"?ref={ref}" if ref else "")
         try:
-            data, _ = self._get(f"{API}/repos/{full_name}/readme", allow_404=True)
+            data, _ = self._get(url, allow_404=True)
         except GitHubError:
             return ""
         if not isinstance(data, dict):

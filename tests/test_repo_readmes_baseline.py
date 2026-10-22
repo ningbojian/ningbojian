@@ -194,6 +194,28 @@ def _merged_pr_http(http, *, head="HHH2222", merge="MMM3333", merged=True):
     )
 
 
+REPO_URL = "https://api.github.com/repos/alice/cool-tool"
+
+C1 = {"sha": "HHH2222", "message": "feat: 新增 add 函数"}
+CODE_FILES = [{"filename": "src/core.py", "patch": "@@ -1 +1 @@\n+def add(a, b)"}]
+CODE_COMPARE = {"commits": [C1], "files": CODE_FILES}
+
+
+def _push_http(http, *, number=7):
+    """git-data 五连 + 空 open PR 查询 + POST pulls（alice/cool-tool）。"""
+    from fake_github import FakeResponse
+
+    http.add("GET", f"{REPO_URL}/pulls?state=open&head=alice:readme-auto/update&base=main",
+             FakeResponse(json_data=[]))
+    http.add("GET", f"{REPO_URL}/git/ref/heads/readme-auto/update", FakeResponse(status=404))
+    http.add("POST", f"{REPO_URL}/git/refs", FakeResponse(status=201, json_data={}))
+    http.add("POST", f"{REPO_URL}/git/blobs", FakeResponse(status=201, json_data={"sha": "blob1"}))
+    http.add("POST", f"{REPO_URL}/git/trees", FakeResponse(status=201, json_data={"sha": "tree1"}))
+    http.add("POST", f"{REPO_URL}/git/commits", FakeResponse(status=201, json_data={"sha": "commit1"}))
+    http.add("POST", f"{REPO_URL}/pulls",
+             FakeResponse(status=201, json_data={"number": number, "html_url": f"https://x/{number}"}))
+
+
 def test_squash_replay_hits_cache_keeps_baseline_and_skips_push():
     """SB14：squash 合并后 compare 恒非空 → 剔除 README hunk 后同批内容命中缓存；
     零 AI、零推送（含零 PR 查询）、last_input_hash/block_hash 不变、基线保持 HHH、不依赖 PR open。"""
@@ -212,8 +234,12 @@ def test_squash_replay_hits_cache_keeps_baseline_and_skips_push():
     assert [q.full_name for q in q1] == ["alice/cool-tool"]
     r1 = _ai(q1, entries, lambda s, p: rec.append(1) or "一句话。\n- 亮点")
     assert r1[0].status == "generated" and len(rec) == 1
+    push_http = FakeHttp()
+    _push_http(push_http)
+    assert [p.number for p in push_results(_pr_client(push_http), r1, entries=entries)] == [7]
     ih1 = entries["alice/cool-tool"]["last_input_hash"]
     bh1 = entries["alice/cool-tool"]["block_hash"]
+    assert bh1.startswith("sha256:")  # 第一轮推送后已记录托管区内容哈希
     # 第二轮：PR 被 squash 合并 → 基线推进到 HHH；compare(HHH..SSS) 恒非空（重放同批内容）
     detect_http = FakeHttp()
     _merged_pr_http(detect_http, head="HHH2222", merge="MMM3333")
@@ -237,7 +263,210 @@ def test_squash_replay_hits_cache_keeps_baseline_and_skips_push():
     assert e["sha"] == "HHH2222"  # ④ 基线保持 HHH
     assert e["last_input_hash"] == ih1  # ③ 缓存字段不变
     assert e["block_hash"] == bh1
-    assert e["failed_hash"] == ""
+
+
+def test_open_pr_keeps_baseline_and_writes_cache_fields():
+    """SB07：开 PR 时基线不推进，仅写入生成缓存字段（与 GP14 去重：本条为快照断言权威）。"""
+    import hashlib
+
+    from fake_github import FakeHttp
+
+    from profile_agent.readme_block import END, START
+    from profile_agent.repo_readmes_pr import push_results
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    q = _run(entries, {"alice/cool-tool": "HHH2222"},
+             {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    results = _ai(q, entries, lambda s, p: "一句话。\n- 亮点",
+                  fetch_readme=lambda fn: "# 标题\n手写前言。\n")
+    assert results[0].status == "generated"
+    http = FakeHttp()
+    _push_http(http)
+    pushed = push_results(_pr_client(http), results, entries=entries)
+    assert [p.number for p in pushed] == [7]  # ③ PR 创建恰好 1 次
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "aaa1111"  # ① 开 PR 时基线不前进
+    assert e["last_input_hash"] == _ih(_item(
+        base_sha="aaa1111", head_sha="HHH2222", commits=[C1], files=CODE_FILES))  # ② 本批输入哈希
+    content = results[0].content
+    i, j = content.index(START), content.index(END)
+    block = content[i : j + len(END)]
+    assert e["block_hash"] == "sha256:" + hashlib.sha256(block.encode("utf-8")).hexdigest()  # ④
+
+
+def test_closed_unmerged_pr_keeps_baseline_and_suppresses_same_batch():
+    """SB08：PR 被 Close 拒绝后基线不丢（与 GP05 去重：本条钉基线与抑制依据）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import push_results
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    rec: list = []
+    q1 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    r1 = _ai(q1, entries, lambda s, p: rec.append(1) or "一句话。\n- 亮点")
+    h1 = FakeHttp()
+    _push_http(h1)
+    assert push_results(_pr_client(h1), r1, entries=entries)
+    ih = entries["alice/cool-tool"]["last_input_hash"]
+    # PR 被 Close（未合并）：同批内容再来 → AI 缓存命中 → 零调用零推送
+    q2 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    r2 = _ai(q2, entries, lambda s, p: rec.append(1) or "x")
+    assert r2[0].status == "cached" and len(rec) == 1  # ③ AI 0 次
+    assert push_results(_pr_client(FakeHttp()), r2) == []  # ② 空路由：任何请求即报错
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "aaa1111"  # ① 基线不丢
+    assert e["last_input_hash"] == ih  # ④ 抑制依据仍在
+
+
+def test_new_commits_after_close_reopen_batch_from_old_baseline():
+    """SB09：Close 拒绝后来了新提交 → 新批次重开且基线仍从旧点起算（§5.5，刷新即全量）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import push_results
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    prompts: list = []
+    q1 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    r1 = _ai(q1, entries, lambda s, p: prompts.append(p) or "一句话。\n- 亮点")
+    h1 = FakeHttp()
+    _push_http(h1)
+    assert push_results(_pr_client(h1), r1, entries=entries)
+    # PR 被关后新提交落进 main：compare 仍从旧基线 aaa 起算
+    c2 = {"sha": "III9999", "message": "fix: 修一个小问题"}
+    new_files = [*CODE_FILES, {"filename": "src/util.py", "patch": "@@ -1 +1 @@\n+def helper()"}]
+    q2 = _run(entries, {"alice/cool-tool": "III9999"},
+              {("alice/cool-tool", "aaa1111", "III9999"):
+               {"commits": [C1, c2], "files": new_files}})
+    r2 = _ai(q2, entries, lambda s, p: prompts.append(p) or "新版一句话。\n- 新亮点")
+    assert r2[0].status == "generated" and len(prompts) == 2
+    assert "def add(a, b)" in prompts[1] and "def helper()" in prompts[1]  # ② 旧批 diff 一并带回
+    h2 = FakeHttp()
+    _push_http(h2, number=8)
+    assert [p.number for p in push_results(_pr_client(h2), r2, entries=entries)] == [8]  # ① 新批次重开
+    assert entries["alice/cool-tool"]["sha"] == "aaa1111"  # ③ 基线仍 aaa 直至合并
+
+
+def test_merge_advances_baseline_and_next_compare_bases_from_head_sha():
+    """SB10：合并检测推进到 head SHA；后续 compare 的 base 段即该 SHA（与 GP13 去重：compare 侧权威）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import advance_baseline_from_merged_pr
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    detect = FakeHttp()
+    _merged_pr_http(detect, head="HHH2222", merge="MMM3333")
+    assert advance_baseline_from_merged_pr(
+        _pr_client(detect), entries["alice/cool-tool"], "alice/cool-tool", "readme-auto/update"
+    ) is True
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "HHH2222" and e["sha"] != "MMM3333"  # ①②
+    fetchers = FakeFetchers(
+        heads={"alice/cool-tool": "NNN5555"},
+        compares={("alice/cool-tool", "HHH2222", "NNN5555"): CODE_COMPARE},
+    )
+    q = compute_queue([REPO], entries, RepoReadmesConfig(enabled=True), ALICE,
+                      fetch_head=fetchers.fetch_head, fetch_compare=fetchers.fetch_compare)
+    assert [x.full_name for x in q] == ["alice/cool-tool"]  # ③ compare(HHH..NNN) 生效
+
+
+def test_concurrent_commits_after_pr_still_covered_next_round():
+    """SB11：R10 核心回归——PR 开出后 main 有并发提交再合并，下轮 compare 仍覆盖该批。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import advance_baseline_from_merged_pr
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    detect = FakeHttp()
+    _merged_pr_http(detect, head="HHH2222", merge="MMM3333")
+    assert advance_baseline_from_merged_pr(
+        _pr_client(detect), entries["alice/cool-tool"], "alice/cool-tool", "readme-auto/update"
+    )
+    # main 在 PR 开出后又落了 C2、C3——若误用 merge commit MMM 作 base，compare 为空
+    c2 = {"sha": "CCC2222", "message": "feat: 并发提交二"}
+    c3 = {"sha": "CCC3333", "message": "feat: 并发提交三"}
+    fetchers = FakeFetchers(
+        heads={"alice/cool-tool": "CCC3333"},
+        compares={("alice/cool-tool", "HHH2222", "CCC3333"):
+                  {"commits": [c2, c3], "files": [{"filename": "src/app.py", "patch": "@@ -1 +1 @@\n+x = 2"}]}},
+    )
+    q = compute_queue([REPO], entries, RepoReadmesConfig(enabled=True), ALICE,
+                      fetch_head=fetchers.fetch_head, fetch_compare=fetchers.fetch_compare)
+    assert [x.full_name for x in q] == ["alice/cool-tool"]  # ①② 非空入队
+    assert [c["sha"] for c in q[0].commits] == ["CCC2222", "CCC3333"]  # 覆盖 C2、C3
+    assert fetchers.compare_calls == [("alice/cool-tool", "HHH2222", "CCC3333")]  # ③ base 是 HHH 非 MMM
+
+
+def test_merge_without_concurrent_readme_only_guard_closes_baseline():
+    """SB12：merge 合并无并发提交 → README-only 守卫把基线收口到主干 HEAD（§12-R10 末、§5.3）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import push_results
+
+    entries = {"alice/cool-tool": _entry("HHH2222")}
+    bot_hunk = ("@@ -1,2 +1,7 @@\n # 标题\n+<!-- profile-agent:readme:start -->\n"
+                "+一句话定位。\n+- 亮点\n+<!-- profile-agent:readme:end -->")
+    fetchers = FakeFetchers(
+        heads={"alice/cool-tool": "NNN5555"},
+        compares={("alice/cool-tool", "HHH2222", "NNN5555"):
+                  {"commits": [{"sha": "NNN5555", "message": "docs: bot 更新"}],
+                   "files": [{"filename": "README.md", "patch": bot_hunk}]}},
+    )
+    q = compute_queue([REPO], entries, RepoReadmesConfig(enabled=True), ALICE,
+                      fetch_head=fetchers.fetch_head, fetch_compare=fetchers.fetch_compare)
+    assert q == []  # ② AI 0 次（不入队）
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "NNN5555"  # ① 收口到主干 HEAD
+    assert e["failed_hash"] == "" and e["last_input_hash"] == ""  # ④ 不写抑制字段
+    assert push_results(_pr_client(FakeHttp()), []) == []  # ③ 空路由：零推送零 PR
+
+
+def test_merge_detection_idempotent_no_rewrite():
+    """SB13：合并检测幂等——重复检测不改写基线（与 GP13 去重：本文件钉无 AI 介入）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import advance_baseline_from_merged_pr
+
+    entries = {"alice/cool-tool": _entry("HHH2222")}
+    detect = FakeHttp()
+    _merged_pr_http(detect, head="HHH2222", merge="MMM3333")
+    client = _pr_client(detect)
+    assert advance_baseline_from_merged_pr(
+        client, entries["alice/cool-tool"], "alice/cool-tool", "readme-auto/update"
+    ) is False  # 基线已==head SHA → 不改写
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "HHH2222"  # ① 保持现值 ② 无 MMM 痕迹
+    # ③ AI 0 次：基线==HEAD → 队列为空
+    fetchers = FakeFetchers(heads={"alice/cool-tool": "HHH2222"})
+    assert compute_queue([REPO], entries, RepoReadmesConfig(enabled=True), ALICE,
+                         fetch_head=fetchers.fetch_head,
+                         fetch_compare=fetchers.fetch_compare) == []
+
+
+def test_open_pr_no_new_commits_snapshot_unchanged():
+    """SB15：PR 仍 open 且无新提交 → 缓存命中快照零变化（与 GP09 去重：本条钉快照）。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import push_results
+
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    rec: list = []
+    q1 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    r1 = _ai(q1, entries, lambda s, p: rec.append(1) or "一句话。\n- 亮点")
+    h1 = FakeHttp()
+    _push_http(h1)
+    assert push_results(_pr_client(h1), r1, entries=entries)
+    before = dict(entries["alice/cool-tool"])
+    # 第二轮：PR 还开着、main 无新提交 → 同批 compare → AI 缓存命中 → 全静默
+    q2 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"): CODE_COMPARE})
+    r2 = _ai(q2, entries, lambda s, p: rec.append(1) or "x")
+    assert r2[0].status == "cached" and len(rec) == 1  # AI 0 次
+    assert push_results(_pr_client(FakeHttp()), r2) == []  # 无推送：空路由零请求
+    assert entries["alice/cool-tool"] == before  # sha/last_input_hash/block_hash 全不变
 
 
 # ---- M2 端到端：pending 开门与补跑（SB19-SB21，cli 接线后生效）----

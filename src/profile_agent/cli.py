@@ -7,6 +7,7 @@ import dataclasses
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,15 +21,18 @@ from .aggregate import (
     stats_fingerprint,
 )
 from .bio import BioError, _is_fresh, generate_bio
+from .checklist import append_final_state, update_checklist
 from .config import Config, ConfigError, load_config
-from .github_client import GitHubClient, GitHubError
+from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
 from .render import render_readme, write_if_changed
-from .repo_readmes import compute_queue
-from .repo_readmes_ai import process_queue
+from .repo_readmes import CompareGone, compute_queue, participants
+from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
+from .repo_readmes_pr import advance_baseline_from_merged_pr, get_open_pr, push_results
 from .short_intro import generate_short_intro, short_intro_input_hash
 from .snapshot import load_snapshot, save_snapshot
+from .wait_merges import wait_first_line, wait_for_merges
 
 # README 展示时间统一按北京时间（UTC+8）标注
 _BEIJING = timezone(timedelta(hours=8))
@@ -96,7 +100,57 @@ def _memo_readme(gh_client: GitHubClient | None):
             cache[full_name] = gh_client.get_repo_readme(full_name) if gh_client else ""
         return cache[full_name]
 
+    get.cache = cache  # 模式 B 预填 §5.6 内存/分支内容（A 同轮吸收）
     return get
+
+
+def _fetchers_from_client(client: GitHubClient):
+    """生产路径的 head/compare 取数：compare 归一化为队列层契约，404/409 → CompareGone。"""
+
+    class _Fetchers:
+        def fetch_head(self, full_name: str) -> str:
+            data, _ = client._get(f"{API}/repos/{full_name}/commits/HEAD")
+            assert isinstance(data, dict)
+            return str(data.get("sha") or "")
+
+        def fetch_compare(self, full_name: str, base: str, head: str):
+            try:
+                data, _ = client._get(f"{API}/repos/{full_name}/compare/{base}..{head}")
+            except GitHubError as exc:
+                if getattr(exc, "status", None) in (404, 409):
+                    raise CompareGone(str(exc)) from exc
+                raise
+            assert isinstance(data, dict)
+            return {
+                "commits": [
+                    {"sha": c.get("sha"), "message": (c.get("commit") or {}).get("message", "")}
+                    for c in (data.get("commits") or [])
+                    if isinstance(c, dict)
+                ],
+                "files": [f for f in (data.get("files") or []) if isinstance(f, dict)],
+            }
+
+    return _Fetchers()
+
+
+def _fetch_tree_paths(client: GitHubClient, full_name: str, sha: str) -> list[str]:
+    """二进制降级用文件树（§5.3）：只取 blob 路径。"""
+    data, _ = client._get(f"{API}/repos/{full_name}/git/trees/{sha}?recursive=1")
+    assert isinstance(data, dict)
+    return [str(t.get("path") or "") for t in (data.get("tree") or []) if t.get("type") == "blob"]
+
+
+def _save_b_snapshot(snap_path: Path, prev: Snapshot | None, cfg: Config, state: dict) -> None:
+    """B 完成即落盘（§4 第 1 步）：等待期间被取消也不丢基线与 AI 缓存（SB22/SB23）。"""
+    base = prev if prev is not None else Snapshot(username=cfg.github.username)
+    save_snapshot(
+        snap_path,
+        dataclasses.replace(
+            base,
+            repo_readmes=state,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+        ),
+    )
 
 
 def _short_intros_clean(targets, cfg: Config, prev: Snapshot | None, readme_of) -> bool:
@@ -132,10 +186,14 @@ _B_STAT_LABELS = (
 )
 
 
-def _b_status_line(stats: dict) -> str:
+def _b_status_line(stats: dict, reason: str = "") -> str:
     """「模式 B 状态」一行（设计 §8①：静默必须能被看懂是设计如此还是出问题了）。"""
     parts = [f"{label} {stats.get(key, 0)} 仓" for key, label in _B_STAT_LABELS if stats.get(key)]
-    return "模式 B 状态：" + ("、".join(parts) if parts else "无事可做")
+    if parts:
+        body = "、".join(parts) + (f"（{reason}）" if reason else "")
+    else:
+        body = reason or "无事可做"
+    return "模式 B 状态：" + body
 
 
 def run(
@@ -150,6 +208,12 @@ def run(
     only_repos: list[str] | None = None,
     readme_fetchers=None,
     readme_generate=None,
+    b_client=None,
+    issue_client=None,
+    b_force: bool = False,
+    merge_wait_minutes: float = 0,
+    now_fn=None,
+    sleep_fn=None,
 ) -> int:
     fallback = os.environ.get("GITHUB_REPOSITORY_OWNER")
     try:
@@ -244,35 +308,241 @@ def run(
         print("无变化，跳过更新")
         return 0
 
-    # 3.5 模式 B：队列计算 + AI 阶段（推送/PR 在 M3 接入；异常隔离，绝不阻断模式 A）
+    # 3.5 模式 B（M3）：合并检测 → 队列 → AI → 推送/PR → 即时落盘 → 清单 → 等待 → §5.6 新鲜度
     # --no-ai 时整个 AI 阶段跳过且不置 pending（显式关 AI 是开发/测试语义，不是缺 key 积压）
     repo_readmes_state: dict[str, dict] = dict(prev.repo_readmes) if prev else {}
-    if cfg.repo_readmes.enabled and readme_fetchers is not None:
+    b_stats: dict = {}
+    b_reason = ""
+    b_results = []
+    b_merged: set[str] = set()
+    open_prs: list[dict] = []
+    b_readme_sources: dict[str, str] = {}  # §5.6：full_name → 内存/API 真源/分支/旧文
+    issue: dict | None = None
+    issue_eff = None
+    checklist_closed = False
+    owner_repo = f"{cfg.github.username}/{cfg.github.username}"
+
+    # PAT 解析（Option A）：注入参数优先；生产路径从 WORKFLOW_PAT 构造（fixture 离线不读环境）
+    b_client_eff = b_client
+    if b_client_eff is None and fixture is None:
+        _pat = os.environ.get("WORKFLOW_PAT") or None
+        if _pat:
+            b_client_eff = GitHubClient(_pat)
+    if b_force and not cfg.repo_readmes.enabled:
+        print("已勾选 repo_readmes 但 config.yaml 中 repo_readmes.enabled=false，本次未运行模式 B")
+    fetchers = readme_fetchers
+    if fetchers is None and b_client_eff is not None and cfg.repo_readmes.enabled:
+        fetchers = _fetchers_from_client(b_client_eff)
+    # B 活跃条件：启用 且（测试注入 fetchers 或 生产 PAT 可用）——queue-only 模式合法（IW10）
+    b_active = cfg.repo_readmes.enabled and (fetchers is not None or b_client_eff is not None)
+
+    if b_active:
         try:
-            b_stats: dict = {}
+            # 合并检测：已合并 bot PR 的基线推进到 PR head SHA（§12-R10）；b_merged 供 §5.3 剔除
+            if b_client_eff is not None and not dry_run:
+                for _fn, _entry in list(repo_readmes_state.items()):
+                    if _entry.get("sha") and advance_baseline_from_merged_pr(
+                        b_client_eff, _entry, _fn, cfg.repo_readmes.pr_branch
+                    ):
+                        b_merged.add(_fn)
+
             b_queue = compute_queue(
                 repos,
                 repo_readmes_state,
                 cfg.repo_readmes,
                 cfg.github.username,
-                fetch_head=readme_fetchers.fetch_head,
-                fetch_compare=readme_fetchers.fetch_compare,
-                force=force,
+                fetch_head=fetchers.fetch_head if fetchers is not None else (lambda fn: ""),
+                fetch_compare=fetchers.fetch_compare if fetchers is not None else (lambda fn, b, h: {}),
+                force=force or b_force,
                 stats=b_stats,
             )
-            print(_b_status_line(b_stats))
             if b_queue and not no_ai:
-                process_queue(
+                b_results = process_queue(
                     b_queue,
                     repo_readmes_state,
                     cfg.ai,
                     cfg.repo_readmes,
                     ai_active=ai_active,
                     generate=readme_generate,
-                    force=force,
+                    fetch_readme=(
+                        b_client_eff.get_repo_readme if b_client_eff is not None else None
+                    ),
+                    fetch_tree=(
+                        (lambda fn, sha: _fetch_tree_paths(b_client_eff, fn, sha))
+                        if b_client_eff is not None
+                        else None
+                    ),
+                    strip_readme=b_merged,
+                    force=force or b_force,
                 )
+            # 推送/PR：只推 generated；成功后 entries 回写 block_hash（SB07）
+            if b_client_eff is not None and b_results and not dry_run:
+                push_results(
+                    b_client_eff,
+                    b_results,
+                    entries=repo_readmes_state,
+                    branch=cfg.repo_readmes.pr_branch,
+                )
+            # B 完成即落盘（§4 第 1 步，SB22/23）：等待期间被取消也不丢基线与 AI 缓存
+            if not dry_run:
+                _save_b_snapshot(snap_path, prev, cfg, repo_readmes_state)
         except Exception as exc:  # noqa: BLE001 —— B 任何异常都不得阻断 A（§4 护栏）
             print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
+
+    # §5.6 同轮新鲜度：本轮生成（内存）> 本轮合并（API 真源）> 有 open PR（分支）> 旧文；
+    # 顺带扫描全部 open PR（清单/等待的输入）——推送过的仓必然有 open PR，含本轮刚推的
+    if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
+        for r in b_results:
+            if r.status == "generated":
+                b_readme_sources[r.full_name] = "内存"
+                readme_of.cache[r.full_name] = r.content
+        for _fn in sorted(b_merged):
+            b_readme_sources[_fn] = "API 真源"
+            readme_of.cache[_fn] = b_client_eff.get_repo_readme(_fn)
+        for _fn, _entry in sorted(repo_readmes_state.items()):
+            if not _entry.get("sha"):
+                continue
+            pr = get_open_pr(b_client_eff, _fn, cfg.repo_readmes.pr_branch)
+            if not pr:
+                continue
+            open_prs.append(
+                {
+                    "full_name": _fn,
+                    "html_url": pr.get("html_url", ""),
+                    "number": pr.get("number"),
+                    "branch": cfg.repo_readmes.pr_branch,
+                }
+            )
+            if _fn not in readme_of.cache:
+                b_readme_sources[_fn] = "分支"
+                readme_of.cache[_fn] = b_client_eff.get_repo_readme(
+                    _fn, ref=cfg.repo_readmes.pr_branch
+                )
+
+    # 「模式 B 状态」行（§8①）：七种静默场景各有可读原因，日志 + Summary 同源
+    if b_force and not cfg.repo_readmes.enabled:
+        b_reason = "未运行（勾选与 config 开关冲突，见上方警告）"
+    elif not cfg.repo_readmes.enabled:
+        b_reason = "未启用（config.yaml repo_readmes.enabled=false）"
+    elif b_client_eff is None and readme_fetchers is None:
+        b_reason = "未运行：缺 WORKFLOW_PAT，无法 compare/推送（配好后自动启用）"
+    elif any(r.status == "pending" for r in b_results):
+        b_reason = MISSING_KEY_REASON
+    elif any(r.status == "suppressed" for r in b_results):
+        b_reason = "本批输入与上次失败相同已跳过（不会自动重试；新提交或 --force 才重试）"
+    if cfg.repo_readmes.enabled or b_force:
+        status_line = _b_status_line(b_stats, b_reason)
+        print(status_line)
+        _append_summary(f"- {status_line}")
+
+    # 对账行：本轮 A（描述补位）读到的 README 各来自哪里（§5.6）
+    if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
+        counts = {"内存": 0, "API 真源": 0, "分支": 0, "旧文": 0}
+        for r in short_targets:
+            counts[b_readme_sources.get(r.full_name, "旧文")] += 1
+        print(
+            "本轮 A 的 README 输入来源："
+            + "、".join(f"{label} {counts[label]}" for label in counts)
+        )
+
+    # 3.6 清单/通知 + 等待（§4-2/§4-3）：有 open PR 才动 issue；等待仅勾选且非空时执行
+    if cfg.repo_readmes.enabled and b_client_eff is not None and not dry_run:
+        if issue_client is not None:
+            issue_eff = issue_client
+        else:
+            _tok = os.environ.get(cfg.github.token_env) or None
+            if _tok:
+                issue_eff = GitHubClient(_tok)
+        wait_hint = ""
+        if merge_wait_minutes > 0 and open_prs:
+            _until = (
+                datetime.now(_BEIJING) + timedelta(minutes=merge_wait_minutes)
+            ).strftime("%H:%M")
+            wait_hint = wait_first_line(len(open_prs), _until)
+        if issue_eff is not None:
+            try:
+                issue = update_checklist(
+                    issue_eff,
+                    owner_repo,
+                    open_prs,
+                    username=cfg.github.username,
+                    updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
+                    branch=cfg.repo_readmes.pr_branch,
+                    tail=wait_hint,
+                )
+            except Exception as exc:  # noqa: BLE001 —— 清单失败任务不失败（IW26）
+                print(f"清单 issue 更新失败（不影响本轮任务）：{exc}", file=sys.stderr)
+        if open_prs:
+            # Summary 清单快照（IW25）：无论 issue 通道是否可用都留一份可点的清单
+            _append_summary(
+                "### README 待合并清单\n"
+                + "\n".join(f"- {p['full_name']}：{p['html_url']}" for p in open_prs)
+                + (f"\n清单 issue：{issue['html_url']}" if issue else "\n（清单 issue 未创建）")
+            )
+
+    if merge_wait_minutes > 0 and open_prs and b_client_eff is not None and not dry_run:
+        pending_nums = sorted(p["number"] for p in open_prs if p.get("number"))
+        if pending_nums:
+            until_bj = (
+                datetime.now(_BEIJING) + timedelta(minutes=merge_wait_minutes)
+            ).strftime("%H:%M")
+            first = wait_first_line(len(pending_nums), until_bj)
+            print(f"等待合并：{first}")
+            _append_summary(f"### 等待合并\n{first}")
+            current = set(pending_nums)
+
+            def _on_change(pending: list[int]) -> None:
+                nonlocal current, checklist_closed
+                current = set(pending)
+                if not pending:
+                    checklist_closed = True
+                remaining = [p for p in open_prs if p.get("number") in current]
+                if issue is not None and issue_eff is not None:
+                    try:
+                        update_checklist(
+                            issue_eff,
+                            owner_repo,
+                            remaining,
+                            username=cfg.github.username,
+                            updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
+                            branch=cfg.repo_readmes.pr_branch,
+                        )
+                    except Exception as exc:  # noqa: BLE001 —— 刷新失败忽略，不拖死等待
+                        print(f"清单刷新失败（忽略）：{exc}", file=sys.stderr)
+                print(f"::notice::等待合并：还剩 {len(pending)} 条待处理")
+
+            try:
+                wait_result = wait_for_merges(
+                    b_client_eff,
+                    owner_repo,
+                    pending_nums,
+                    minutes=merge_wait_minutes,
+                    now_fn=now_fn or time.monotonic,
+                    sleep_fn=sleep_fn or time.sleep,
+                    on_change=_on_change,
+                )
+            except KeyboardInterrupt:
+                raise  # 取消语义：B 产物已落盘，不回滚（IW24 前半）
+            except Exception as exc:  # noqa: BLE001 —— 轮询失败不拖死整轮，按超时继续
+                print(f"等待合并轮询失败（继续执行模式 A）：{exc}", file=sys.stderr)
+                wait_result = "timeout"
+            if wait_result == "timeout":
+                timeout_tail = "⏰ 等待窗口已耗尽，未合并的 PR 会继续留在清单里，任务继续。"
+                print(timeout_tail)
+                remaining = [p for p in open_prs if p.get("number") in current]
+                if issue is not None and issue_eff is not None and remaining:
+                    try:
+                        update_checklist(
+                            issue_eff,
+                            owner_repo,
+                            remaining,
+                            username=cfg.github.username,
+                            updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
+                            branch=cfg.repo_readmes.pr_branch,
+                            tail=timeout_tail,
+                        )
+                    except Exception as exc:  # noqa: BLE001 —— 终态行失败忽略
+                        print(f"清单更新失败（忽略）：{exc}", file=sys.stderr)
 
     # 4. 描述补位：缺 description 的精选仓库，用其 README 生成一句主页文案
     short_intros: dict[str, str] = {}
@@ -406,6 +676,13 @@ def run(
     )
     save_snapshot(snap_path, new_snap)
 
+    # 6.5 收尾（§4-5）：清单仍开着时原地追加「本轮 Overview 已进入 main」终态行
+    if issue is not None and issue_eff is not None and not checklist_closed:
+        try:
+            append_final_state(issue_eff, owner_repo, issue)
+        except Exception as exc:  # noqa: BLE001 —— 收尾行失败忽略，不改任务结果
+            print(f"清单收尾更新失败（忽略）：{exc}", file=sys.stderr)
+
     # 7. 运行明细：逐仓库列出本次做了什么（写入 Actions 摘要页 + 日志）
     if proj_targets or short_targets:
         prev_states_all = _prev_repo_states(prev)
@@ -472,10 +749,27 @@ def main(argv: list[str] | None = None) -> int:
         help="只更新这些仓库的介绍（逗号分隔仓库名，可点名任意公开仓库）；all = 按 config 规则的全部",
     )
     parser.add_argument("--fixture", default=None, help="从本地 fixture 目录读取数据（离线测试）")
+    parser.add_argument(
+        "--repo-readmes", action="store_true", help="本次强制重跑模式 B（各仓库 README 托管区更新）"
+    )
+    parser.add_argument(
+        "--wait-for-merges",
+        action="store_true",
+        help="等待待合并的 README PR 结清后再更新主页（默认窗口 30 分钟）",
+    )
+    parser.add_argument(
+        "--merge-wait-minutes",
+        type=float,
+        default=None,
+        help="等待合并窗口分钟数（0 = 不等待；给出时覆盖 --wait-for-merges 的默认 30）",
+    )
     args = parser.parse_args(argv)
     only_repos = None
     if args.repos:
         only_repos = [s.strip() for s in args.repos.split(",") if s.strip()] or None
+    merge_wait = 30.0 if args.wait_for_merges else 0.0
+    if args.merge_wait_minutes is not None:
+        merge_wait = args.merge_wait_minutes
     return run(
         Path(args.config),
         dry_run=args.dry_run,
@@ -485,6 +779,8 @@ def main(argv: list[str] | None = None) -> int:
         skip_projects=args.skip_projects,
         fixture=Path(args.fixture) if args.fixture else None,
         only_repos=only_repos,
+        b_force=args.repo_readmes,
+        merge_wait_minutes=merge_wait,
     )
 
 

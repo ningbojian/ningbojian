@@ -178,7 +178,13 @@ def read_branch_block_hash(client: GitHubClient, full_name: str, branch: str) ->
     i, j = content.find(START), content.find(END)
     if i < 0 or j < 0 or j < i:
         return ""
-    block = content[i : j + len(END)]
+    return content_block_hash(content)
+
+
+def content_block_hash(content: str) -> str:
+    """托管区内容哈希（与 read_branch_block_hash 同口径：marker 区块整体；无 marker 取全文）。"""
+    i, j = content.find(START), content.find(END)
+    block = content[i : j + len(END)] if i >= 0 and j >= i else content
     return "sha256:" + hashlib.sha256(block.encode("utf-8")).hexdigest()
 
 
@@ -186,6 +192,7 @@ def push_results(
     client: GitHubClient,
     results: list[ProcessResult],
     *,
+    entries: dict[str, dict] | None = None,
     now: Callable[[], str] | None = None,
     branch: str = PR_BRANCH,
 ) -> list[PrResult]:
@@ -193,20 +200,33 @@ def push_results(
 
     抑制在 AI 输入哈希层完成（GP05/GP09/GP12）：cached 结果连一个 HTTP 请求都不发。
     force 重新生成的结果是 generated，照常推送（GP11）。
+    传入 entries 时，推送成功后就地写回该仓 block_hash（托管区内容哈希，SB07）。
     """
     pushed: list[PrResult] = []
     for r in results:
         if r.status != "generated":
             continue
-        pushed.append(
-            open_or_refresh_pr(
-                client,
-                full_name=r.full_name,
-                content=r.content or "",
-                head_sha=r.head_sha,
-                title=build_pr_title(r.full_name),
-                body=build_pr_body(commits=r.commits, base_sha=r.base_sha, head_sha=r.head_sha),
-                branch=branch,
-            )
+        res = open_or_refresh_pr(
+            client,
+            full_name=r.full_name,
+            content=r.content or "",
+            head_sha=r.head_sha,
+            title=build_pr_title(r.full_name),
+            body=build_pr_body(commits=r.commits, base_sha=r.base_sha, head_sha=r.head_sha),
+            branch=branch,
         )
+        if entries is not None:
+            entry = entries.setdefault(
+                r.full_name,
+                {
+                    "sha": r.head_sha,
+                    "block_hash": "",
+                    "mode": "block",
+                    "failed_hash": "",
+                    "last_input_hash": "",
+                    "pending": False,
+                },
+            )
+            entry["block_hash"] = content_block_hash(r.content or "")
+        pushed.append(res)
     return pushed
