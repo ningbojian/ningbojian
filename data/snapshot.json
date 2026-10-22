@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:0525c3463fa4be69c22a13fc3abb0a54de687b92e156aafc46a3b91e6e33f15f",
+  "stats_fingerprint": "sha256:9deb43be15a2cff686a3ae9743ce2e356e91fbcb8b2c76ea55b3b386768f1844",
   "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
   "totals": {
     "public_repos": 11,
@@ -13,7 +13,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-22T12:49:11+00:00",
+      "pushed_at": "2026-10-22T14:29:35+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -22,8 +22,9 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T16:06:28+00:00",
-      "short_intro": "自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介，定时更新且增量节约 AI 额度。",
-      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
+      "intro_hash": "sha256:ec9369057be5302bff842f8b1d721450bb530cb7abea663169b02e3db6ae2416",
+      "intro_generated_at": "2026-10-22T14:39:52.605315+00:00",
+      "ai_generated": true
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -66,9 +67,8 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-09-26T12:05:44+00:00",
-      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
-      "intro_generated_at": "2026-10-22T12:52:52.643029+00:00",
-      "ai_generated": true
+      "short_intro": "连上手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关窗即关闭。内置自动探测、设置备份还原、连通性测试，零依赖单文件。",
+      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
     }
   ],
   "bio": {
@@ -87,7 +87,52 @@
       "last_input_hash": "",
       "pending": false,
       "updated_at": "2026-10-22T12:46:41.124606+00:00"
+    },
+    "ningbojian/MultiFuncCalculator": {
+      "sha": "a7e52dbeb5175ba32de9cbaebc6de026f02f6cb7",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+    },
+    "ningbojian/ProfileReadmeAgent": {
+      "sha": "7b5efc8c0899535969b17745ee13603a8c444b0c",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+    },
+    "ningbojian/RoboArmDev-Showcase": {
+      "sha": "d49731c159de0ccc94ffdb26017f339bf5f7d640",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+    },
+    "ningbojian/agri-ecommerce-platform": {
+      "sha": "896a60d66b3b0791a6c43fa47a001159154eedc0",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+    },
+    "ningbojian/phone-hotspot-proxy": {
+      "sha": "9ca4efd10b7ad59417ac5b719e69cf1a9de58130",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T14:39:42.211662+00:00"
     }
   },
-  "generated_at": "2026-10-22T12:55:02.345238+00:00"
+  "generated_at": "2026-10-22T14:40:07.483216+00:00"
 }

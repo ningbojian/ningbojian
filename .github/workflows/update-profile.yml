@@ -8,7 +8,7 @@ name: Update Profile README
 on:
   schedule:
     - cron: "23 2 * * *" # 每天 02:23 UTC ≈ 北京 10:23 唤醒；间隔门决定今天是否真跑
-    # interval_days: 7 —— 定时运行间隔（天）；Run workflow 下拉改写，勿手改
+    # interval_days: 3 —— 定时运行间隔（天）；Run workflow 下拉改写，勿手改
     # interval_anchor: 2026-10-22 —— 间隔锚点（UTC 日期）；改间隔时自动重置
   workflow_dispatch:
     inputs:

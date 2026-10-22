@@ -74,7 +74,7 @@
   <tr>
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/phone-hotspot-proxy"><b>🐍 phone-hotspot-proxy</b></a><br>
-      连接手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关闭时自动关闭；零依赖单文件，无需逐个配置代理。<br>
+      连上手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关窗即关闭。内置自动探测、设置备份还原、连通性测试，零依赖单文件。<br>
       <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/phone-hotspot-proxy?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--09--26-lightgrey?style=flat-square" alt="最后推送" />    </td>
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/shiyuan"><b>🐍 shiyuan</b></a><br>
@@ -86,4 +86,4 @@
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-22 20:55（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-22 22:40（北京时间） 自动更新
