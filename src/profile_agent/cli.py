@@ -26,6 +26,7 @@ from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
 from .render import render_readme, write_if_changed
 from .repo_readmes import compute_queue
+from .repo_readmes_ai import process_queue
 from .short_intro import generate_short_intro, short_intro_input_hash
 from .snapshot import load_snapshot, save_snapshot
 
@@ -148,6 +149,7 @@ def run(
     fixture: Path | None = None,
     only_repos: list[str] | None = None,
     readme_fetchers=None,
+    readme_generate=None,
 ) -> int:
     fallback = os.environ.get("GITHUB_REPOSITORY_OWNER")
     try:
@@ -242,12 +244,13 @@ def run(
         print("无变化，跳过更新")
         return 0
 
-    # 3.5 模式 B：队列计算（AI/推送在后续里程碑接入；异常隔离，绝不阻断模式 A）
+    # 3.5 模式 B：队列计算 + AI 阶段（推送/PR 在 M3 接入；异常隔离，绝不阻断模式 A）
+    # --no-ai 时整个 AI 阶段跳过且不置 pending（显式关 AI 是开发/测试语义，不是缺 key 积压）
     repo_readmes_state: dict[str, dict] = dict(prev.repo_readmes) if prev else {}
     if cfg.repo_readmes.enabled and readme_fetchers is not None:
         try:
             b_stats: dict = {}
-            compute_queue(
+            b_queue = compute_queue(
                 repos,
                 repo_readmes_state,
                 cfg.repo_readmes,
@@ -258,6 +261,16 @@ def run(
                 stats=b_stats,
             )
             print(_b_status_line(b_stats))
+            if b_queue and not no_ai:
+                process_queue(
+                    b_queue,
+                    repo_readmes_state,
+                    cfg.ai,
+                    cfg.repo_readmes,
+                    ai_active=ai_active,
+                    generate=readme_generate,
+                    force=force,
+                )
         except Exception as exc:  # noqa: BLE001 —— B 任何异常都不得阻断 A（§4 护栏）
             print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
 

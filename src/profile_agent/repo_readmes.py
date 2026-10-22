@@ -59,19 +59,22 @@ def participants(repos: list[Repo], cfg: RepoReadmesConfig, username: str) -> li
 
 
 def build_diff_text(commits: list[dict], files: list[dict], max_chars: int) -> str:
-    """把提交标题与 diff 拼成喂 AI 的文本；超限按「最近优先」截断并加显式标记。"""
+    """把提交标题与 diff 拼成喂 AI 的文本；超限按「最近优先」截断并加显式标记。
+
+    文件 patch 排在提交标题之前（预算紧张时先保住代码事实，标题随后被裁）。
+    """
     parts: list[str] = []
-    for c in reversed(commits):  # 最近提交优先
-        sha = str(c.get("sha") or "")[:7]
-        message = str(c.get("message") or "").strip().splitlines()
-        parts.append(f"提交 {sha}：{message[0] if message else ''}")
-    for f in reversed(files):  # 最近文件优先（与 commits 同向）
+    for f in reversed(files):  # 最近文件优先
         name = str(f.get("filename") or "")
         patch = f.get("patch")
         if patch:
             parts.append(f"--- {name}\n{patch}")
         else:
             parts.append(f"--- {name}（无文本 diff）")
+    for c in reversed(commits):  # 最近提交优先
+        sha = str(c.get("sha") or "")[:7]
+        message = str(c.get("message") or "").strip().splitlines()
+        parts.append(f"提交 {sha}：{message[0] if message else ''}")
     text = "\n".join(parts)
     if len(text) > max_chars:
         text = text[:max_chars] + TRUNCATED_MARK
