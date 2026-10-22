@@ -10,7 +10,18 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "忽略增量检测，强制重新生成"
+        description: >-
+          忽略增量检测，强制重新生成。
+          模式 B 流程：逐仓 AI 生成 README → 开 PR → 清单 issue 通知 → 可选等待合并 → 主页同轮吸收（合并=新版、仍 open=分支内容、被关=回退旧文）。
+          下方逐仓勾选只影响项目介绍，不驱动模式 B。
+        type: boolean
+        default: false
+      repo_readmes:
+        description: "只强制模式 B（各仓库 README 托管区更新：AI 生成 → 开 PR → 主页吸收）；不影响模式 A 与项目介绍的门"
+        type: boolean
+        default: false
+      wait_for_merges:
+        description: "暂停，等我合并 PR（可选；不勾则直接继续，PR 事后随时可合，最多等 30 分钟）"
         type: boolean
         default: false
       update_readme:
@@ -27,27 +38,27 @@ on:
         default: ""
       # <<REPO_CHECKBOXES_START>>
       MultiFuncCalculator:
-        description: "MultiFuncCalculator（2026-10-19 推送）"
+        description: "MultiFuncCalculator（2026-10-19 推送 · 仅项目介绍）"
         type: boolean
         default: false
       ProfileReadmeAgent:
-        description: "ProfileReadmeAgent（2026-10-21 推送）"
+        description: "ProfileReadmeAgent（2026-10-21 推送 · 仅项目介绍）"
         type: boolean
         default: false
       RoboArmDev-Showcase:
-        description: "RoboArmDev-Showcase（2026-10-19 推送）"
+        description: "RoboArmDev-Showcase（2026-10-19 推送 · 仅项目介绍）"
         type: boolean
         default: false
       agri-ecommerce-platform:
-        description: "agri-ecommerce-platform（2026-10-20 推送）"
+        description: "agri-ecommerce-platform（2026-10-20 推送 · 仅项目介绍）"
         type: boolean
         default: false
       phone-hotspot-proxy:
-        description: "phone-hotspot-proxy（2026-09-26 推送）"
+        description: "phone-hotspot-proxy（2026-09-26 推送 · 仅项目介绍）"
         type: boolean
         default: false
       shiyuan:
-        description: "shiyuan（2026-10-20 推送）"
+        description: "shiyuan（2026-10-20 推送 · 仅项目介绍）"
         type: boolean
         default: false
       # <<REPO_CHECKBOXES_END>>
@@ -60,6 +71,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write # 模式 B 清单 issue 用内置 GITHUB_TOKEN 开/改/关（§5.7）
 
 jobs:
   update:
@@ -149,15 +161,22 @@ jobs:
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }} # 模式 B：compare/git-data 推送/PR/轮询（§5.7）
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           INPUT_REPOS: ${{ steps.resolve.outputs.repos }}
         run: |
+          # concurrency 组串行：多轮触发会显示 Queued——排队等待上一轮完成，已开的 PR 不受影响
+          echo "提示：定时/手动多轮触发会排队串行执行（显示 Queued），排队期间已开的 PR 不受影响"
           FLAGS=""
           [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
           [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
           [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
+          # 模式 B：勾选即强制重跑队列（只影响 B，不触碰模式 A 的门）
+          [ "${{ inputs.repo_readmes }}" = "true" ] && FLAGS="$FLAGS --repo-readmes"
+          # 等待仅勾选时执行（30 分钟窗口）；不勾与 cron 一样 0 分钟——直接继续
+          [ "${{ inputs.wait_for_merges }}" = "true" ] && FLAGS="$FLAGS --wait-for-merges"
           # 点名的仓库（勾选框/输入框）：点名即强制重跑
           if [ -n "$INPUT_REPOS" ]; then
             FLAGS="$FLAGS --repos $INPUT_REPOS"
@@ -199,7 +218,8 @@ jobs:
           repos.sort(key=lambda r: (-(r.get("stars") or 0), r["full_name"]))
 
           # 输入 id 必须字母/下划线开头且只含字母数字-_；保留字与撞名的加前缀/序号
-          RESERVED = {"force", "update_readme", "update_projects", "projects_repos"}
+          RESERVED = {"force", "update_readme", "update_projects", "projects_repos",
+                      "repo_readmes", "wait_for_merges"}
           used: set = set()
           mapping: dict = {}
           lines = []
@@ -215,7 +235,8 @@ jobs:
                   i += 1
               used.add(box)
               mapping[box] = name
-              # 标签优先显示最近推送日期（比 star/语言直观）；旧版快照缺 pushed_at 则退回
+              # 标签优先显示最近推送日期（比 star/语言直观）；旧版快照缺 pushed_at 则退回。
+              # 「仅项目介绍」后缀切断「勾仓库 = 驱动模式 B」的误解（§12-R2）
               pushed = (r.get("pushed_at") or "")[:10]
               if re.fullmatch(r"\d{4}-\d{2}-\d{2}", pushed or ""):
                   meta = f"{pushed} 推送"
@@ -224,7 +245,7 @@ jobs:
                   if r.get("language"):
                       meta += f" · {r['language']}"
               lines.append(f"      {box}:")
-              lines.append(f'        description: "{name}（{meta}）"')
+              lines.append(f'        description: "{name}（{meta} · 仅项目介绍）"')
               lines.append("        type: boolean")
               lines.append("        default: false")
 
