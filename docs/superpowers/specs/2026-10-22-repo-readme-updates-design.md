@@ -128,7 +128,9 @@ AI 失败已抑制 / 勾选与 config 冲突）——静默必须能被看懂是
   现有内容已是该内容 → **完全跳过（不推分支、不碰 PR，Last Update 不动）**，不重复调 AI；
   **PR 已合并但 compare 又算出同批内容**（squash/rebase 合并下 head SHA 不在默认分支历史
   时，§12-R10）同样命中该缓存 → 同样完全跳过，不重开 PR、不重调 AI——该条件不依赖 PR
-  是否 open；
+  是否 open。输入哈希 = sha256(仓库 + diff 文本 + prompt_version)；**base/head SHA 不入
+  哈希**——squash 重放的范围必然不同（HHH..SSS vs aaa..HHH），入哈希则该缓存永不命中，
+  与本条「同样命中」直接矛盾（实现裁定，测试计划 SB14/AP21 钉死行为侧）；
 - AI 失败：基线**不**前进，同时记 `failed_hash`；下轮若输入哈希未变（且非 force）则跳过
   调用、只打警告——避免每周重复失败烧调用。警告与 Summary 行必须带自救说明：**不会自动
   重试，新提交或 `--force` 才会重试**；

@@ -1,6 +1,6 @@
 """模式 B 的 AI 阶段：输入构造、prompt、失败抑制与缓存（设计 §5.1/§5.3/§5.4）。
 
-- 输入哈希 = sha256(仓库 + base..head 范围 + diff 文本 + repo_readmes.prompt_version)，
+- 输入哈希 = sha256(仓库 + diff 文本 + repo_readmes.prompt_version)，
   同时服务 AI 门控与 PR 抑制（§12-R5），与模式 A 的 stats 指纹、ai.prompt_version 无关；
 - AI 失败：基线不动 + failed_hash 记录，同哈希下轮跳过（警告带自救说明），force/新提交重试；
 - AI key 缺失：整体跳过、逐仓置 pending（门的开门条件，§7），不按失败处理（§12-R3）；
@@ -59,13 +59,17 @@ class ProcessResult:
     files: list[dict] = field(default_factory=list)
 
 
-def compute_input_hash(item: QueueItem, prompt_version: int) -> str:
-    """本批输入指纹：只含 item 事实与 repo_readmes.prompt_version（§12-R5）。"""
+def compute_input_hash(item: QueueItem, prompt_version: int, diff_text: str | None = None) -> str:
+    """本批输入指纹：仓库 + diff 文本 + repo_readmes.prompt_version（§12-R5）。
+
+    base/head SHA 不入哈希——squash/rebase 合并后基线推进到 head SHA，重放 compare 的
+    范围必然不同（HHH..SSS vs aaa..HHH），但「剔除 README 后的同批内容」必须命中缓存
+    （§5.1/§12-R10 的 squash 防线，测试计划 SB14/AP21 钉死该行为）。
+    diff_text 显式传入时以传入值为准（process_queue 传剔除重建后的文本）。
+    """
     payload = {
         "full_name": item.full_name,
-        "base_sha": item.base_sha,
-        "head_sha": item.head_sha,
-        "diff": item.diff_text,
+        "diff": item.diff_text if diff_text is None else diff_text,
         "prompt_version": prompt_version,
     }
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -105,6 +109,13 @@ def default_generate(cfg_ai, system: str, prompt: str) -> str:
     from .bio import chat_text
 
     return chat_text(cfg_ai, system, prompt)
+
+
+def _should_strip(strip_readme, full_name: str) -> bool:
+    """strip_readme 支持 bool（全队）或仓库名集合（合并推进过的仓才剔除，§5.3）。"""
+    if isinstance(strip_readme, (set, frozenset, list, tuple)):
+        return full_name in strip_readme
+    return bool(strip_readme)
 
 
 def process_queue(
@@ -174,7 +185,15 @@ def process_queue(
                 "updated_at": now_iso,
             },
         )
-        h = compute_input_hash(item, cfg_rr.prompt_version)
+        # 输入指纹基于（可能剔除 README 后的）files 现场重建的 diff——squash 重放剔除后
+        # 与上批同文本才命中缓存（§12-R10 防线，SB14）；缓存/失败检查仍先于一切网络请求。
+        files = (
+            strip_readme_hunks(item.files)
+            if _should_strip(strip_readme, item.full_name)
+            else item.files
+        )
+        base_diff = build_diff_text(item.commits, files, cfg_rr.max_diff_chars)
+        h = compute_input_hash(item, cfg_rr.prompt_version, diff_text=base_diff)
         result = ProcessResult(
             full_name=item.full_name,
             status="cached",
@@ -198,15 +217,13 @@ def process_queue(
             results.append(result)
             continue
 
-        # 输入构造：可选剔除 README hunk（合并首轮）；无文本 patch 时降级为文件树。
-        # prompt 的 diff 段始终由（可能被剔除过的）files 现场重建——不能用队列层
-        # 预拼的 item.diff_text，否则剔除不生效、README hunk 会回流（§5.3）。
-        files = strip_readme_hunks(item.files) if strip_readme else item.files
+        # 输入构造：无文本 patch 时降级为文件树（§5.3）。prompt 的 diff 段不能用队列层
+        # 预拼的 item.diff_text——剔除必须生效、README hunk 不得回流。
         has_text_patch = any(f.get("patch") for f in files)
         if files and not has_text_patch and fetch_tree is not None:
             diff_text = _tree_diff_text(item, fetch_tree(item.full_name, item.head_sha))
         else:
-            diff_text = build_diff_text(item.commits, files, cfg_rr.max_diff_chars)
+            diff_text = base_diff
 
         # fetch_readme 未注入时 existing=None：prompt 按托管区处理（M3 推送阶段带真实 README 判定）
         existing = fetch_readme(item.full_name) if fetch_readme is not None else None

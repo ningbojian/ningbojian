@@ -10,7 +10,7 @@ from pathlib import Path
 
 from profile_agent.config import AIConfig, RepoReadmesConfig
 from profile_agent.models import Repo
-from profile_agent.repo_readmes import QueueItem, compute_queue
+from profile_agent.repo_readmes import QueueItem, build_diff_text, compute_queue
 from profile_agent.repo_readmes_ai import compute_input_hash, process_queue
 
 ALICE = "alice"
@@ -107,7 +107,16 @@ def _item(**kw) -> QueueItem:
     return QueueItem(**base)
 
 
-def _ai(queue, entries, generate, *, ai_active=True, cfg_rr=None):
+def _ih(item) -> str:
+    """与 process_queue 同口径：基于 commits/files 现场重建的 diff 计算期望哈希（SB14 裁定）。"""
+    return compute_input_hash(
+        item,
+        1,
+        diff_text=build_diff_text(item.commits, item.files, RepoReadmesConfig().max_diff_chars),
+    )
+
+
+def _ai(queue, entries, generate, *, ai_active=True, cfg_rr=None, **kw):
     return process_queue(
         queue,
         entries,
@@ -115,6 +124,7 @@ def _ai(queue, entries, generate, *, ai_active=True, cfg_rr=None):
         cfg_rr or RepoReadmesConfig(enabled=True),
         ai_active=ai_active,
         generate=generate,
+        **kw,
     )
 
 
@@ -128,7 +138,7 @@ def test_ai_failure_keeps_baseline_and_records_failed_hash():
     results = _ai([_item()], {"alice/cool-tool": entry}, boom)
     assert results[0].status == "failed"
     assert entry["sha"] == "base123"  # 基线不动
-    assert entry["failed_hash"] == compute_input_hash(_item(), 1)
+    assert entry["failed_hash"] == _ih(_item())
     assert entry["last_input_hash"] == ""
 
 
@@ -142,7 +152,7 @@ def test_ai_success_clears_failed_hash_and_writes_last_input_hash():
     results = _ai([_item()], {"alice/cool-tool": entry}, ok)
     assert results[0].status == "generated"
     assert entry["failed_hash"] == ""
-    assert entry["last_input_hash"] == compute_input_hash(_item(), 1)
+    assert entry["last_input_hash"] == _ih(_item())
     assert entry["sha"] == "base123"  # 开 PR 时基线不前进（§5.1）
 
 
@@ -156,6 +166,78 @@ def test_missing_key_marks_pending_without_failed_hash():
     assert entry["pending"] is True
     assert entry["failed_hash"] == ""  # 缺 key 是积压不是失败（R3）
     assert entry["sha"] == "base123"  # 基线不动
+
+
+# ---- M3：PR 生命周期的基线权威（SB07-SB15，与 GP 去重后本文件钉快照侧）----
+
+
+def _pr_client(http):
+    from profile_agent.github_client import GitHubClient
+
+    return GitHubClient("p-pat", session=http)
+
+
+def _merged_pr_http(http, *, head="HHH2222", merge="MMM3333", merged=True):
+    """注册 merge 检测路由（sticky：多轮重复检测同一响应）。"""
+    from fake_github import FakeHttp, FakeResponse  # noqa: F401 — 仅类型提示
+
+    http.add(
+        "GET",
+        f"https://api.github.com/repos/alice/cool-tool/pulls?state=all&head=alice:readme-auto/update&base=main&sort=updated&direction=desc",
+        FakeResponse(json_data=[{
+            "number": 7,
+            "merged": merged,
+            "merge_commit_sha": merge if merged else None,
+            "head": {"sha": head},
+        }]),
+        sticky=True,
+    )
+
+
+def test_squash_replay_hits_cache_keeps_baseline_and_skips_push():
+    """SB14：squash 合并后 compare 恒非空 → 剔除 README hunk 后同批内容命中缓存；
+    零 AI、零推送（含零 PR 查询）、last_input_hash/block_hash 不变、基线保持 HHH、不依赖 PR open。"""
+    from fake_github import FakeHttp
+
+    from profile_agent.repo_readmes_pr import advance_baseline_from_merged_pr, push_results
+
+    c1 = {"sha": "HHH2222", "message": "feat: 新增 add 函数"}
+    code_files = [{"filename": "src/core.py", "patch": "@@ -1 +1 @@\n+def add(a, b)"}]
+    # 第一轮：人工代码变更 → 生成，记 last_input_hash 与 block_hash
+    entries = {"alice/cool-tool": _entry("aaa1111")}
+    rec: list = []
+    q1 = _run(entries, {"alice/cool-tool": "HHH2222"},
+              {("alice/cool-tool", "aaa1111", "HHH2222"):
+               {"commits": [c1], "files": code_files}})
+    assert [q.full_name for q in q1] == ["alice/cool-tool"]
+    r1 = _ai(q1, entries, lambda s, p: rec.append(1) or "一句话。\n- 亮点")
+    assert r1[0].status == "generated" and len(rec) == 1
+    ih1 = entries["alice/cool-tool"]["last_input_hash"]
+    bh1 = entries["alice/cool-tool"]["block_hash"]
+    # 第二轮：PR 被 squash 合并 → 基线推进到 HHH；compare(HHH..SSS) 恒非空（重放同批内容）
+    detect_http = FakeHttp()
+    _merged_pr_http(detect_http, head="HHH2222", merge="MMM3333")
+    assert advance_baseline_from_merged_pr(_pr_client(detect_http), entries["alice/cool-tool"],
+                                           "alice/cool-tool", "readme-auto/update") is True
+    assert entries["alice/cool-tool"]["sha"] == "HHH2222"
+    bot_hunk = ("@@ -1,2 +1,7 @@\n # 标题\n+<!-- profile-agent:readme:start -->\n"
+                "+一句话定位。\n+- 亮点\n+<!-- profile-agent:readme:end -->")
+    q2 = _run(entries, {"alice/cool-tool": "SSS4444"},
+              {("alice/cool-tool", "HHH2222", "SSS4444"):
+               {"commits": [c1],  # 同批提交重放
+                "files": [{"filename": "README.md", "patch": bot_hunk}, *code_files]}})
+    assert len(q2) == 1  # compare 恒非空（squash 下 head 不在主干历史）
+    r2 = _ai(q2, entries, lambda s, p: rec.append(1) or "x", strip_readme=True)
+    assert r2[0].status == "cached"
+    assert len(rec) == 1  # 零 AI
+    # 推送层：空路由 FakeHttp——任何 HTTP 请求都会 AssertionError，证明零推送零 PR 查询
+    pushed = push_results(_pr_client(FakeHttp()), r2)
+    assert pushed == []
+    e = entries["alice/cool-tool"]
+    assert e["sha"] == "HHH2222"  # ④ 基线保持 HHH
+    assert e["last_input_hash"] == ih1  # ③ 缓存字段不变
+    assert e["block_hash"] == bh1
+    assert e["failed_hash"] == ""
 
 
 # ---- M2 端到端：pending 开门与补跑（SB19-SB21，cli 接线后生效）----

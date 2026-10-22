@@ -8,7 +8,7 @@ import pytest
 
 from profile_agent.config import AIConfig, RepoReadmesConfig
 from profile_agent.readme_block import END, START
-from profile_agent.repo_readmes import QueueItem
+from profile_agent.repo_readmes import QueueItem, build_diff_text
 from profile_agent.repo_readmes_ai import (
     MISSING_KEY_REASON,
     SYSTEM,
@@ -47,6 +47,15 @@ def _entry(sha="base1234567", **kw):
     }
     e.update(kw)
     return e
+
+
+def _ih(item, prompt_version: int = 1) -> str:
+    """与 process_queue 同口径的期望哈希：基于 commits/files 现场重建的 diff（忽略 item.diff_text）。"""
+    return compute_input_hash(
+        item,
+        prompt_version,
+        diff_text=build_diff_text(item.commits, item.files, RepoReadmesConfig().max_diff_chars),
+    )
 
 
 class Recorder:
@@ -222,14 +231,14 @@ def test_ai_error_records_failed_hash_baseline_untouched():
     results = _process([_item()], {"alice/cool-tool": entry}, rec)
     assert results[0].status == "failed"
     assert entry["sha"] == "base1234567"  # 基线不动
-    assert entry["failed_hash"] == compute_input_hash(_item(), 1)
+    assert entry["failed_hash"] == _ih(_item())
     assert entry["last_input_hash"] == ""
 
 
 def test_same_hash_failure_skipped_with_self_help_warning(capsys):
     """AP12：同哈希的失败下轮跳过 AI，警告带自救说明。"""
     item = _item()
-    entry = _entry(failed_hash=compute_input_hash(item, 1))
+    entry = _entry(failed_hash=_ih(item))
     rec = Recorder()
     results = _process([item], {"alice/cool-tool": entry}, rec)
     assert results[0].status == "suppressed"
@@ -241,18 +250,18 @@ def test_same_hash_failure_skipped_with_self_help_warning(capsys):
 def test_force_retries_and_clears_failed_hash():
     """AP13：force 绕过失败抑制并重试，成功后清空 failed_hash。"""
     item = _item()
-    entry = _entry(failed_hash=compute_input_hash(item, 1))
+    entry = _entry(failed_hash=_ih(item))
     rec = Recorder()
     _process([item], {"alice/cool-tool": entry}, rec, force=True)
     assert len(rec.calls) == 1
     assert entry["failed_hash"] == ""
-    assert entry["last_input_hash"] == compute_input_hash(item, 1)
+    assert entry["last_input_hash"] == _ih(item)
 
 
 def test_new_hash_auto_retries_failed_repo():
     """AP14：新提交改变输入哈希后自动重试失败的仓库（无需 force）。"""
     old_item = _item(diff_text="旧批次内容")
-    entry = _entry(failed_hash=compute_input_hash(old_item, 1))
+    entry = _entry(failed_hash=_ih(old_item))
     new_item = _item(  # 新提交 → diff 变化 → 哈希变化
         commits=[{"sha": "fff9999", "message": "fix: 修一个小问题"}],
         diff_text="旧批次内容\n提交 fff9999：fix: 修一个小问题",
@@ -261,7 +270,7 @@ def test_new_hash_auto_retries_failed_repo():
     _process([new_item], {"alice/cool-tool": entry}, rec)
     assert len(rec.calls) == 1
     assert entry["failed_hash"] == ""
-    assert entry["last_input_hash"] == compute_input_hash(new_item, 1)
+    assert entry["last_input_hash"] == _ih(new_item)
 
 
 # ---- 缺 key 跳过与 pending（AP15-AP17、AP23）----
@@ -293,7 +302,7 @@ def test_backfill_success_clears_pending_and_updates_hash():
     rec = Recorder()
     _process([item], {"alice/cool-tool": entry}, rec)
     assert entry["pending"] is False
-    assert entry["last_input_hash"] == compute_input_hash(item, 1)
+    assert entry["last_input_hash"] == _ih(item)
     assert entry["sha"] == "aaa1111"  # 开 PR 前基线不前进（§5.1）
 
 
@@ -310,7 +319,7 @@ def test_missing_key_reason_is_readable_constant():
 def test_prompt_version_upgrade_triggers_regenerate():
     """AP18：repo_readmes.prompt_version 升级 → 缓存不命中，重新生成。"""
     item = _item()
-    old_hash = compute_input_hash(item, 1)
+    old_hash = _ih(item)
     entry = _entry(last_input_hash=old_hash)
     rec = Recorder()
     cfg_rr = RepoReadmesConfig(enabled=True, prompt_version=2)
@@ -333,12 +342,12 @@ def test_ai_prompt_version_does_not_affect_b_hash():
 def test_input_hash_cache_hit_skips_ai():
     """AP20：输入哈希命中 last_input_hash → 复用缓存，零 AI 调用。"""
     item = _item()
-    entry = _entry(last_input_hash=compute_input_hash(item, 1))
+    entry = _entry(last_input_hash=_ih(item))
     rec = Recorder()
     results = _process([item], {"alice/cool-tool": entry}, rec)
     assert results[0].status == "cached"
     assert rec.calls == []
-    assert entry["last_input_hash"] == compute_input_hash(item, 1)  # 不变
+    assert entry["last_input_hash"] == _ih(item)  # 不变
 
 
 def test_squash_replay_same_batch_hits_cache():
