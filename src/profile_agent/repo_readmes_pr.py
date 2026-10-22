@@ -65,20 +65,25 @@ def _owner(full_name: str) -> str:
     return full_name.split("/", 1)[0]
 
 
-def get_open_pr(client: GitHubClient, full_name: str, branch: str) -> dict | None:
-    """查同 head 同 base 的 open PR；无则 None（同仓恒单条，GP02）。"""
+def get_open_pr(client: GitHubClient, full_name: str, branch: str, *, base: str = BASE_BRANCH) -> dict | None:
+    """查同 head 同 base 的 open PR；无则 None（同仓恒单条，GP02）。
+
+    base 跟随仓库默认分支（§5.5：master 仓库不再永远查不到/开不出 PR）。
+    """
     data, _ = client._get(
-        f"{API}/repos/{full_name}/pulls?state=open&head={_owner(full_name)}:{branch}&base={BASE_BRANCH}"
+        f"{API}/repos/{full_name}/pulls?state=open&head={_owner(full_name)}:{branch}&base={base}"
     )
     prs = data if isinstance(data, list) else []
     return prs[0] if prs else None
 
 
-def find_latest_merged_pr(client: GitHubClient, full_name: str, branch: str) -> dict | None:
+def find_latest_merged_pr(
+    client: GitHubClient, full_name: str, branch: str, *, base: str = BASE_BRANCH
+) -> dict | None:
     """最近一条已合并的 bot PR；无合并记录返回 None。"""
     data, _ = client._get(
         f"{API}/repos/{full_name}/pulls?state=all&head={_owner(full_name)}:{branch}"
-        f"&base={BASE_BRANCH}&sort=updated&direction=desc"
+        f"&base={base}&sort=updated&direction=desc"
     )
     prs = data if isinstance(data, list) else []
     if prs and prs[0].get("merged"):
@@ -87,13 +92,13 @@ def find_latest_merged_pr(client: GitHubClient, full_name: str, branch: str) -> 
 
 
 def advance_baseline_from_merged_pr(
-    client: GitHubClient, entry: dict, full_name: str, branch: str
+    client: GitHubClient, entry: dict, full_name: str, branch: str, *, base: str = BASE_BRANCH
 ) -> bool:
     """合并检测：把该仓快照基线推进到 PR head SHA（不是 merge commit，§12-R10）。
 
     幂等：基线已等于 head SHA 时返回 False 不改写（GP13）；PR 仍 open 不动（GP14）。
     """
-    pr = find_latest_merged_pr(client, full_name, branch)
+    pr = find_latest_merged_pr(client, full_name, branch, base=base)
     if not pr:
         return False
     head_sha = pr.get("head", {}).get("sha") or ""
@@ -147,17 +152,18 @@ def open_or_refresh_pr(
     title: str,
     body: str,
     branch: str = PR_BRANCH,
+    base: str = BASE_BRANCH,
 ) -> PrResult:
     """推送内容并开/刷同一条 PR；永不调用合并或关闭接口（GP16）。"""
     repo = f"{API}/repos/{full_name}"
-    existing = get_open_pr(client, full_name, branch)
+    existing = get_open_pr(client, full_name, branch, base=base)
     push_readme(client, full_name, content, head_sha, branch=branch)
     if existing:
         number = existing["number"]
         client._patch(f"{repo}/pulls/{number}", {"body": body})
         return PrResult(number=number, html_url=existing.get("html_url", ""), refreshed=True)
     data, _ = client._post(
-        f"{repo}/pulls", {"title": title, "body": body, "head": branch, "base": BASE_BRANCH}
+        f"{repo}/pulls", {"title": title, "body": body, "head": branch, "base": base}
     )
     assert isinstance(data, dict)
     return PrResult(number=data["number"], html_url=data.get("html_url", ""), refreshed=False)
@@ -195,12 +201,14 @@ def push_results(
     entries: dict[str, dict] | None = None,
     now: Callable[[], str] | None = None,
     branch: str = PR_BRANCH,
+    bases: dict[str, str] | None = None,
 ) -> list[PrResult]:
     """把 AI 结果推送成 PR；只推 generated，cached/failed/pending 全部跳过。
 
     抑制在 AI 输入哈希层完成（GP05/GP09/GP12）：cached 结果连一个 HTTP 请求都不发。
     force 重新生成的结果是 generated，照常推送（GP11）。
     传入 entries 时，推送成功后就地写回该仓 block_hash（托管区内容哈希，SB07）。
+    bases：full_name → 默认分支（PR 目标，§5.5）；缺省回落 main。
     """
     pushed: list[PrResult] = []
     for r in results:
@@ -214,6 +222,7 @@ def push_results(
             title=build_pr_title(r.full_name),
             body=build_pr_body(commits=r.commits, base_sha=r.base_sha, head_sha=r.head_sha),
             branch=branch,
+            base=(bases or {}).get(r.full_name, BASE_BRANCH),
         )
         if entries is not None:
             entry = entries.setdefault(

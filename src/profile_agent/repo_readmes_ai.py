@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from .config import RepoReadmesConfig
-from .readme_block import merge_readme
+from .readme_block import markers_balanced, merge_readme
 from .repo_readmes import QueueItem, build_diff_text
 
 # 缺 key 的可读原因行（Summary/日志同源，测试计划 AP23/IW12 共享该常量）
@@ -47,7 +47,7 @@ class ProcessResult:
     """一个仓库 AI 阶段的处理结果（推送/PR 在 M3 消费 content）。"""
 
     full_name: str
-    status: str  # generated | cached | suppressed | failed | pending
+    status: str  # generated | cached | suppressed | failed | skipped | pending
     input_hash: str = ""
     base_sha: str = ""
     head_sha: str = ""
@@ -227,6 +227,19 @@ def process_queue(
 
         # fetch_readme 未注入时 existing=None：prompt 按托管区处理（M3 推送阶段带真实 README 判定）
         existing = fetch_readme(item.full_name) if fetch_readme is not None else None
+        # marker 不平衡在调 AI 之前就跳过（§5.2）：事后才发现只会白烧一次调用，
+        # 还让失败语义与「AI 失败」混淆；不记 last_input_hash，修好 marker 后下轮自然重试
+        if existing and not markers_balanced(existing):
+            print(
+                f"「{item.full_name}」README 托管区 marker 不平衡"
+                f"（缺一半/乱序/多对），已跳过该仓库（不调 AI）——请手动检查 start/end 注释对",
+                file=sys.stderr,
+            )
+            entry["updated_at"] = now_iso
+            result.status = "skipped"
+            result.error = "README 托管区 marker 不平衡"
+            results.append(result)
+            continue
         mode = "block" if existing is None or existing else "full"
         prompt = build_user_prompt(item, mode=mode, diff_text=diff_text)
 

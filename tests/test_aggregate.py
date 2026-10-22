@@ -49,6 +49,20 @@ def test_normalize_parses_pushed_at():
     assert repos["alice/cool-tool"].pushed_at == datetime(2026, 10, 1, 8, 0, tzinfo=timezone.utc)
 
 
+def test_normalize_carries_default_branch_with_main_fallback():
+    """终审 I2 回归：default_branch 随仓库数据带出（模式 B PR 目标 = 默认分支，§5.5）；
+    载荷缺失时回落 main。"""
+    cfg = ReposConfig()
+    raw = _raw_repos()
+    for item in raw:
+        item["default_branch"] = "master"
+    repos = {r.full_name: r for r in normalize_repos(raw, cfg)}
+    assert repos["alice/cool-tool"].default_branch == "master"
+    # 载荷没有该字段（如精简 fixture）→ 回落 main
+    fallback = {r.full_name: r for r in normalize_repos(_raw_repos(), cfg)}
+    assert fallback["alice/cool-tool"].default_branch == "main"
+
+
 def test_compute_totals():
     repos = normalize_repos(_raw_repos(), ReposConfig(exclude=["alice/old-profile"]))
     totals = compute_totals(_user(), repos)

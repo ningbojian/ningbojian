@@ -393,3 +393,47 @@ def test_full_mode_blob_is_whole_generated_content():
 def test_queue_item_unused_import_guard():
     """保持 QueueItem 导入被使用（lint 占位）。"""
     assert QueueItem is not None
+
+
+# ---- 终审 I2 回归：PR base 跟随仓库默认分支（不再硬编码 main）----
+
+
+def test_pr_base_follows_default_branch_keyword():
+    """终审 I2 回归：base 可指仓库默认分支（master）——开 PR 检查 URL 与创建载荷都用它。"""
+    http = FakeHttp()
+    _happy_gitdata(http)
+    http.add(
+        "GET",
+        f"{REPO_URL}/pulls?state=open&head=alice:readme-auto/update&base=master",
+        FakeResponse(json_data=[]),
+    )
+    http.add(
+        "POST", f"{REPO_URL}/pulls",
+        FakeResponse(status=201, json_data={"number": 9, "html_url": "u"}),
+    )
+    res = open_or_refresh_pr(
+        _client(http), full_name=FULL, content="# x", head_sha="def4567890",
+        title="t", body="b", base="master",
+    )
+    assert res.number == 9
+    pr_post = next(
+        r for r in http.writes() if r["method"] == "POST" and r["url"].endswith("/pulls")
+    )
+    assert pr_post["json"]["base"] == "master"  # 载荷 base = 默认分支
+
+
+def test_merged_pr_detection_respects_default_branch_base():
+    """终审 I2 回归：合并检测的 base 同样跟随默认分支（master 仓库不再永远检不到合并、
+    基线永不推进）。"""
+    http = FakeHttp()
+    http.add(
+        "GET",
+        f"{REPO_URL}/pulls?state=all&head=alice:readme-auto/update"
+        "&base=master&sort=updated&direction=desc",
+        FakeResponse(json_data=[{"number": 3, "merged": True, "head": {"sha": "newsha1"}}]),
+    )
+    entry = {"sha": "oldsha"}
+    assert advance_baseline_from_merged_pr(
+        _client(http), entry, FULL, "readme-auto/update", base="master"
+    )
+    assert entry["sha"] == "newsha1"

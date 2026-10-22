@@ -54,6 +54,7 @@ def normalize_repos(raw: list[dict], cfg: ReposConfig) -> list[Repo]:
                 pushed_at=_parse_dt(item.get("pushed_at")),
                 html_url=str(item.get("html_url") or ""),
                 homepage=str(item.get("homepage") or ""),
+                default_branch=str(item.get("default_branch") or "main"),
                 topics=[str(t) for t in (item.get("topics") or [])],
             )
         )

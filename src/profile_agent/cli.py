@@ -203,6 +203,7 @@ def _b_repo_progress(r) -> str:
         "cached": "缓存命中，跳过 AI",
         "suppressed": "与上次失败输入相同，已抑制",
         "failed": "AI 失败（已记录，同输入下轮跳过）",
+        "skipped": "README marker 不平衡，已跳过",
     }.get(r.status, "缺 key 积压")
 
 
@@ -349,6 +350,8 @@ def run(
         fetchers = _fetchers_from_client(b_client_eff)
     # B 活跃条件：启用 且（测试注入 fetchers 或 生产 PAT 可用）——queue-only 模式合法（IW10）
     b_active = cfg.repo_readmes.enabled and (fetchers is not None or b_client_eff is not None)
+    # 各仓默认分支（§5.5 PR 目标；master 仓库不再硬编码 main 导致 422）
+    default_bases = {r.full_name: r.default_branch for r in repos}
 
     if b_active:
         b_progress: list[str] = []  # 逐仓进度行（OR20：串行 AI 静默期的可见性，写 Summary）
@@ -358,7 +361,11 @@ def run(
             if b_client_eff is not None and not dry_run:
                 for _fn, _entry in list(repo_readmes_state.items()):
                     if _entry.get("sha") and advance_baseline_from_merged_pr(
-                        b_client_eff, _entry, _fn, cfg.repo_readmes.pr_branch
+                        b_client_eff,
+                        _entry,
+                        _fn,
+                        cfg.repo_readmes.pr_branch,
+                        base=default_bases.get(_fn, "main"),
                     ):
                         b_merged.add(_fn)
 
@@ -404,6 +411,7 @@ def run(
                                 one,
                                 entries=repo_readmes_state,
                                 branch=cfg.repo_readmes.pr_branch,
+                                bases=default_bases,
                             ):
                                 print(f"「{item.full_name}」已推分支：{res.html_url}")
                         for r in one:
@@ -431,7 +439,10 @@ def run(
         for _fn, _entry in sorted(repo_readmes_state.items()):
             if not _entry.get("sha"):
                 continue
-            pr = get_open_pr(b_client_eff, _fn, cfg.repo_readmes.pr_branch)
+            pr = get_open_pr(
+                b_client_eff, _fn, cfg.repo_readmes.pr_branch,
+                base=default_bases.get(_fn, "main"),
+            )
             if pr:
                 open_prs.append(
                     {
@@ -511,7 +522,7 @@ def run(
             _append_summary(f"### 等待合并\n{first}")
 
             def _on_change(pending: list[tuple[str, int]]) -> None:
-                nonlocal current, checklist_closed
+                nonlocal current, checklist_closed, issue
                 current = set(pending)
                 if not pending:
                     checklist_closed = True
@@ -520,7 +531,9 @@ def run(
                 ]
                 if issue is not None and issue_eff is not None:
                     try:
-                        update_checklist(
+                        # 回带最新 body：收尾 append_final_state 在其上追加，
+                        # 抹掉已结清条目（终审 I1）
+                        issue = update_checklist(
                             issue_eff,
                             owner_repo,
                             remaining,
@@ -554,7 +567,8 @@ def run(
                 ]
                 if issue is not None and issue_eff is not None and remaining:
                     try:
-                        update_checklist(
+                        # 回带 ⏰ 终态 body：收尾追加不得抹掉它（终审 I1）
+                        issue = update_checklist(
                             issue_eff,
                             owner_repo,
                             remaining,
@@ -748,8 +762,10 @@ def run(
     )
     save_snapshot(snap_path, new_snap)
 
-    # 6.5 收尾（§4-5）：清单仍开着时原地追加「本轮 Overview 已进入 main」终态行
-    if issue is not None and issue_eff is not None and not checklist_closed:
+    # 6.5 收尾（§4-5）：本轮确实更新了 Overview 且清单仍开着时，原地追加终态行。
+    # （终审 I4：未更新 Overview 不写「已进入 main」——提交由随后的工作流步骤完成，
+    # 不替它打包票；项目介绍 PR 在后续步骤创建，CLI 拿不到链接，不写入 issue）
+    if issue is not None and issue_eff is not None and not checklist_closed and changed:
         try:
             append_final_state(issue_eff, owner_repo, issue)
         except Exception as exc:  # noqa: BLE001 —— 收尾行失败忽略，不改任务结果

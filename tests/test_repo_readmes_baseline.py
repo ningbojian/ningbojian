@@ -92,6 +92,27 @@ def test_readme_only_change_advances_baseline_and_writes_no_suppress_fields():
     assert entry["pending"] is False
 
 
+def test_merge_commit_with_no_files_advances_baseline_not_queue():
+    """终审 C1 回归：合并后基线已推进到 PR head，下轮 compare 呈「merge commit + 0 文件」
+    ——不得入队（否则每次合并都多一次空洞 AI 调用 + 垃圾 PR），只推进基线到 merge commit。"""
+    entries = {"alice/cool-tool": _entry("prhead1")}
+    queue = _run(
+        entries,
+        {"alice/cool-tool": "merge99"},
+        {
+            ("alice/cool-tool", "prhead1", "merge99"): {
+                "commits": [{"sha": "merge99", "message": "Merge pull request #7"}],
+                "files": [],
+            }
+        },
+    )
+    assert queue == []
+    entry = entries["alice/cool-tool"]
+    assert entry["sha"] == "merge99"  # 基线追到 merge commit，下轮 base==head 零成本
+    assert entry["failed_hash"] == ""
+    assert entry["last_input_hash"] == ""
+
+
 # ---- M2：AI 阶段的快照字段权威（SB16-SB18，与 AP11/AP15 共用语义）----
 
 

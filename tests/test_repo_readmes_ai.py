@@ -398,3 +398,17 @@ def test_generated_without_readme_is_full_mode():
     assert results[0].mode == "full"
     assert results[0].content == AI_TEXT.strip()
     assert START not in results[0].content
+
+
+def test_marker_imbalance_skips_before_ai_without_recording_hash(capsys):
+    """终审 I3 回归：README marker 不平衡 → AI 生成前跳过（§5.2 绝不猜测修复）——
+    gen 零调用（不浪费 token）、不记 last_input_hash（修复 marker 后下批即恢复）、
+    中文警告写 stderr。"""
+    rec = Recorder()
+    entries = {"alice/cool-tool": _entry()}
+    existing = "手写前言\n<!-- profile-agent:readme:start -->\n缺 end\n"
+    results = _process([_item()], entries, rec, fetch_readme=lambda fn: existing)
+    assert rec.calls == []  # ① AI 零调用
+    assert [r.status for r in results] == ["skipped"]
+    assert entries["alice/cool-tool"]["last_input_hash"] == ""  # ② 不记哈希
+    assert "marker 不平衡" in capsys.readouterr().err  # ③ 中文警告

@@ -20,6 +20,8 @@ class Repo:
     pushed_at: datetime | None = None
     html_url: str = ""
     homepage: str = ""
+    # 仓库默认分支（模式 B 的 PR 目标，§5.5）；/users/{u}/repos 载荷缺失时回落 main
+    default_branch: str = "main"
     topics: list[str] = field(default_factory=list)
 
     @property

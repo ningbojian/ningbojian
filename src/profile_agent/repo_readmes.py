@@ -146,15 +146,17 @@ def compute_queue(
             continue
         commits = [c for c in (data.get("commits") or []) if isinstance(c, dict)]
         files = [f for f in (data.get("files") or []) if isinstance(f, dict)]
-        if not commits:
-            counts["no_change"] += 1
-            continue  # 无新提交（compare 显示无差异）
-        if files and all(str(f.get("filename") or "") == "README.md" for f in files):
-            # 只有 README 自身变更 → 只推进基线（防机器人提交触发循环）
+        # 是否入队由「README 之外的文件」决定，不看 commits——合并后基线已推进到
+        # PR head（§12-R10），下轮 compare 必呈「merge commit + 0 文件」形态，
+        # 按 commits 判会把 bot 自己的合并提交当成工作（空洞 AI 调用 + 垃圾 PR）
+        code_files = [f for f in files if str(f.get("filename") or "") != "README.md"]
+        if not commits or not code_files:
+            # 无提交，或提交未触及 README 之外的文件（compare 空 / 仅 README 自身 /
+            # 空文件列表的 merge commit）→ 只推进基线（防自触发循环）
             if entry is not None:
                 entry["sha"] = head
                 entry["updated_at"] = now_iso
-            counts["readme_only"] += 1
+            counts["readme_only" if files else "no_change"] += 1
             continue
         counts["queued"] += 1
         queue.append(

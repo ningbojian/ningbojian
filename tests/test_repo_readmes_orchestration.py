@@ -231,9 +231,9 @@ def _add_merge_detect(http, fn, *, prs=None):
     http.add("GET", _merged_detect_url(fn), FakeResponse(json_data=prs or []))
 
 
-def _open_pr_url(fn):
+def _open_pr_url(fn, base="main"):
     owner = fn.split("/")[0]
-    return f"{B}/repos/{fn}/pulls?state=open&head={owner}:{BRANCH}&base=main"
+    return f"{B}/repos/{fn}/pulls?state=open&head={owner}:{BRANCH}&base={base}"
 
 
 def _pr(fn, *, number=7, merged=False, state="open", head_sha=HEAD):
@@ -809,7 +809,7 @@ def test_or11_iw09_conflict_warning(tmp_path, monkeypatch):
 # ============================ OR12 / IW28 / IW29 / OR13 ============================
 
 
-def _no_change_with_open_pr(tmp_path, monkeypatch, *, number=7, merge_wait_minutes=0.0):
+def _no_change_with_open_pr(tmp_path, monkeypatch, *, number=7, merge_wait_minutes=0.0, **extra):
     """共用前置：no_change 仓 + 既有 open PR #7（不发 AI 不推送）。"""
     _prep(monkeypatch, tmp_path)
     fake_a = FakeAClient([_repo(FN, desc="有描述")])
@@ -825,7 +825,7 @@ def _no_change_with_open_pr(tmp_path, monkeypatch, *, number=7, merge_wait_minut
     rc = _run_b(
         tmp_path, monkeypatch, fake_a, http,
         readme_generate=_ai(counter), merge_wait_minutes=merge_wait_minutes,
-        now_fn=clock.now, sleep_fn=clock.sleep,
+        now_fn=clock.now, sleep_fn=clock.sleep, **extra,
     )
     return rc, http, tmp_path / "summary.md", counter, clock
 
@@ -1006,6 +1006,114 @@ def test_or16_timeout_continues_a_with_open_pr(tmp_path, monkeypatch, capsys):
     assert "分支未合并内容" in overview  # ② 规则 2：分支内容进 A
     patches = [r for r in http.writes() if r["method"] == "PATCH" and "/issues/5" in r["url"]]
     assert any("⏰" in (r["json"].get("body") or "") for r in patches)  # ③ ⏰ 进 issue
+
+
+def test_or_final_state_body_keeps_timeout_line_and_settled_prs(tmp_path, monkeypatch):
+    """终审 I1 回归：等待超时后收尾追加的终态行必须建立在最新清单 body 上——
+    ⏰ 行不被抹掉、等待中已结清的 PR 不复活（§4-3c/§4-5）。"""
+    _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="有描述"), _repo(FN2, desc="有描述")])
+    http = FakeHttp()
+    # FN 的 #42 在等待中合并；FN2 的 #43 直到超时仍 open
+    _add_merge_detect(http, FN, prs=[_pr(FN, number=42)])
+    _add_merge_detect(http, FN2, prs=[_pr(FN2, number=43)])
+    _add_head(http, FN, HEAD)
+    _add_head(http, FN2, HEAD)
+    _add_scan(http, FN, prs=[_pr(FN, number=42)])
+    _add_scan(http, FN2, prs=[_pr(FN2, number=43)])
+    http.add(
+        "GET", f"{B}/repos/{FN}/pulls/42",
+        FakeResponse(json_data=_pr(FN, number=42)),
+        FakeResponse(json_data=_pr(FN, number=42, merged=True, state="closed")),
+    )
+    http.add(
+        "GET", f"{B}/repos/{FN2}/pulls/43",
+        FakeResponse(json_data=_pr(FN2, number=43)), sticky=True,
+    )
+    _add_issues(http, found_later=True, search_count=3)  # 清单步 + 收敛步 + ⏰ 步
+    _seed_snapshot(tmp_path, {FN: _entry(sha=HEAD), FN2: _entry(sha=HEAD)})
+    clock = FakeClock()
+    assert (
+        _run_b(
+            tmp_path, monkeypatch, fake_a, http, no_ai=True,
+            merge_wait_minutes=1, now_fn=clock.now, sleep_fn=clock.sleep,
+        )
+        == 0
+    )
+    body_edits = [
+        r["json"]["body"] for r in http.writes()
+        if r["method"] == "PATCH" and "/issues/5" in r["url"] and r["json"].get("body")
+    ]
+    final = body_edits[-1]
+    assert "⏰" in final  # 收尾不得抹掉超时终态行
+    assert "/pull/43" in final  # 未结清的条目还在
+    assert "/pull/42" not in final  # 等待中已合并的条目不复活
+    assert "本轮 Overview 已进入 main" in final
+
+
+def test_or_default_branch_master_threaded_through_b(tmp_path, monkeypatch):
+    """终审 I2 回归：仓库默认分支是 master 时，合并检测/开 PR 检查/PR 创建全程
+    base=master（§5.5——不再硬编码 main，master 仓库不再 422）。"""
+    _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([dict(_repo(FN, desc=""), default_branch="master")])
+    http = FakeHttp()
+    http.add(
+        "GET",
+        f"{B}/repos/{FN}/pulls?state=all&head=alice:{BRANCH}"
+        "&base=master&sort=updated&direction=desc",
+        FakeResponse(json_data=[]),
+    )
+    _add_head(http, FN, HEAD)
+    _add_compare(http, FN, BASE, HEAD)
+    http.add("GET", f"{B}/repos/{FN}/readme", _readme_resp(OLD_README))
+    http.add("GET", _open_pr_url(FN, base="master"), FakeResponse(json_data=[]))
+    http.add("POST", f"{B}/repos/{FN}/git/blobs", FakeResponse(status=201, json_data={"sha": "blob1"}))
+    http.add("POST", f"{B}/repos/{FN}/git/trees", FakeResponse(status=201, json_data={"sha": "tree1"}))
+    http.add(
+        "POST", f"{B}/repos/{FN}/git/commits", FakeResponse(status=201, json_data={"sha": HEAD})
+    )
+    http.add("GET", f"{B}/repos/{FN}/git/ref/heads/{BRANCH}", FakeResponse(status=404))
+    http.add("POST", f"{B}/repos/{FN}/git/refs", FakeResponse(status=201, json_data={}))
+    http.add("POST", f"{B}/repos/{FN}/pulls", FakeResponse(status=201, json_data=_pr(FN, number=7)))
+    http.add("GET", _open_pr_url(FN, base="master"), FakeResponse(json_data=[]))  # 扫描
+    _seed_snapshot(tmp_path, {FN: _entry(sha=BASE)})
+    counter = {"n": 0}
+    assert (
+        _run_b(tmp_path, monkeypatch, fake_a, http, readme_generate=_ai(counter)) == 0
+    )
+    pr_posts = [
+        r for r in http.writes()
+        if r["method"] == "POST" and r["url"].endswith(f"/repos/{FN}/pulls")
+    ]
+    assert pr_posts and pr_posts[0]["json"]["base"] == "master"  # ① PR 目标 = 默认分支
+    assert http.has("GET", f"base=master&sort=updated")  # ② 合并检测同样用 master
+    assert http.has("GET", _open_pr_url(FN, base="master"))  # ③ 开 PR 检查与扫描
+
+
+def test_or_final_state_skipped_when_overview_not_updated(tmp_path, monkeypatch):
+    """终审 I4 回归：本轮没更新 Overview（--skip-readme）→ 收尾不写「已进入 main」
+    终态行（避免在提交发生前替提交步骤打包票）；清单本身照常刷新。
+
+    预置既有清单 issue：无等待路径下刷新走 PATCH，终态行若误写也落在同一批
+    PATCH 上——两个断言由此独立于「issue 是否新建」。
+    """
+    _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="有描述")])
+    http = FakeHttp()
+    _add_merge_detect(http, FN, prs=[_pr(FN, number=7)])
+    _add_head(http, FN, HEAD)
+    _add_scan(http, FN, prs=[_pr(FN, number=7)])
+    http.add("GET", f"{B}/repos/{FN}/readme?ref={BRANCH}", _readme_resp("分支内容"))
+    _add_issues(http, existing={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5"})
+    _seed_snapshot(tmp_path, {FN: _entry(sha=HEAD)})
+    rc = _run_b(tmp_path, monkeypatch, fake_a, http, readme_generate=_ai({}), skip_readme=True)
+    assert rc == 0
+    body_edits = [
+        r["json"]["body"] for r in http.writes()
+        if r["method"] == "PATCH" and "/issues/5" in r["url"] and r["json"].get("body")
+    ]
+    assert body_edits  # 清单仍刷新
+    assert all("本轮 Overview" not in b for b in body_edits)
 
 
 def test_or17_all_settled_early_continues_and_closes_issue(tmp_path, monkeypatch):

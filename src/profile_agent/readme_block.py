@@ -44,6 +44,20 @@ def _insert(readme: str, text: str) -> str:
     return block + readme
 
 
+def markers_balanced(readme: str) -> bool:
+    """README 的 marker 是否恰好一对且顺序正确（§5.2）。
+
+    0 对 = 托管区尚未建立（合法，走首插路径）；恰一对且 start 在前 = 正常；
+    其余（缺一半 / 乱序 / 多对歧义）= 不平衡，调用方应在写回前跳过该仓库。
+    """
+    n_start, n_end = readme.count(START), readme.count(END)
+    if n_start == 0 and n_end == 0:
+        return True
+    if n_start == 1 and n_end == 1:
+        return readme.index(END) > readme.index(START)
+    return False
+
+
 def apply_block(readme: str, new_text: str) -> str | None:
     """把托管区正文写进 README；marker 不平衡时返回 None（跳过信号）并打中文警告。"""
     text = _sanitize(new_text)

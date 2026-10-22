@@ -147,7 +147,9 @@ AI 失败已抑制 / 勾选与 config 冲突）——静默必须能被看懂是
 
 - 首次插入位置：文件 H1 之后（GitHub 首屏可见）；无 H1 则插在文件头部；
 - 更新：仅替换 start/end 之间字节，区间外逐字节不动；
-- marker 不平衡（用户手滑删了一半）：**跳过该仓库 + 中文警告**，绝不猜测修复；
+- marker 不平衡（用户手滑删了一半）：**跳过该仓库 + 中文警告**，绝不猜测修复——检查在
+  **调 AI 之前**完成（已拿到 README 就能判），不白烧一次模型调用，也不记输入哈希，
+  修好 marker 后下轮自然重试；
 - 有手写 README 永不整篇重写；无 README 才走 `mode=full` 整份生成。
 
 ### 5.3 输入构造与防循环
@@ -409,7 +411,9 @@ pending: true`——上轮 B 因缺 AI key 等原因发现队列却整体跳过�
   （经 PR API `head.sha` 取得），不是 merge commit——否则「PR 开出后、合并前」落进 main
   的并发提交是 merge commit 的祖先，compare 永不覆盖、被永久漏掉（违反全增量承诺）。配套：
   该首轮输入剔除主干已合并的 README/marker hunk（§5.3），避免把机器人文案喂回 AI。
-  **merge 合并**下 head SHA 就在默认分支历史上：无并发提交时下轮 compare 为空、幂等成立。
-  **squash/rebase 合并**下 head SHA 不在默认分支历史：compare 恒非空、会重新算出同批内容
+  **merge 合并**下 head SHA 就在默认分支历史上：无并发提交时下轮 compare 为空、幂等成立
+  （文件 diff 为空，但 merge commit 仍会出现在 commits 列表——是否入队由「README 之外的
+  文件」决定，不看 commits，否则会把 bot 自己的合并提交当成工作）。**squash/rebase 合并**
+  下 head SHA 不在默认分支历史：compare 恒非空、会重新算出同批内容
   ——防线是 §5.1 的输入哈希缓存（同哈希且分支内容未变 → 完全跳过，不重开 PR、不重调 AI，
   不依赖 PR 是否 open），README 部分再被 §5.3 的剔除与「仅 README → 只推基线」守卫收口。
