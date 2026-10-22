@@ -3,12 +3,12 @@
 
 # 👋 你好，我是 ningbojian
 
-关注计算机视觉与机器人控制方向，实践涵盖 Python 桌面应用、Web 开发与微信小程序。代表项目包括基于 Tkinter/Pygame 的多功能计算器与益智游戏合集、基于 OpenCV/HALCON 的六自由度机械臂绘画系统，以及 Spring Boot + 微信小程序的助农电商平台。持续学习与迭代中，欢迎交流。
+你好，我是 ningbojian。日常使用 Python 与 JavaScript 构建实用工具，近期项目涵盖多功能计算器与益智游戏合集、六自由度机械臂绘画系统、助农电商平台以及姓氏文化查询可视化网站。对计算机视觉、机器人控制和全栈开发保持兴趣，欢迎交流与合作。
 
 亮点：
-- 用 Python/Tkinter/Pygame 实现计算器与益智游戏合集
-- 完成基于 OpenCV/HALCON 的机械臂绘画链路
-- 使用 Spring Boot + 小程序搭建助农电商前后端
+- MultiFuncCalculator：科学计算+进制转换+华容道+数独+2048
+- RoboArmDev-Showcase：OpenCV/HALCON 驱动六轴机械臂绘制
+- 助农电商：微信小程序原型+Spring Boot 订单平台
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -24,7 +24,7 @@
 
 | 指标 | 数值 |
 | --- | --- |
-| 公开仓库 | 9 |
+| 公开仓库 | 11 |
 | Followers | 2 |
 | 总 Star | 0 |
 
@@ -69,12 +69,12 @@
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/ningbojian"><b>🐍 ningbojian</b></a><br>
       （暂无描述）<br>
-      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--21-lightgrey?style=flat-square" alt="最后推送" />    </td>
+      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--22-lightgrey?style=flat-square" alt="最后推送" />    </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/phone-hotspot-proxy"><b>🐍 phone-hotspot-proxy</b></a><br>
-      连接手机热点后自动探测手机上的代理并一键接入 Windows 系统代理，关窗自动关闭，内置备份还原、连通性测试，零依赖单文件。<br>
+      连接手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关闭时自动关闭；零依赖单文件，无需逐个配置代理。<br>
       <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/phone-hotspot-proxy?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--09--26-lightgrey?style=flat-square" alt="最后推送" />    </td>
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/shiyuan"><b>🐍 shiyuan</b></a><br>
@@ -86,4 +86,4 @@
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-22 00:14（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-22 20:49（北京时间） 自动更新

@@ -1,29 +1,30 @@
 {
-  "schema": 2,
+  "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:d9a2600dfaed74befc6ea8d7b37573cb19facc50e85e20826fb6c4c35ae2d6d7",
+  "stats_fingerprint": "sha256:bf7021b85633dbf5849f9d79281ed3f48ca04bc34f81db13ef43e15474b952ea",
   "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
   "totals": {
-    "public_repos": 9,
+    "public_repos": 11,
     "followers": 2,
     "total_stars": 0
   },
   "repos": [
     {
+      "full_name": "ningbojian/ningbojian",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-22T12:15:04+00:00",
+      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
+      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+    },
+    {
       "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T16:06:28+00:00",
-      "short_intro": "基于模板一键生成会自动更新的 GitHub 个人主页：统计、项目卡片、中文 AI 简介与简历素材，定时刷新，数据无变化不浪费额度。",
-      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
-    },
-    {
-      "full_name": "ningbojian/ningbojian",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-21T16:05:53+00:00",
-      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+      "intro_hash": "sha256:ec9369057be5302bff842f8b1d721450bb530cb7abea663169b02e3db6ae2416",
+      "intro_generated_at": "2026-10-22T12:47:20.115746+00:00",
+      "ai_generated": false
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -66,17 +67,27 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-09-26T12:05:44+00:00",
-      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
-      "intro_generated_at": "2026-10-21T16:12:28.750627+00:00",
-      "ai_generated": true
+      "short_intro": "连接手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关闭时自动关闭；零依赖单文件，无需逐个配置代理。",
+      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
     }
   ],
   "bio": {
-    "text": "关注计算机视觉与机器人控制方向，实践涵盖 Python 桌面应用、Web 开发与微信小程序。代表项目包括基于 Tkinter/Pygame 的多功能计算器与益智游戏合集、基于 OpenCV/HALCON 的六自由度机械臂绘画系统，以及 Spring Boot + 微信小程序的助农电商平台。持续学习与迭代中，欢迎交流。\n\n亮点：\n- 用 Python/Tkinter/Pygame 实现计算器与益智游戏合集\n- 完成基于 OpenCV/HALCON 的机械臂绘画链路\n- 使用 Spring Boot + 小程序搭建助农电商前后端",
-    "input_hash": "sha256:0e27f15c78cc0a7663d5257afbbe3911f7dfa646e66e11c0b4227adedb3208b2",
-    "generated_at": "2026-10-21T15:29:26.270371+00:00",
+    "text": "你好，我是 ningbojian。日常使用 Python 与 JavaScript 构建实用工具，近期项目涵盖多功能计算器与益智游戏合集、六自由度机械臂绘画系统、助农电商平台以及姓氏文化查询可视化网站。对计算机视觉、机器人控制和全栈开发保持兴趣，欢迎交流与合作。\n\n亮点：\n- MultiFuncCalculator：科学计算+进制转换+华容道+数独+2048\n- RoboArmDev-Showcase：OpenCV/HALCON 驱动六轴机械臂绘制\n- 助农电商：微信小程序原型+Spring Boot 订单平台",
+    "input_hash": "sha256:54bb3bb6ddb55e72e3aa7c534a332957722f15916f23dcce56c8c99d0847e75b",
+    "generated_at": "2026-10-22T12:49:10.885586+00:00",
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
-  "generated_at": "2026-10-21T16:14:26.130828+00:00"
+  "repo_readmes": {
+    "ningbojian/shiyuan": {
+      "sha": "b7040c52062c3de61e6f4d5ac5ceb8c1751a8980",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-22T12:46:41.124606+00:00"
+    }
+  },
+  "generated_at": "2026-10-22T12:49:10.885586+00:00"
 }
