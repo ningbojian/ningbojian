@@ -1,12 +1,15 @@
 name: Update Profile README
 
 # 全部入口就这一个 workflow：
-#   - 定时（schedule）：每周自动更新
+#   - 定时（schedule）：cron 每天唤醒，是否真跑由 interval_days 间隔门决定
+#     （Run workflow 的「定时运行间隔」下拉可一键改 1–7 天，见 docs/guide.md）
 #   - 手动 Run workflow：对话框里每个公开仓库一个勾选框，勾选后一键只更新它们
 #     勾选框由每次运行自动同步（需要配置 WORKFLOW_PAT secret，见 docs/guide.md）
 on:
   schedule:
-    - cron: "23 2 * * 1" # 每周一 02:23 UTC ≈ 北京时间 10:23；改频率只需改这里
+    - cron: "23 2 * * *" # 每天 02:23 UTC ≈ 北京 10:23 唤醒；间隔门决定今天是否真跑
+    # interval_days: 7 —— 定时运行间隔（天）；Run workflow 下拉改写，勿手改
+    # interval_anchor: 2026-10-22 —— 间隔锚点（UTC 日期）；改间隔时自动重置
   workflow_dispatch:
     inputs:
       force:
@@ -24,6 +27,21 @@ on:
         description: "暂停，等我合并 PR（可选；不勾则直接继续，PR 事后随时可合，最多等 30 分钟）"
         type: boolean
         default: false
+      schedule_interval:
+        description: >-
+          定时运行间隔：选天数后，本轮结束时自动把定时改为「每 N 天一次」（按今天起算）；
+          选「不修改」则只跑本轮、不改周期。
+        type: choice
+        default: 不修改（保持当前周期）
+        options:
+          - 不修改（保持当前周期）
+          - 每 1 天
+          - 每 2 天
+          - 每 3 天
+          - 每 4 天
+          - 每 5 天
+          - 每 6 天
+          - 每 7 天
       update_readme:
         description: "更新个人主页 overview"
         type: boolean
@@ -79,16 +97,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # 不装任何依赖，纯 grep 判断定时开关
-      - name: 检查定时开关（schedule.enabled）
+      # 不装任何依赖，纯 grep 判断定时开关 + 定时间隔门
+      - name: 检查定时开关与运行间隔（schedule.enabled / interval_days）
         if: github.event_name == 'schedule'
         id: check
         run: |
           if grep -A3 '^schedule:' config.yaml | grep -qE 'enabled:[[:space:]]*false'; then
             echo "schedule=false" >> "$GITHUB_OUTPUT"
             echo "定时更新已关闭（config.yaml 中 schedule.enabled=false），本次跳过"
-          else
-            echo "schedule=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "schedule=true" >> "$GITHUB_OUTPUT"
+          # 间隔门：cron 每天唤醒，实际是否运行由 interval_days × interval_anchor 决定
+          # （两个标记由 Run workflow 的「定时运行间隔」下拉自动改写；删掉两行标记 = 恢复纯 cron）
+          DAYS=$(grep -oE '# interval_days: *[0-9]+' .github/workflows/update-profile.yml | grep -oE '[0-9]+' | head -1)
+          ANCHOR=$(grep -oE '# interval_anchor: *[0-9]{4}-[0-9]{2}-[0-9]{2}' .github/workflows/update-profile.yml | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+          if [ -n "$DAYS" ] && [ -n "$ANCHOR" ] && [ "$DAYS" -gt 0 ]; then
+            DIFF=$(( ( $(date -u +%s) - $(date -u -d "$ANCHOR" +%s) ) / 86400 ))
+            if [ $(( DIFF % DAYS )) -ne 0 ]; then
+              echo "schedule=false" >> "$GITHUB_OUTPUT"
+              echo "距锚点 ${ANCHOR} 已 ${DIFF} 天，非每 ${DAYS} 天的运行日，本次跳过（Run workflow 下拉可改间隔）"
+            fi
           fi
 
       - uses: actions/setup-python@v6
@@ -219,7 +248,7 @@ jobs:
 
           # 输入 id 必须字母/下划线开头且只含字母数字-_；保留字与撞名的加前缀/序号
           RESERVED = {"force", "update_readme", "update_projects", "projects_repos",
-                      "repo_readmes", "wait_for_merges"}
+                      "repo_readmes", "wait_for_merges", "schedule_interval"}
           used: set = set()
           mapping: dict = {}
           lines = []
@@ -281,6 +310,40 @@ jobs:
           else:
               WF.write_text(updated, encoding="utf-8")
               print(f"勾选框已同步：{len(mapping)} 个仓库")
+          PY
+
+      # 「定时运行间隔」下拉：选了天数就改写 cron 旁的间隔标记（提交由下一步统一完成）
+      - name: 调整定时运行间隔（schedule_interval）
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INTERVAL: ${{ inputs.schedule_interval }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import os
+          import pathlib
+          import re
+
+          choice = os.environ.get("INTERVAL") or ""
+          if choice.startswith("不修改"):
+              print("未选择调整周期，保持当前定时不变")
+              raise SystemExit(0)
+          m = re.fullmatch(r"每 (\d+) 天", choice)
+          if not m:
+              raise SystemExit(f"未知的间隔选项：{choice!r}")
+          n = int(m.group(1))
+          p = pathlib.Path(".github/workflows/update-profile.yml")
+          text = p.read_text(encoding="utf-8")
+          today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          text = re.sub(r"# interval_days: *\d+", f"# interval_days: {n}", text, count=1)
+          text = re.sub(
+              r"# interval_anchor: *\d{4}-\d{2}-\d{2}",
+              f"# interval_anchor: {today}",
+              text,
+              count=1,
+          )
+          p.write_text(text, encoding="utf-8")
+          print(f"定时已改为每 {n} 天一次（锚点 {today} UTC 起算，每 N 天的对应日期运行）")
           PY
 
       # 项目介绍（AI 生成内容）走 PR 人工审核；纯 README/统计更新直接提交
