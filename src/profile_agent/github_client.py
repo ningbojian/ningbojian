@@ -34,6 +34,37 @@ class GitHubClient:
         self._sleep = sleep
         self._max_retries = max_retries
 
+    def _request(
+        self,
+        method: str,
+        url: str,
+        payload: dict | None = None,
+        *,
+        allow_404: bool = False,
+        ok_status: tuple[int, ...] = (200,),
+    ) -> tuple[dict | list | None, dict]:
+        """通用请求（GET/POST/PATCH…），复用同一套重试与中文错误语义。"""
+        for attempt in range(self._max_retries + 1):
+            resp = self._session.request(
+                method, url, headers=self._headers, json=payload, timeout=30
+            )
+            if resp.status_code in ok_status:
+                return resp.json(), resp.headers
+            if resp.status_code in (403, 429) and resp.headers.get("X-RateLimit-Remaining") == "0":
+                reset = resp.headers.get("X-RateLimit-Reset", "未知")
+                raise GitHubError(
+                    f"GitHub API 限流（速率已达上限），重置时间戳：{reset}，请稍后再试"
+                )
+            if resp.status_code == 404:
+                if allow_404:
+                    return None, resp.headers
+                raise GitHubError("GitHub API 返回 404：用户不存在或仓库不可见")
+            if resp.status_code >= 500 and attempt < self._max_retries:
+                self._sleep(0.5 * (attempt + 1))
+                continue
+            raise GitHubError(f"GitHub API 请求失败：HTTP {resp.status_code} {resp.text[:200]}")
+        raise GitHubError("GitHub API 请求失败：重试次数已用尽")
+
     def _get(self, url: str, *, allow_404: bool = False) -> tuple[dict | list | None, dict]:
         for attempt in range(self._max_retries + 1):
             resp = self._session.get(url, headers=self._headers, timeout=30)
@@ -53,6 +84,26 @@ class GitHubClient:
                 continue
             raise GitHubError(f"GitHub API 请求失败：HTTP {resp.status_code} {resp.text[:200]}")
         raise GitHubError("GitHub API 请求失败：重试次数已用尽")
+
+    def _post(
+        self,
+        url: str,
+        payload: dict,
+        *,
+        allow_404: bool = False,
+        ok_status: tuple[int, ...] = (201,),
+    ) -> tuple[dict | list | None, dict]:
+        return self._request("POST", url, payload, allow_404=allow_404, ok_status=ok_status)
+
+    def _patch(
+        self,
+        url: str,
+        payload: dict,
+        *,
+        allow_404: bool = False,
+        ok_status: tuple[int, ...] = (200,),
+    ) -> tuple[dict | list | None, dict]:
+        return self._request("PATCH", url, payload, allow_404=allow_404, ok_status=ok_status)
 
     def get_user(self, username: str) -> dict:
         data, _ = self._get(f"{API}/users/{username}")
