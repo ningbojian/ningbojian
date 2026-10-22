@@ -1,19 +1,36 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:9deb43be15a2cff686a3ae9743ce2e356e91fbcb8b2c76ea55b3b386768f1844",
+  "stats_fingerprint": "sha256:1253855c5ecf604312f11b6160f515058f8130eeba254006e98efc99694f5afc",
   "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
   "totals": {
-    "public_repos": 11,
+    "public_repos": 12,
     "followers": 2,
     "total_stars": 0
   },
   "repos": [
     {
+      "full_name": "ningbojian/phone-hotspot-proxy",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-22T14:53:29+00:00",
+      "short_intro": "连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。",
+      "short_intro_hash": "sha256:29e71d113a033fefaad4939463735c51dea9d9044a155a6208a35bf603b3bcf2"
+    },
+    {
+      "full_name": "ningbojian/github-trending-agent",
+      "stars": 0,
+      "language": "TypeScript",
+      "pushed_at": "2026-10-22T14:49:08+00:00",
+      "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
+      "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
+      "ai_generated": false
+    },
+    {
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-22T14:29:35+00:00",
+      "pushed_at": "2026-10-22T14:46:11+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -22,9 +39,8 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T16:06:28+00:00",
-      "intro_hash": "sha256:ec9369057be5302bff842f8b1d721450bb530cb7abea663169b02e3db6ae2416",
-      "intro_generated_at": "2026-10-22T14:39:52.605315+00:00",
-      "ai_generated": true
+      "short_intro": "自动维护 GitHub 个人主页 README 的模板仓库：一键生成并每周定时更新仓库统计、精选项目卡片与中文 AI 简介，支持增量更新与 PR 人工审核。",
+      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -61,20 +77,12 @@
       "intro_hash": "sha256:92f1d231cc511c54d4e0b910e68493ec439ba4b67a99ee94c9c938a9a383f308",
       "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
       "ai_generated": true
-    },
-    {
-      "full_name": "ningbojian/phone-hotspot-proxy",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-09-26T12:05:44+00:00",
-      "short_intro": "连上手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关窗即关闭。内置自动探测、设置备份还原、连通性测试，零依赖单文件。",
-      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
     }
   ],
   "bio": {
-    "text": "你好，我是 ningbojian。日常使用 Python 与 JavaScript 构建实用工具，近期项目涵盖多功能计算器与益智游戏合集、六自由度机械臂绘画系统、助农电商平台以及姓氏文化查询可视化网站。对计算机视觉、机器人控制和全栈开发保持兴趣，欢迎交流与合作。\n\n亮点：\n- MultiFuncCalculator：科学计算+进制转换+华容道+数独+2048\n- RoboArmDev-Showcase：OpenCV/HALCON 驱动六轴机械臂绘制\n- 助农电商：微信小程序原型+Spring Boot 订单平台",
-    "input_hash": "sha256:54bb3bb6ddb55e72e3aa7c534a332957722f15916f23dcce56c8c99d0847e75b",
-    "generated_at": "2026-10-22T12:49:10.885586+00:00",
+    "text": "Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。代表项目：MultiFuncCalculator 桌面计算器与益智游戏合集、RoboArmDev-Showcase 机械臂视觉绘画、agri-ecommerce-platform 助农电商全栈平台。常用 Python、JavaScript 等技术栈。\n\n亮点：\n- 12个公开仓库，覆盖桌面应用、CV与电商\n- 机械臂绘画项目：OpenCV轨迹提取至执行链路\n- 助农电商：微信小程序与Spring Boot前后端",
+    "input_hash": "sha256:74b3c85e1fa95cd3eea04952271945b2488defe07de0e39f5b357ff20d908fbf",
+    "generated_at": "2026-10-22T14:58:13.828035+00:00",
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
@@ -134,5 +142,5 @@
       "updated_at": "2026-10-22T14:39:42.211662+00:00"
     }
   },
-  "generated_at": "2026-10-22T14:40:07.483216+00:00"
+  "generated_at": "2026-10-22T14:58:13.828035+00:00"
 }

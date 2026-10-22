@@ -71,8 +71,12 @@ on:
         description: "agri-ecommerce-platform（2026-10-20 推送 · 仅项目介绍）"
         type: boolean
         default: false
+      github-trending-agent:
+        description: "github-trending-agent（2026-10-22 推送 · 仅项目介绍）"
+        type: boolean
+        default: false
       phone-hotspot-proxy:
-        description: "phone-hotspot-proxy（2026-09-26 推送 · 仅项目介绍）"
+        description: "phone-hotspot-proxy（2026-10-22 推送 · 仅项目介绍）"
         type: boolean
         default: false
       shiyuan:
