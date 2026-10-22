@@ -54,7 +54,9 @@ def test_iw01_create_checklist_issue_structure():
     http.add("POST", f"{API}/repos/alice/alice/issues",
              FakeResponse(status=201, json_data={"number": 5, "html_url": "https://x/issues/5"}))
     issue = update_checklist(_client(http), SELF, [PR7], username="alice", updated_at="2026-10-22 18:30")
-    assert issue == {"number": 5, "html_url": "https://x/issues/5"}
+    assert issue["number"] == 5
+    assert issue["html_url"] == "https://x/issues/5"
+    assert "/pull/7" in issue["body"]  # 回带刚写入的正文（收尾 append 的底稿，OR13）
     posts = [r for r in http.writes() if r["method"] == "POST"]
     assert len(posts) == 1
     assert posts[0]["json"]["assignees"] == ["alice"]  # ① 主动通知通道

@@ -196,6 +196,16 @@ def _b_status_line(stats: dict, reason: str = "") -> str:
     return "模式 B 状态：" + body
 
 
+def _b_repo_progress(r) -> str:
+    """单仓进度描述（OR20 逐仓进度行；与 ProcessResult.status 一一对应）。"""
+    return {
+        "generated": "已推分支（PR 待审核）",
+        "cached": "缓存命中，跳过 AI",
+        "suppressed": "与上次失败输入相同，已抑制",
+        "failed": "AI 失败（已记录，同输入下轮跳过）",
+    }.get(r.status, "缺 key 积压")
+
+
 def run(
     cfg_path: Path,
     *,
@@ -329,7 +339,11 @@ def run(
         if _pat:
             b_client_eff = GitHubClient(_pat)
     if b_force and not cfg.repo_readmes.enabled:
-        print("已勾选 repo_readmes 但 config.yaml 中 repo_readmes.enabled=false，本次未运行模式 B")
+        _conflict = (
+            "已勾选 repo_readmes 但 config.yaml 中 repo_readmes.enabled=false，本次未运行模式 B"
+        )
+        print(_conflict)
+        _append_summary(f"- ⚠️ {_conflict}")
     fetchers = readme_fetchers
     if fetchers is None and b_client_eff is not None and cfg.repo_readmes.enabled:
         fetchers = _fetchers_from_client(b_client_eff)
@@ -337,6 +351,8 @@ def run(
     b_active = cfg.repo_readmes.enabled and (fetchers is not None or b_client_eff is not None)
 
     if b_active:
+        b_progress: list[str] = []  # 逐仓进度行（OR20：串行 AI 静默期的可见性，写 Summary）
+        b_errors: list[str] = []  # 逐仓失败行（OR06：异常不跨仓传播，写 Summary）
         try:
             # 合并检测：已合并 bot PR 的基线推进到 PR head SHA（§12-R10）；b_merged 供 §5.3 剔除
             if b_client_eff is not None and not dry_run:
@@ -351,75 +367,82 @@ def run(
                 repo_readmes_state,
                 cfg.repo_readmes,
                 cfg.github.username,
-                fetch_head=fetchers.fetch_head if fetchers is not None else (lambda fn: ""),
-                fetch_compare=fetchers.fetch_compare if fetchers is not None else (lambda fn, b, h: {}),
+                fetch_head=fetchers.fetch_head,
+                fetch_compare=fetchers.fetch_compare,
                 force=force or b_force,
                 stats=b_stats,
             )
+            # 逐仓走完「AI → 推送」再进下一仓（OR20：第一仓终态行先于第二仓进度行）；
+            # 逐仓 try 隔离（OR06：一仓推送失败不拖死其他仓）
             if b_queue and not no_ai:
-                b_results = process_queue(
-                    b_queue,
-                    repo_readmes_state,
-                    cfg.ai,
-                    cfg.repo_readmes,
-                    ai_active=ai_active,
-                    generate=readme_generate,
-                    fetch_readme=(
-                        b_client_eff.get_repo_readme if b_client_eff is not None else None
-                    ),
-                    fetch_tree=(
-                        (lambda fn, sha: _fetch_tree_paths(b_client_eff, fn, sha))
-                        if b_client_eff is not None
-                        else None
-                    ),
-                    strip_readme=b_merged,
-                    force=force or b_force,
-                )
-            # 推送/PR：只推 generated；成功后 entries 回写 block_hash（SB07）
-            if b_client_eff is not None and b_results and not dry_run:
-                push_results(
-                    b_client_eff,
-                    b_results,
-                    entries=repo_readmes_state,
-                    branch=cfg.repo_readmes.pr_branch,
-                )
+                for item in b_queue:
+                    try:
+                        print(f"「{item.full_name}」AI 生成中（缓存/失败抑制则直接跳过）…")
+                        one = process_queue(
+                            [item],
+                            repo_readmes_state,
+                            cfg.ai,
+                            cfg.repo_readmes,
+                            ai_active=ai_active,
+                            generate=readme_generate,
+                            fetch_readme=(
+                                b_client_eff.get_repo_readme if b_client_eff is not None else None
+                            ),
+                            fetch_tree=(
+                                (lambda fn, sha: _fetch_tree_paths(b_client_eff, fn, sha))
+                                if b_client_eff is not None
+                                else None
+                            ),
+                            strip_readme=b_merged,
+                            force=force or b_force,
+                        )
+                        b_results.extend(one)
+                        if b_client_eff is not None and not dry_run:
+                            # 只推 generated；成功后 entries 回写 block_hash（SB07）
+                            for res in push_results(
+                                b_client_eff,
+                                one,
+                                entries=repo_readmes_state,
+                                branch=cfg.repo_readmes.pr_branch,
+                            ):
+                                print(f"「{item.full_name}」已推分支：{res.html_url}")
+                        for r in one:
+                            b_progress.append(f"- `{r.full_name}`：{_b_repo_progress(r)}")
+                    except Exception as exc:  # noqa: BLE001 —— 逐仓隔离，不跨仓传播（OR06）
+                        print(
+                            f"「{item.full_name}」模式 B 失败（不影响其他仓库与模式 A）：{exc}",
+                            file=sys.stderr,
+                        )
+                        b_errors.append(f"- `{item.full_name}`：{exc}")
             # B 完成即落盘（§4 第 1 步，SB22/23）：等待期间被取消也不丢基线与 AI 缓存
             if not dry_run:
                 _save_b_snapshot(snap_path, prev, cfg, repo_readmes_state)
         except Exception as exc:  # noqa: BLE001 —— B 任何异常都不得阻断 A（§4 护栏）
             print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
+            b_errors.append(f"- 整体：{exc}")
+        if b_progress or b_errors:
+            _append_summary(
+                "### 模式 B 逐仓进度\n" + "\n".join(b_progress + b_errors)
+            )
 
-    # §5.6 同轮新鲜度：本轮生成（内存）> 本轮合并（API 真源）> 有 open PR（分支）> 旧文；
-    # 顺带扫描全部 open PR（清单/等待的输入）——推送过的仓必然有 open PR，含本轮刚推的
+    # open-PR 扫描（清单/等待的输入）；§5.6 新鲜度预填延后到等待之后——
+    # 等待中被结清的 PR 不得再用分支内容（OR04 回退旧文防线）
     if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
-        for r in b_results:
-            if r.status == "generated":
-                b_readme_sources[r.full_name] = "内存"
-                readme_of.cache[r.full_name] = r.content
-        for _fn in sorted(b_merged):
-            b_readme_sources[_fn] = "API 真源"
-            readme_of.cache[_fn] = b_client_eff.get_repo_readme(_fn)
         for _fn, _entry in sorted(repo_readmes_state.items()):
             if not _entry.get("sha"):
                 continue
             pr = get_open_pr(b_client_eff, _fn, cfg.repo_readmes.pr_branch)
-            if not pr:
-                continue
-            open_prs.append(
-                {
-                    "full_name": _fn,
-                    "html_url": pr.get("html_url", ""),
-                    "number": pr.get("number"),
-                    "branch": cfg.repo_readmes.pr_branch,
-                }
-            )
-            if _fn not in readme_of.cache:
-                b_readme_sources[_fn] = "分支"
-                readme_of.cache[_fn] = b_client_eff.get_repo_readme(
-                    _fn, ref=cfg.repo_readmes.pr_branch
+            if pr:
+                open_prs.append(
+                    {
+                        "full_name": _fn,
+                        "html_url": pr.get("html_url", ""),
+                        "number": pr.get("number"),
+                        "branch": cfg.repo_readmes.pr_branch,
+                    }
                 )
 
-    # 「模式 B 状态」行（§8①）：七种静默场景各有可读原因，日志 + Summary 同源
+    # 「模式 B 状态」行（§8①）：七种静默场景各有可读原因，日志 + Summary 同源；每轮必有（OR11②）
     if b_force and not cfg.repo_readmes.enabled:
         b_reason = "未运行（勾选与 config 开关冲突，见上方警告）"
     elif not cfg.repo_readmes.enabled:
@@ -430,20 +453,9 @@ def run(
         b_reason = MISSING_KEY_REASON
     elif any(r.status == "suppressed" for r in b_results):
         b_reason = "本批输入与上次失败相同已跳过（不会自动重试；新提交或 --force 才重试）"
-    if cfg.repo_readmes.enabled or b_force:
-        status_line = _b_status_line(b_stats, b_reason)
-        print(status_line)
-        _append_summary(f"- {status_line}")
-
-    # 对账行：本轮 A（描述补位）读到的 README 各来自哪里（§5.6）
-    if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
-        counts = {"内存": 0, "API 真源": 0, "分支": 0, "旧文": 0}
-        for r in short_targets:
-            counts[b_readme_sources.get(r.full_name, "旧文")] += 1
-        print(
-            "本轮 A 的 README 输入来源："
-            + "、".join(f"{label} {counts[label]}" for label in counts)
-        )
+    status_line = _b_status_line(b_stats, b_reason)
+    print(status_line)
+    _append_summary(f"- {status_line}")
 
     # 3.6 清单/通知 + 等待（§4-2/§4-3）：有 open PR 才动 issue；等待仅勾选且非空时执行
     if cfg.repo_readmes.enabled and b_client_eff is not None and not dry_run:
@@ -480,23 +492,32 @@ def run(
                 + (f"\n清单 issue：{issue['html_url']}" if issue else "\n（清单 issue 未创建）")
             )
 
+    waited = False
+    current: set[tuple[str, int]] = set()
     if merge_wait_minutes > 0 and open_prs and b_client_eff is not None and not dry_run:
-        pending_nums = sorted(p["number"] for p in open_prs if p.get("number"))
-        if pending_nums:
+        pending_refs = [
+            (str(p["full_name"]), int(p["number"]))
+            for p in open_prs
+            if p.get("number")
+        ]
+        if pending_refs:
+            waited = True
+            current = set(pending_refs)
             until_bj = (
                 datetime.now(_BEIJING) + timedelta(minutes=merge_wait_minutes)
             ).strftime("%H:%M")
-            first = wait_first_line(len(pending_nums), until_bj)
+            first = wait_first_line(len(pending_refs), until_bj)
             print(f"等待合并：{first}")
             _append_summary(f"### 等待合并\n{first}")
-            current = set(pending_nums)
 
-            def _on_change(pending: list[int]) -> None:
+            def _on_change(pending: list[tuple[str, int]]) -> None:
                 nonlocal current, checklist_closed
                 current = set(pending)
                 if not pending:
                     checklist_closed = True
-                remaining = [p for p in open_prs if p.get("number") in current]
+                remaining = [
+                    p for p in open_prs if (p["full_name"], p["number"]) in current
+                ]
                 if issue is not None and issue_eff is not None:
                     try:
                         update_checklist(
@@ -514,8 +535,7 @@ def run(
             try:
                 wait_result = wait_for_merges(
                     b_client_eff,
-                    owner_repo,
-                    pending_nums,
+                    pending_refs,
                     minutes=merge_wait_minutes,
                     now_fn=now_fn or time.monotonic,
                     sleep_fn=sleep_fn or time.sleep,
@@ -529,7 +549,9 @@ def run(
             if wait_result == "timeout":
                 timeout_tail = "⏰ 等待窗口已耗尽，未合并的 PR 会继续留在清单里，任务继续。"
                 print(timeout_tail)
-                remaining = [p for p in open_prs if p.get("number") in current]
+                remaining = [
+                    p for p in open_prs if (p["full_name"], p["number"]) in current
+                ]
                 if issue is not None and issue_eff is not None and remaining:
                     try:
                         update_checklist(
@@ -543,6 +565,55 @@ def run(
                         )
                     except Exception as exc:  # noqa: BLE001 —— 终态行失败忽略
                         print(f"清单更新失败（忽略）：{exc}", file=sys.stderr)
+
+    # 3.7 §5.6 同轮新鲜度（等待后评估，只喂主页描述补位会读的短介绍仓）：
+    # 合并（含等待中合并）→ API 真源 > 等待中被关（拒绝）→ 旧文 > 本轮生成 → 内存 >
+    # 静默且 PR 仍 open → 分支 > 其余 → 旧文（不预填，A 拉默认分支）
+    if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
+        generated = {
+            r.full_name: r.content for r in b_results if r.status == "generated"
+        }
+        short_names = {r.full_name for r in short_targets}
+        settled_ok: set[str] = set(b_merged)  # 合并检测已确认合并的仓
+        settled_closed: set[str] = set()
+        if waited:
+            for p in open_prs:
+                _fn = p["full_name"]
+                if _fn not in short_names or (_fn, p["number"]) in current:
+                    continue
+                # 等待中结清 → 复查 GET /pulls/{n}：合并=新版真源，关闭=旧文（OR04 防线，
+                # 绝不因「本轮生成过」把被拒内容留在主页——规则 3 覆盖规则 2）
+                try:
+                    data, _ = b_client_eff._get(f"{API}/repos/{_fn}/pulls/{p['number']}")
+                    _merged = bool(isinstance(data, dict) and data.get("merged"))
+                except Exception:  # noqa: BLE001 —— 状态复查失败按未合并（旧文）处理
+                    _merged = False
+                (settled_ok if _merged else settled_closed).add(_fn)
+        for _fn in sorted(short_names):
+            if _fn in settled_ok:
+                b_readme_sources[_fn] = "API 真源"
+                readme_of.cache[_fn] = b_client_eff.get_repo_readme(_fn)
+            elif _fn in settled_closed:
+                b_readme_sources[_fn] = "旧文"
+                readme_of.cache[_fn] = b_client_eff.get_repo_readme(_fn)
+            elif _fn in generated:
+                b_readme_sources[_fn] = "内存"
+                readme_of.cache[_fn] = generated[_fn]
+            elif any(p["full_name"] == _fn for p in open_prs):
+                b_readme_sources[_fn] = "分支"
+                readme_of.cache[_fn] = b_client_eff.get_repo_readme(
+                    _fn, ref=cfg.repo_readmes.pr_branch
+                )
+        # 对账行（§8④，OR10 每轮必含）：本轮 A（描述补位）读到的 README 各来自哪里
+        counts = {"内存": 0, "API 真源": 0, "分支": 0, "旧文": 0}
+        for r in short_targets:
+            counts[b_readme_sources.get(r.full_name, "旧文")] += 1
+        sources_line = (
+            "本轮 A 的 README 输入来源："
+            + "、".join(f"{label} {counts[label]}" for label in counts)
+        )
+        print(sources_line)
+        _append_summary(f"- {sources_line}")
 
     # 4. 描述补位：缺 description 的精选仓库，用其 README 生成一句主页文案
     short_intros: dict[str, str] = {}

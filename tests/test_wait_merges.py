@@ -47,7 +47,7 @@ def test_iw20_merge_converges_pending_and_calls_on_change():
     notified: list = []
     result = wait_for_merges(
         GitHubClient("p-pat", session=http),
-        "alice/alice", [42], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
+        [("alice/alice", 42)], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
         on_change=lambda pending: notified.append(list(pending)),
     )
     assert result == "cleared"
@@ -64,7 +64,7 @@ def test_iw21_closed_pr_also_settles():
     clock = FakeClock()
     result = wait_for_merges(
         GitHubClient("p-pat", session=http),
-        "alice/alice", [42], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
+        [("alice/alice", 42)], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
     )
     assert result == "cleared"
     assert http.writes() == []
@@ -77,7 +77,7 @@ def test_iw22_cleared_well_before_deadline():
     clock = FakeClock()
     assert wait_for_merges(
         GitHubClient("p-pat", session=http),
-        "alice/alice", [42], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
+        [("alice/alice", 42)], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
     ) == "cleared"
     assert clock.t == POLL_SECONDS  # 只睡了一个轮询间隔
 
@@ -89,7 +89,7 @@ def test_iw23_timeout_returns_timeout_with_bounded_polls():
     clock = FakeClock()
     result = wait_for_merges(
         GitHubClient("p-pat", session=http),
-        "alice/alice", [42], minutes=1, now_fn=clock.now, sleep_fn=clock.sleep,
+        [("alice/alice", 42)], minutes=1, now_fn=clock.now, sleep_fn=clock.sleep,
     )
     assert result == "timeout"
     assert len(clock.sleeps) == 2  # 60s 窗口 / 30s 间隔 = 2 次
@@ -101,9 +101,9 @@ def test_iw18_zero_minutes_or_empty_list_never_polls():
     http = FakeHttp()
     clock = FakeClock()
     client = GitHubClient("p-pat", session=http)
-    assert wait_for_merges(client, "alice/alice", [42], minutes=0,
+    assert wait_for_merges(client, [("alice/alice", 42)], minutes=0,
                            now_fn=clock.now, sleep_fn=clock.sleep) == "cleared"
-    assert wait_for_merges(client, "alice/alice", [], minutes=30,
+    assert wait_for_merges(client, [], minutes=30,
                            now_fn=clock.now, sleep_fn=clock.sleep) == "cleared"
     assert http.requests == []  # 连 GET 都没有；时钟未被调用
     assert clock.sleeps == []
@@ -125,7 +125,7 @@ def test_cancel_during_wait_propagates():
     try:
         wait_for_merges(
             GitHubClient("p-pat", session=http),
-            "alice/alice", [42], minutes=30, now_fn=clock.now, sleep_fn=cancel_sleep,
+            [("alice/alice", 42)], minutes=30, now_fn=clock.now, sleep_fn=cancel_sleep,
         )
     except KeyboardInterrupt:
         pass

@@ -73,13 +73,22 @@ def update_checklist(
     """创建/刷新唯一清单 issue；全部结清时自动关闭；无 open PR 且无既有 issue → 不开。
 
     tail 附加在 body 末尾（等待首行、⏰ 终态行等，§4-3/§4-5）。
-    返回 {"number", "html_url"} 或 None。异常向上抛（cli 隔离，IW26）。
+    返回 {"number", "html_url", "body"} 或 None。异常向上抛（cli 隔离，IW26）。
     """
     repo = f"{API}/repos/{owner_repo}"
     existing = _find_checklist_issue(client, owner_repo)
     if not open_prs:
         if existing:
-            client._patch(f"{repo}/issues/{existing['number']}", {"state": "closed"})
+            # 关闭同时清掉已结清条目（OR04：body 不再含已处理 PR 链接）
+            client._patch(
+                f"{repo}/issues/{existing['number']}",
+                {
+                    "state": "closed",
+                    "body": build_checklist_body(
+                        [], username=username, updated_at=updated_at, branch=branch
+                    ),
+                },
+            )
         return None
     body = build_checklist_body(
         open_prs, username=username, updated_at=updated_at, branch=branch, tail=tail
@@ -89,7 +98,7 @@ def update_checklist(
             f"{repo}/issues/{existing['number']}",
             {"body": body, "assignees": [username]},
         )
-        return {"number": existing["number"], "html_url": existing.get("html_url", "")}
+        return {"number": existing["number"], "html_url": existing.get("html_url", ""), "body": body}
     data, _ = client._post(
         f"{repo}/issues",
         {
@@ -99,7 +108,9 @@ def update_checklist(
         },
     )
     assert isinstance(data, dict)
-    return {"number": data["number"], "html_url": data.get("html_url", "")}
+    # body 回带刚写入的清单正文（而非 API 回显）：收尾 append_final_state 在其上追加，
+    # 即使 POST 响应不含 body 也能保住条目集合（OR13）
+    return {"number": data["number"], "html_url": data.get("html_url", ""), "body": body}
 
 
 def append_final_state(

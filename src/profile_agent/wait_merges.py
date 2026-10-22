@@ -25,33 +25,34 @@ def wait_first_line(count: int, until_bj: str) -> str:
 
 def wait_for_merges(
     client: GitHubClient,
-    owner_repo: str,
-    pr_numbers: list[int],
+    pr_refs: list[tuple[str, int]],
     *,
     minutes: float,
     now_fn: Callable[[], float],
     sleep_fn: Callable[[int], None],
-    on_change: Callable[[list[int]], None] | None = None,
+    on_change: Callable[[list[tuple[str, int]]], None] | None = None,
 ) -> str:
     """等待清单内 PR 全部结清或超时；返回 "cleared" | "timeout"。
 
-    on_change(pending) 在每次状态变化后调用（cli 用它刷新 issue body + 打 ::notice::）。
-    取消（如进程被杀）以异常形式向外传播——B 产物已落盘，不回滚（IW24 前半）。
+    pr_refs 为 (仓库全名, PR 号)——清单里的 PR 可能来自不同仓库，轮询打各自仓库
+    （OR04/OR15 端到端按仓路由）。on_change(pending) 在每次状态变化后调用（cli 用它
+    刷新 issue body + 打 ::notice::）。取消（如进程被杀）以异常形式向外传播——
+    B 产物已落盘，不回滚（IW24 前半）。
     """
-    if minutes <= 0 or not pr_numbers:
+    if minutes <= 0 or not pr_refs:
         return "cleared"
     deadline = now_fn() + minutes * 60
-    pending = set(pr_numbers)
+    pending = {(str(fn), int(n)) for fn, n in pr_refs}
     while pending:
         if now_fn() >= deadline:
             return "timeout"
         sleep_fn(POLL_SECONDS)
         changed = False
-        for n in sorted(pending):
-            data, _ = client._get(f"{API}/repos/{owner_repo}/pulls/{n}")
+        for ref in sorted(pending):
+            data, _ = client._get(f"{API}/repos/{ref[0]}/pulls/{ref[1]}")
             info = data if isinstance(data, dict) else {}
             if info.get("merged") or info.get("state") == "closed":
-                pending.discard(n)
+                pending.discard(ref)
                 changed = True
         if changed and on_change is not None:
             on_change(sorted(pending))
