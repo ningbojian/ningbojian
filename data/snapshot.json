@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:bf7021b85633dbf5849f9d79281ed3f48ca04bc34f81db13ef43e15474b952ea",
+  "stats_fingerprint": "sha256:0525c3463fa4be69c22a13fc3abb0a54de687b92e156aafc46a3b91e6e33f15f",
   "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
   "totals": {
     "public_repos": 11,
@@ -13,7 +13,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-22T12:15:04+00:00",
+      "pushed_at": "2026-10-22T12:49:11+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -22,9 +22,8 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T16:06:28+00:00",
-      "intro_hash": "sha256:ec9369057be5302bff842f8b1d721450bb530cb7abea663169b02e3db6ae2416",
-      "intro_generated_at": "2026-10-22T12:47:20.115746+00:00",
-      "ai_generated": false
+      "short_intro": "自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介，定时更新且增量节约 AI 额度。",
+      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -67,8 +66,9 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-09-26T12:05:44+00:00",
-      "short_intro": "连接手机热点后双击运行，自动探测手机侧代理并接入 Windows 系统代理，关闭时自动关闭；零依赖单文件，无需逐个配置代理。",
-      "short_intro_hash": "sha256:b6b948df90e09db7cf87b24918c53ef7b9eda4273f7cb7828d204a7b0912a62b"
+      "intro_hash": "sha256:167c1867a1c6aadfa36dcbc5f8a415d77c39d69baa8acf73a141d1f8f6f6f515",
+      "intro_generated_at": "2026-10-22T12:52:52.643029+00:00",
+      "ai_generated": true
     }
   ],
   "bio": {
@@ -89,5 +89,5 @@
       "updated_at": "2026-10-22T12:46:41.124606+00:00"
     }
   },
-  "generated_at": "2026-10-22T12:49:10.885586+00:00"
+  "generated_at": "2026-10-22T12:55:02.345238+00:00"
 }
