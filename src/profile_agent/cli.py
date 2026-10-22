@@ -665,6 +665,7 @@ def run(
             fetch_readme=gh_client.get_repo_readme if gh_client else None,
             # --force 或点名重跑：忽略仓库级 hash 复用
             force=force or named_repos,
+            dry_run=dry_run,
         )
 
     now_bj = datetime.now(_BEIJING)

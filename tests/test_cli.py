@@ -43,6 +43,8 @@ def test_dry_run_prints_readme_and_writes_nothing(tmp_path, capsys):
     assert "仓库统计" in out and "我的项目" in out
     assert not (tmp_path / "README.md").exists()
     assert not (tmp_path / "data" / "snapshot.json").exists()
+    # --dry-run 承诺「只打印不写文件」——项目介绍目录同样不得落盘（M4 走查回归）
+    assert not (tmp_path / "docs" / "projects").exists()
 
 
 def test_full_run_writes_readme_and_snapshot(tmp_path):

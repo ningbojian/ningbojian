@@ -141,6 +141,7 @@ def update_project_intros(
     allow_ai: bool = True,
     fetch_readme=None,
     force: bool = False,
+    dry_run: bool = False,
 ) -> dict[str, dict]:
     """按仓库增量生成/更新介绍文件。返回每仓库的新状态。
 
@@ -150,6 +151,7 @@ def update_project_intros(
     - 否则重新生成：AI 可用且成功 → AI 正文（用 fetch_readme 拉到的 README
       作为事实来源）；否则 → 数据版占位（失败原因写 stderr，不再静默吞掉）
     - fetch_readme 失败不影响生成（退回只用 API 事实）
+    - dry_run=True → 照常计算状态但不落盘（--dry-run「只打印不写文件」承诺）
     """
     out_dir = Path(proj_cfg.dir)
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -195,8 +197,9 @@ def update_project_intros(
         if body is None:
             body = _data_stub(repo, ai_cfg.key_env_name)
 
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(_header(repo) + "\n" + body.strip() + "\n", encoding="utf-8")
+        if not dry_run:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(_header(repo) + "\n" + body.strip() + "\n", encoding="utf-8")
         states[repo.full_name] = {
             "intro_hash": h,
             "intro_generated_at": now_iso,
