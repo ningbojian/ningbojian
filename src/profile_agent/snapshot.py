@@ -16,6 +16,26 @@ def save_snapshot(path: Path, snap: Snapshot) -> None:
     )
 
 
+def _normalize_repo_readmes(raw: object) -> dict[str, dict]:
+    """逐仓条目补缺省（残缺条目不崩溃，测试计划 SB04）。"""
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, dict] = {}
+    for full_name, entry in raw.items():
+        if not isinstance(entry, dict):
+            continue
+        result[str(full_name)] = {
+            "sha": str(entry.get("sha") or ""),
+            "block_hash": str(entry.get("block_hash") or ""),
+            "mode": str(entry.get("mode") or "block"),
+            "failed_hash": str(entry.get("failed_hash") or ""),
+            "last_input_hash": str(entry.get("last_input_hash") or ""),
+            "pending": bool(entry.get("pending")),
+            "updated_at": str(entry.get("updated_at") or ""),
+        }
+    return result
+
+
 def load_snapshot(path: Path) -> Snapshot | None:
     if not path.exists():
         return None
@@ -30,7 +50,8 @@ def load_snapshot(path: Path) -> Snapshot | None:
         bio_raw = {}
     try:
         return Snapshot(
-            schema=int(data.get("schema") or 1),
+            # schema 1/2 旧快照读入时自动升级为 3（设计 §5.1）
+            schema=max(3, int(data.get("schema") or 1)),
             username=str(data.get("username") or ""),
             stats_fingerprint=str(data.get("stats_fingerprint") or ""),
             stats_config_hash=str(data.get("stats_config_hash") or ""),
@@ -43,6 +64,7 @@ def load_snapshot(path: Path) -> Snapshot | None:
                 model=str(bio_raw.get("model") or ""),
                 prompt_version=int(bio_raw.get("prompt_version") or 0),
             ),
+            repo_readmes=_normalize_repo_readmes(data.get("repo_readmes")),
             generated_at=str(data.get("generated_at") or ""),
         )
     except (TypeError, ValueError):

@@ -106,6 +106,21 @@ class SnapshotConfig:
 
 
 @dataclass
+class RepoReadmesConfig:
+    """模式 B：代码变更 → 各仓库 README 托管区自动更新（默认关闭）。
+
+    独立于 ai.prompt_version（设计 §12-6）：两种内容可独立迭代。
+    """
+
+    enabled: bool = False
+    include: list[str] = field(default_factory=list)  # 空 = 按 repos 过滤规则的全部仓库
+    exclude: list[str] = field(default_factory=list)  # 在 include 之上再排除
+    max_diff_chars: int = 6000
+    prompt_version: int = 1
+    pr_branch: str = "readme-auto/update"
+
+
+@dataclass
 class Config:
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     github: GitHubConfig = field(default_factory=GitHubConfig)
@@ -114,6 +129,7 @@ class Config:
     readme: ReadmeConfig = field(default_factory=ReadmeConfig)
     ai: AIConfig = field(default_factory=AIConfig)
     projects: ProjectsConfig = field(default_factory=ProjectsConfig)
+    repo_readmes: RepoReadmesConfig = field(default_factory=RepoReadmesConfig)
     snapshot: SnapshotConfig = field(default_factory=SnapshotConfig)
 
 
@@ -239,6 +255,22 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         review_via_pr=bool(proj.get("review_via_pr", True)),
         include=[str(x) for x in include],
         exclude=[str(x) for x in exclude],
+    )
+
+    rr = _section(data, "repo_readmes")
+    rr_include = rr.get("include") or []
+    rr_exclude = rr.get("exclude") or []
+    if not isinstance(rr_include, list):
+        raise ConfigError("repo_readmes.include 必须是列表")
+    if not isinstance(rr_exclude, list):
+        raise ConfigError("repo_readmes.exclude 必须是列表")
+    cfg.repo_readmes = RepoReadmesConfig(
+        enabled=bool(rr.get("enabled", False)),
+        include=[str(x) for x in rr_include],
+        exclude=[str(x) for x in rr_exclude],
+        max_diff_chars=int(rr.get("max_diff_chars", 6000)),
+        prompt_version=int(rr.get("prompt_version", 1)),
+        pr_branch=str(rr.get("pr_branch") or "readme-auto/update"),
     )
 
     snap = _section(data, "snapshot")

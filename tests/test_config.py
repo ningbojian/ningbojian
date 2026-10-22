@@ -163,3 +163,53 @@ def test_readme_visitors_badge_can_enable(tmp_path):
         'github:\n  username: "a"\nreadme:\n  visitors_badge: true\n',
     )
     assert load_config(path).readme.visitors_badge is True
+
+
+# ---- repo_readmes 配置段（模式 B，测试计划 Q14-Q16）----
+
+
+def test_repo_readmes_defaults_off(tmp_path):
+    """Q14：配置缺省时模式 B 关闭，且各项取设计默认值。"""
+    path = _write(tmp_path, 'github:\n  username: "a"\n')
+    rr = load_config(path).repo_readmes
+    assert rr.enabled is False
+    assert rr.include == []
+    assert rr.exclude == []
+    assert rr.max_diff_chars == 6000
+    assert rr.prompt_version == 1
+    assert rr.pr_branch == "readme-auto/update"
+
+
+def test_repo_readmes_full_values_respected(tmp_path):
+    """Q15：六项字段完整解析。"""
+    path = _write(
+        tmp_path,
+        """
+github:
+  username: "a"
+repo_readmes:
+  enabled: true
+  include: ["cool-tool"]
+  exclude: ["old-thing"]
+  max_diff_chars: 4000
+  prompt_version: 2
+  pr_branch: "feat/readme-bot"
+""",
+    )
+    rr = load_config(path).repo_readmes
+    assert rr.enabled is True
+    assert rr.include == ["cool-tool"]
+    assert rr.exclude == ["old-thing"]
+    assert rr.max_diff_chars == 4000
+    assert rr.prompt_version == 2
+    assert rr.pr_branch == "feat/readme-bot"
+
+
+def test_repo_readmes_include_must_be_list(tmp_path):
+    """Q16：include 写成字符串时报中文配置错误（镜像 projects.include 先例）。"""
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nrepo_readmes:\n  include: "cool-tool"\n',
+    )
+    with pytest.raises(ConfigError, match="include"):
+        load_config(path)

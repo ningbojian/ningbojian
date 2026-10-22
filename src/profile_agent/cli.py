@@ -25,6 +25,7 @@ from .github_client import GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
 from .render import render_readme, write_if_changed
+from .repo_readmes import compute_queue
 from .short_intro import generate_short_intro, short_intro_input_hash
 from .snapshot import load_snapshot, save_snapshot
 
@@ -121,6 +122,21 @@ def _append_summary(markdown: str) -> None:
         pass
 
 
+_B_STAT_LABELS = (
+    ("queued", "入队"),
+    ("first_seen", "首见记基线"),
+    ("readme_only", "仅README推进基线"),
+    ("no_change", "无新提交"),
+    ("reset", "基线重置"),
+)
+
+
+def _b_status_line(stats: dict) -> str:
+    """「模式 B 状态」一行（设计 §8①：静默必须能被看懂是设计如此还是出问题了）。"""
+    parts = [f"{label} {stats.get(key, 0)} 仓" for key, label in _B_STAT_LABELS if stats.get(key)]
+    return "模式 B 状态：" + ("、".join(parts) if parts else "无事可做")
+
+
 def run(
     cfg_path: Path,
     *,
@@ -131,6 +147,7 @@ def run(
     skip_projects: bool = False,
     fixture: Path | None = None,
     only_repos: list[str] | None = None,
+    readme_fetchers=None,
 ) -> int:
     fallback = os.environ.get("GITHUB_REPOSITORY_OWNER")
     try:
@@ -205,6 +222,11 @@ def run(
     else:
         bio_fresh = True
 
+    # 门的开门条件新增一条（设计 §7）：任一仓库留有积压标记（pending）→ 开门，
+    # 否则「提交发生在缺 key 期间、指纹随后被记录」的积压会永远饿死
+    b_pending = prev is not None and any(
+        bool(e.get("pending")) for e in prev.repo_readmes.values()
+    )
     if (
         not force
         and not named_repos  # 点名即重跑：不走整体增量门
@@ -215,9 +237,29 @@ def run(
         and bio_fresh
         and (not projects_active or _projects_clean(proj_targets, cfg, prev, root, ai_active=ai_active))
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
+        and not b_pending
     ):
         print("无变化，跳过更新")
         return 0
+
+    # 3.5 模式 B：队列计算（AI/推送在后续里程碑接入；异常隔离，绝不阻断模式 A）
+    repo_readmes_state: dict[str, dict] = dict(prev.repo_readmes) if prev else {}
+    if cfg.repo_readmes.enabled and readme_fetchers is not None:
+        try:
+            b_stats: dict = {}
+            compute_queue(
+                repos,
+                repo_readmes_state,
+                cfg.repo_readmes,
+                cfg.github.username,
+                fetch_head=readme_fetchers.fetch_head,
+                fetch_compare=readme_fetchers.fetch_compare,
+                force=force,
+                stats=b_stats,
+            )
+            print(_b_status_line(b_stats))
+        except Exception as exc:  # noqa: BLE001 —— B 任何异常都不得阻断 A（§4 护栏）
+            print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
 
     # 4. 描述补位：缺 description 的精选仓库，用其 README 生成一句主页文案
     short_intros: dict[str, str] = {}
@@ -321,7 +363,7 @@ def run(
     merged_states.update(project_states)
     merged_states.update(short_states)
     new_snap = Snapshot(
-        schema=2,
+        schema=3,
         username=cfg.github.username,
         stats_fingerprint=fingerprint,
         stats_config_hash=cfg_hash,
@@ -346,6 +388,7 @@ def run(
             for r in repos
         ],
         bio=bio_info,
+        repo_readmes=repo_readmes_state,
         generated_at=now_iso,
     )
     save_snapshot(snap_path, new_snap)

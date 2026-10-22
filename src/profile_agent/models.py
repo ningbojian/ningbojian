@@ -67,11 +67,14 @@ class BioInfo:
 
 @dataclass
 class Snapshot:
-    schema: int = 2
+    schema: int = 3
     username: str = ""
     stats_fingerprint: str = ""
     stats_config_hash: str = ""
     totals: dict = field(default_factory=dict)
     repos: list[dict] = field(default_factory=list)
     bio: BioInfo = field(default_factory=BioInfo)
+    # 模式 B（repo_readmes）逐仓状态：full_name → {sha, block_hash, mode,
+    # failed_hash, last_input_hash, pending, updated_at}（设计 §5.1，schema 3）
+    repo_readmes: dict[str, dict] = field(default_factory=dict)
     generated_at: str = ""
