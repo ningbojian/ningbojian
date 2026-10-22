@@ -152,7 +152,7 @@ AI 失败已抑制 / 勾选与 config 冲突）——静默必须能被看懂是
 
 - `GET /repos/{o}/{r}/compare/{base}..{head}`：取 commits（标题+SHA）与 files（patch）；
 - patch 按最近提交优先截断到 `max_diff_chars`（默认 6000，与模式 A 的 README 截断同量级），
-  截断处加显式标记；
+  截断处加显式标记（标记本身允许超出上限少量字符——上限约束的是正文，测试计划裁定 R-T1）；
 - 超限/二进制为主：降级为 `git/trees` 文件树 + 提交标题列表；
 - **若 compare 结果显示变更文件只有 `README.md` 本身 → 不调 AI，只推进基线**
   （否则 PR 合并后机器人自己的提交会触发下一轮，形成循环）；
