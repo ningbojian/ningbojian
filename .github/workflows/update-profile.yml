@@ -3,8 +3,8 @@ name: Update Profile README
 # 全部入口就这一个 workflow：
 #   - 定时（schedule）：cron 每天唤醒，是否真跑由 interval_days 间隔门决定
 #     （Run workflow 的「定时运行间隔」下拉可一键改 1–7 天，见 docs/guide.md）
-#   - 手动 Run workflow：对话框里每个公开仓库一个勾选框，勾选后一键只更新它们
-#     勾选框由每次运行自动同步（需要配置 WORKFLOW_PAT secret，见 docs/guide.md）
+#   - 手动 Run workflow：对话框可选 强制重生成 / 模式 B（repo_readmes）/ 等待合并 / 更新主页
+#     （模式 B 的 git-data 推送与 PR 需配置 WORKFLOW_PAT secret，见 docs/guide.md）
 on:
   schedule:
     - cron: "23 2 * * *" # 每天 02:23 UTC ≈ 北京 10:23 唤醒；间隔门决定今天是否真跑
@@ -16,7 +16,6 @@ on:
         description: >-
           忽略增量检测，强制重新生成。
           模式 B 流程：逐仓 AI 生成 README → 开 PR → 清单 issue 通知 → 可选等待合并 → 主页同轮吸收（合并=新版、仍 open=分支内容、被关=回退旧文）。
-          下方逐仓勾选只影响项目介绍，不驱动模式 B。
         type: boolean
         default: false
       repo_readmes:
@@ -46,44 +45,6 @@ on:
         description: "更新个人主页 overview"
         type: boolean
         default: true
-      update_projects:
-        description: "生成/更新项目介绍（简历素材）"
-        type: boolean
-        default: true
-      projects_repos:
-        description: "点名要更新的仓库（逗号分隔，脚本自动化用；日常请用下方勾选框）；留空=按 config 规则；填 all=全部精选"
-        type: string
-        default: ""
-      # <<REPO_CHECKBOXES_START>>
-      MultiFuncCalculator:
-        description: "MultiFuncCalculator（2026-10-19 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      ProfileReadmeAgent:
-        description: "ProfileReadmeAgent（2026-10-21 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      RoboArmDev-Showcase:
-        description: "RoboArmDev-Showcase（2026-10-19 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      agri-ecommerce-platform:
-        description: "agri-ecommerce-platform（2026-10-20 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      github-trending-agent:
-        description: "github-trending-agent（2026-10-22 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      phone-hotspot-proxy:
-        description: "phone-hotspot-proxy（2026-10-22 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      shiyuan:
-        description: "shiyuan（2026-10-20 推送 · 仅项目介绍）"
-        type: boolean
-        default: false
-      # <<REPO_CHECKBOXES_END>>
 
 # 防止定时与手动同时运行；不取消进行中的运行
 concurrency:
@@ -145,12 +106,11 @@ jobs:
           print(f"snapshot={(c.get('snapshot') or {}).get('path', 'data/snapshot.json')}")
           PY
 
-      # 解析本次要点名的仓库：勾选框优先，其次 projects_repos 字符串输入
+      # 解析本次要点名的仓库（保留钩子：当前无勾选框/输入来源，恒为空 → 按 config 全量）
       - name: 解析勾选/点名的仓库
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         id: resolve
         env:
-          INPUT_REPOS: ${{ inputs.projects_repos }}
           INPUTS_JSON: ${{ toJSON(inputs) }}
         run: |
           REPOS=$(python3 - <<'PY'
@@ -205,7 +165,6 @@ jobs:
           FLAGS=""
           [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
           [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
-          [ "${{ inputs.update_projects }}" = "false" ] && FLAGS="$FLAGS --skip-projects"
           # 模式 B：勾选即强制重跑队列（只影响 B，不触碰模式 A 的门）
           [ "${{ inputs.repo_readmes }}" = "true" ] && FLAGS="$FLAGS --repo-readmes"
           # 等待仅勾选时执行（30 分钟窗口）；不勾与 cron 一样 0 分钟——直接继续
@@ -215,106 +174,6 @@ jobs:
             FLAGS="$FLAGS --repos $INPUT_REPOS"
           fi
           python -m profile_agent --config config.yaml $FLAGS
-
-      # 把当前仓库列表同步成 Run workflow 对话框里的勾选框。
-      # 改 workflow 文件需要仓库写权限，内置 GITHUB_TOKEN 没有（GitHub 硬限制），
-      # 所以自动同步依赖可选的 WORKFLOW_PAT secret；没配则只同步映射文件，勾选框保持现状。
-      - name: 同步勾选框（仓库列表 → workflow 输入）
-        if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
-        env:
-          OWNER: ${{ github.repository_owner }}
-          WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import re
-          from pathlib import Path
-
-          WF = Path(".github/workflows/update-profile.yml")
-          MAPPING = Path("data/repo_inputs.json")
-          START = "# <<REPO_CHECKBOXES_START>>"
-          END = "# <<REPO_CHECKBOXES_END>>"
-          snap_path = Path("data/snapshot.json")
-          if not snap_path.exists():
-              print("无快照，跳过勾选框同步")
-              raise SystemExit(0)
-          text = WF.read_text(encoding="utf-8")
-          if START not in text or END not in text:
-              print("未找到勾选框标记，跳过同步")
-              raise SystemExit(0)
-          snap = json.loads(snap_path.read_text(encoding="utf-8"))
-          owner = os.environ.get("OWNER", "")
-          repos = [r for r in snap.get("repos", []) if isinstance(r, dict) and r.get("full_name")]
-          # 排除 profile 仓库自身（与工具默认过滤一致；快照里已是公开非 fork 仓库）
-          repos = [r for r in repos if r["full_name"] != f"{owner}/{owner}"]
-          repos.sort(key=lambda r: (-(r.get("stars") or 0), r["full_name"]))
-
-          # 输入 id 必须字母/下划线开头且只含字母数字-_；保留字与撞名的加前缀/序号
-          RESERVED = {"force", "update_readme", "update_projects", "projects_repos",
-                      "repo_readmes", "wait_for_merges", "schedule_interval"}
-          used: set = set()
-          mapping: dict = {}
-          lines = []
-          for r in repos:
-              name = r["full_name"].split("/", 1)[1]
-              if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", name) and name not in RESERVED:
-                  box = name
-              else:
-                  box = "repo-" + re.sub(r"[^A-Za-z0-9_-]", "-", name)
-              base, i = box, 2
-              while box in used:
-                  box = f"{base}-{i}"
-                  i += 1
-              used.add(box)
-              mapping[box] = name
-              # 标签优先显示最近推送日期（比 star/语言直观）；旧版快照缺 pushed_at 则退回。
-              # 「仅项目介绍」后缀切断「勾仓库 = 驱动模式 B」的误解（§12-R2）
-              pushed = (r.get("pushed_at") or "")[:10]
-              if re.fullmatch(r"\d{4}-\d{2}-\d{2}", pushed or ""):
-                  meta = f"{pushed} 推送"
-              else:
-                  meta = f"⭐{r.get('stars') or 0}"
-                  if r.get("language"):
-                      meta += f" · {r['language']}"
-              lines.append(f"      {box}:")
-              lines.append(f'        description: "{name}（{meta} · 仅项目介绍）"')
-              lines.append("        type: boolean")
-              lines.append("        default: false")
-
-          body = "\n".join(lines) if lines else "      # （暂无公开仓库）"
-          replacement = START + "\n" + body + "\n      " + END
-          updated = re.sub(re.escape(START) + r".*?" + re.escape(END), lambda _m: replacement, text, count=1, flags=re.S)
-          pat = bool(os.environ.get("WORKFLOW_PAT"))
-          # 只看标记区块内部的输入项（比全文扫描更精确，无需排除保留字）
-          block = re.search(re.escape(START) + r"\n(.*?)(?:\n[ \t]*)?" + re.escape(END), text, re.S)
-          file_boxes = (
-              set(re.findall(r"^      ([A-Za-z0-9_-]+):\s*$", block.group(1), re.M))
-              if block
-              else set()
-          )
-          missing = sorted(set(mapping) - file_boxes)
-          stale = sorted(file_boxes - set(mapping))
-          if not pat and not file_boxes:
-              # 模板纯净原则：区块为空 + 无 PAT → 连映射也不写，不把任何仓库名留进文件
-              print("::warning::未配置 WORKFLOW_PAT：对话框还没有勾选框（模板保持纯净，不写入任何仓库名）。配置后第一次运行会自动生成你自己的勾选框（见 docs/guide.md）；期间可用 projects_repos 输入框点名")
-              raise SystemExit(0)
-          MAPPING.parent.mkdir(parents=True, exist_ok=True)
-          MAPPING.write_text(json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          if not pat:
-              # GITHUB_TOKEN 无权改 workflow 文件：只留映射，提示新仓库与残留勾选框
-              if missing:
-                  print(f"::warning::未配置 WORKFLOW_PAT secret，新仓库 {'、'.join(missing)} 暂时进不了勾选框；可先用 projects_repos 输入点名。配置带 repo/workflow 权限的 classic PAT 后会自动同步（见 docs/guide.md）")
-              if stale:
-                  print(f"::warning::对话框里的旧勾选框 {'、'.join(stale)} 已失效（勾了不会选中）；配置 WORKFLOW_PAT 后下次运行会自动清理")
-              if not missing and not stale:
-                  print("未配置 WORKFLOW_PAT：勾选框已覆盖全部仓库（映射已同步）")
-          elif updated == text:
-              print(f"勾选框无变化（{len(mapping)} 个仓库）")
-          else:
-              WF.write_text(updated, encoding="utf-8")
-              print(f"勾选框已同步：{len(mapping)} 个仓库")
-          PY
 
       # 「定时运行间隔」下拉：选了天数就改写 cron 旁的间隔标记（提交由下一步统一完成）
       - name: 调整定时运行间隔（schedule_interval）
