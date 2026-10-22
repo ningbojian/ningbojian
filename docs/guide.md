@@ -9,6 +9,7 @@
 3. **生成统计**：中文统计表格 + github-readme-stats 可视化卡片
 4. **AI 简介**：把仓库数据交给 Claude，生成 100–150 字中文简介
 5. **增量更新**：数据没变化就不调 AI、不改文件、不产生提交
+6. **各仓库 README 自动更新（可选，默认关闭）**：某个仓库有代码提交时，AI 顺手把它的 README 也更新了——开 PR 给你审，主页 Overview 会在同一轮吸收最新可用内容（详见下文「各仓库 README 自动更新」）
 
 > **只扫公开仓库**：工具调用的 `/users/{用户名}/repos` 接口只会返回 public 仓库；即使返回里混入 private 条目也会被强制跳过，私有仓库永远不会出现在 README 或统计里。
 
@@ -146,6 +147,46 @@ projects:
 
 纯统计/overview 的机械更新不走 PR、直接生效，不打断你。想关掉审核流直接提交：`projects.review_via_pr: false`（不建议）。
 
+## 各仓库 README 自动更新（模式 B，默认关闭）
+
+让每个仓库的 README 也跟着代码一起长：**某仓库有新提交 → AI 更新它的 README → 开 PR 给你审 → 你的个人主页 Overview 同轮吸收最新内容**。只动 README 里一对标记之间的「托管区」，标记外你手写的内容一个字节都不会碰。
+
+### 三结局口诀（PR 开出来后只有三种处理，怎么选都不会坏）
+
+- **合并** → 新 README 落进仓库，主页本轮已经吸收，无需再做任何事；
+- **关闭** → 拒绝这批文案：主页将不再包含它，同批内容不会自动重开（下次新提交会带新批次回来）；
+- **先放着** → 完全没问题：PR 留着以后合，主页照样是新鲜的（期间有新批次时 PR 会被刷新，合并前请重读 diff）。
+
+### 怎么启用
+
+1. 需要已配置 `WORKFLOW_PAT` secret（勾选框那一步的同一个 classic PAT，`repo` + `workflow` 两个 scope）——没有它工具无法替你推送分支/开 PR，会静默跳过模式 B，其余功能不受影响。
+2. `config.yaml` 打开开关。**灰度建议先放 1 个仓库试跑**：
+
+   ```yaml
+   repo_readmes:
+     enabled: true
+     include: ["你的某个仓库名"] # 空 = 全部仓库；先放 1 个灰度，稳了再清空
+   ```
+
+3. 手动触发 Run workflow 时多了两个可选勾选（不勾 = 与定时跑完全一样的默认行为）：
+   - **repo_readmes**：只强制重跑模式 B 队列，不影响主页/项目介绍的门；
+   - **wait_for_merges**：暂停，等你合并 PR（最多 30 分钟），合并完立刻继续；不勾则直接继续，PR 事后随时可合。
+
+### 清单在哪、怎么通知你
+
+- 每轮有 open PR 时，本仓库会出现/刷新一个 issue：**「🔔 README 更新待合并清单」**——逐条 PR 链接、新版 README 预览链接、三种处理方式说明，@你 且指派给你（自开的 PR 不会通知自己，这里特意用 @mention 制造通知）。
+- 状态变化只原地改这个 issue 的 body，**永远不发评论**（不轰炸通知）；PR 全部处理完自动关闭（关闭本身就是「可以收工」的信号）。
+- 收尾时 issue 里会追加终态行（Overview 已进入 main / 项目介绍 PR 链接）。
+- **请勿关闭本仓库的 Issues**——它是模式 B 的通知通道；关了还有 Step Summary 快照兜底，但收不到 @提醒。
+
+### 主页为什么永远是新鲜的（不用等你合并）
+
+主页 Overview 对每个仓库按这个优先级取 README 内容，B 跑完 A 就是新的，不跨轮：**已合并**（含等待窗口内合并）→ 读默认分支真源；**仍 open** → 用本轮刚生成的内容（跨轮静默跳过时直接读 PR 分支）；**等待期间被你关闭** → 回退旧文；**本轮没产出** → 旧文。每次运行的 Step Summary 末尾有一行「本轮 A 的 README 输入来源：…」对账，来源一目了然。
+
+### 不产出也是正常状态（静默路径）
+
+Summary 里每轮必有一行「模式 B 状态」：没变化、首见记基线（新仓库要等下一次真实提交才出第一份 README）、AI 缺 key 积压、与上次失败输入相同已跳过（新提交或 force 才重试）……这些都不是错误。AI 失败、推送失败都被逐仓隔离，绝不影响其他仓库与主页更新。
+
 ## 配置项参考（config.yaml）
 
 ```yaml
@@ -188,6 +229,13 @@ projects:
   include: []              # 多选白名单，非空时只生成这些仓库
   exclude: []              # 黑名单
   review_via_pr: true      # AI 内容走 PR 审核（推荐）
+repo_readmes:
+  enabled: false           # true = 各仓库 README 托管区自动更新（需 WORKFLOW_PAT；默认关闭）
+  include: []              # 空 = 全部仓库；灰度建议先放 1 个，如 ["shiyuan"]
+  exclude: []              # 在 include 之上再排除
+  max_diff_chars: 6000     # 喂给模型的 diff 字符上限
+  prompt_version: 1        # 改了模式 B 的 prompt 后 +1，强制重新生成
+  pr_branch: "readme-auto/update"  # PR 分支名；主页从这里读未合并内容
 ```
 
 改完 `ai.prompt_version` 或想立刻刷新简介时，手动触发并勾选 force。
@@ -199,6 +247,8 @@ projects:
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **README 被我改坏了**：手动改动会被下次运行覆盖——所有可定制内容都在 `config.yaml` 与 `templates/profile.md.j2` 里改。
 - **数据是旧的**：Actions 手动触发 + force 即可刷新。
+- **模式 B 没跑**：看 Summary 里的「模式 B 状态」行——最常见是没配 `WORKFLOW_PAT`（无法推送/开 PR，配好自动启用）或 `repo_readmes.enabled` 还是 false；勾选了 `repo_readmes` 但 config 里是 false 也会给冲突警告。
+- **@提醒没收到**：确认本仓库 Issues 没被关闭、GitHub 通知设置里勾了 Issues；清单入口固定在本仓「🔔 README 更新待合并清单」issue + 运行页 Summary 快照。
 - **把本工具分享给别人**：对方只需完成「快速开始」4 步；本仓库既是工具源码也是 profile 仓库。
 
 ## 开发
