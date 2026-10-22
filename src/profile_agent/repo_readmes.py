@@ -5,6 +5,7 @@
 - 首次见到该仓库      → 只记基线（防启用即 PR 风暴），--force 例外（diff 从空树起算）
 - compare 404/409     → 基线重置到当前 HEAD + 中文警告（历史被 rebase 重写，§12-R6）
 - 有代码变更          → 进入处理队列，基线不前进（§5.1「开 PR 时基线不前进」）
+- head/compare 读取失败 → 逐仓跳过 + error 计数 + 中文警告（一仓不可见不拖死整队）
 
 纯函数 + 注入 fetcher：不碰网络、不碰 snapshot 文件；entries 就地更新（调用方落盘）。
 """
@@ -115,60 +116,70 @@ def compute_queue(
     五个计数——cli 用它输出「模式 B 状态」行（设计 §8①，静默必须有可读原因）。
     """
     now_iso = (now or datetime.now(timezone.utc)).isoformat()
-    counts = {"queued": 0, "first_seen": 0, "readme_only": 0, "no_change": 0, "reset": 0}
+    counts = {"queued": 0, "first_seen": 0, "readme_only": 0, "no_change": 0, "reset": 0, "error": 0}
     queue: list[QueueItem] = []
     for full_name in participants(repos, cfg, username):
-        head = fetch_head(full_name)
-        entry = entries.get(full_name)
-        if entry is None:
-            if not force:
-                entries[full_name] = _blank_entry(head, now_iso)  # 首见只记基线
-                counts["first_seen"] += 1
-                continue
-            base = EMPTY_TREE_SHA  # force 例外：diff 从空树起算
-        else:
-            base = str(entry.get("sha") or "")
-            if base == head:
-                counts["no_change"] += 1
-                continue  # 无新提交：零成本跳过，连 compare 都不发
+        # 逐仓隔离：一仓 head/compare 读取失败（如 PAT 对该仓 404 不可见）只跳过该仓，
+        # 不得拖死整个队列——否则一个不可见仓库会让所有其他仓库都出不了 README。
         try:
-            data = fetch_compare(full_name, base, head)
-        except CompareGone:
-            if entry is not None:
-                entry["sha"] = head  # 重置到当前 HEAD（§12-R6）
-                entry["updated_at"] = now_iso
-            counts["reset"] += 1
+            head = fetch_head(full_name)
+            entry = entries.get(full_name)
+            if entry is None:
+                if not force:
+                    entries[full_name] = _blank_entry(head, now_iso)  # 首见只记基线
+                    counts["first_seen"] += 1
+                    continue
+                base = EMPTY_TREE_SHA  # force 例外：diff 从空树起算
+            else:
+                base = str(entry.get("sha") or "")
+                if base == head:
+                    counts["no_change"] += 1
+                    continue  # 无新提交：零成本跳过，连 compare 都不发
+            try:
+                data = fetch_compare(full_name, base, head)
+            except CompareGone:
+                if entry is not None:
+                    entry["sha"] = head  # 重置到当前 HEAD（§12-R6）
+                    entry["updated_at"] = now_iso
+                counts["reset"] += 1
+                print(
+                    f"「{full_name}」compare 失败（404/409，基线可能已因历史重写失效），"
+                    f"已重置基线到当前 HEAD {head[:7]}",
+                    file=sys.stderr,
+                )
+                continue
+            commits = [c for c in (data.get("commits") or []) if isinstance(c, dict)]
+            files = [f for f in (data.get("files") or []) if isinstance(f, dict)]
+            # 是否入队由「README 之外的文件」决定，不看 commits——合并后基线已推进到
+            # PR head（§12-R10），下轮 compare 必呈「merge commit + 0 文件」形态，
+            # 按 commits 判会把 bot 自己的合并提交当成工作（空洞 AI 调用 + 垃圾 PR）
+            code_files = [f for f in files if str(f.get("filename") or "") != "README.md"]
+            if not commits or not code_files:
+                # 无提交，或提交未触及 README 之外的文件（compare 空 / 仅 README 自身 /
+                # 空文件列表的 merge commit）→ 只推进基线（防自触发循环）
+                if entry is not None:
+                    entry["sha"] = head
+                    entry["updated_at"] = now_iso
+                counts["readme_only" if files else "no_change"] += 1
+                continue
+            counts["queued"] += 1
+            queue.append(
+                QueueItem(
+                    full_name=full_name,
+                    base_sha=base,
+                    head_sha=head,
+                    commits=commits,
+                    files=files,
+                    diff_text=build_diff_text(commits, files, cfg.max_diff_chars),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 —— 逐仓隔离，不跨仓传播（生产 404 事故回归）
+            counts["error"] += 1
             print(
-                f"「{full_name}」compare 失败（404/409，基线可能已因历史重写失效），"
-                f"已重置基线到当前 HEAD {head[:7]}",
+                f"「{full_name}」读取失败（本轮跳过，不影响其他仓库）：{exc}",
                 file=sys.stderr,
             )
             continue
-        commits = [c for c in (data.get("commits") or []) if isinstance(c, dict)]
-        files = [f for f in (data.get("files") or []) if isinstance(f, dict)]
-        # 是否入队由「README 之外的文件」决定，不看 commits——合并后基线已推进到
-        # PR head（§12-R10），下轮 compare 必呈「merge commit + 0 文件」形态，
-        # 按 commits 判会把 bot 自己的合并提交当成工作（空洞 AI 调用 + 垃圾 PR）
-        code_files = [f for f in files if str(f.get("filename") or "") != "README.md"]
-        if not commits or not code_files:
-            # 无提交，或提交未触及 README 之外的文件（compare 空 / 仅 README 自身 /
-            # 空文件列表的 merge commit）→ 只推进基线（防自触发循环）
-            if entry is not None:
-                entry["sha"] = head
-                entry["updated_at"] = now_iso
-            counts["readme_only" if files else "no_change"] += 1
-            continue
-        counts["queued"] += 1
-        queue.append(
-            QueueItem(
-                full_name=full_name,
-                base_sha=base,
-                head_sha=head,
-                commits=commits,
-                files=files,
-                diff_text=build_diff_text(commits, files, cfg.max_diff_chars),
-            )
-        )
     if stats is not None:
         stats.update(counts)
     return queue

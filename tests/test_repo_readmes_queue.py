@@ -175,6 +175,85 @@ def test_compare_409_resets_baseline_same_as_404():
     assert queue == []
 
 
+# ---- 逐仓隔离（生产事故回归：一仓 404 不得拖死整个模式 B 段）----
+
+
+def test_fetch_head_error_isolated_per_repo(capsys):
+    """某仓 fetch_head 抛错（如 WORKFLOW_PAT 对该仓 404 不可见）→ 只跳过该仓并计入
+    error，其余仓库照常处理，不拖死整个队列；坏仓不记基线（下轮重试）。"""
+    from profile_agent.github_client import GitHubError
+
+    entries = {"alice/old-thing": _entry("base123")}
+
+    class HeadErrFetchers(FakeFetchers):
+        def fetch_head(self, full_name: str) -> str:
+            self.head_calls.append(full_name)
+            if full_name == "alice/cool-tool":
+                raise GitHubError("GitHub API 返回 404：用户不存在或仓库不可见")
+            return self.heads[full_name]
+
+    fetchers = HeadErrFetchers(
+        heads={"alice/old-thing": "def456"},
+        compares={
+            ("alice/old-thing", "base123", "def456"): {
+                "commits": [{"sha": "def456", "message": "feat: 新功能"}],
+                "files": [{"filename": "app.py", "patch": "+x = 1"}],
+            }
+        },
+    )
+    stats: dict = {}
+    queue = compute_queue(
+        [_repo("cool-tool"), _repo("old-thing")],
+        entries,
+        RepoReadmesConfig(enabled=True),
+        ALICE,
+        fetch_head=fetchers.fetch_head,
+        fetch_compare=fetchers.fetch_compare,
+        stats=stats,
+    )
+    assert [q.full_name for q in queue] == ["alice/old-thing"]  # 坏仓跳过、好仓照常
+    assert "alice/cool-tool" not in entries  # 坏仓不记基线（下轮重试）
+    assert stats.get("error") == 1  # 计数进 stats → 状态行可读
+    err = capsys.readouterr().err
+    assert "cool-tool" in err and "跳过" in err  # 警告点名坏仓
+
+
+def test_compare_non_gone_error_isolated_per_repo(capsys):
+    """fetch_compare 抛非 CompareGone 错误（如生产里 GitHubError 无 .status 逃逸）→
+    同样只跳过该仓，不拖死其他仓库。"""
+    entries = {"alice/cool-tool": _entry("base123"), "alice/old-thing": _entry("base123")}
+
+    class BoomFetchers(FakeFetchers):
+        def fetch_compare(self, full_name, base, head):
+            self.compare_calls.append((full_name, base, head))
+            if full_name == "alice/cool-tool":
+                raise RuntimeError("compare 炸了")
+            return self.compares[(full_name, base, head)]
+
+    fetchers = BoomFetchers(
+        heads={"alice/cool-tool": "def456", "alice/old-thing": "def456"},
+        compares={
+            ("alice/old-thing", "base123", "def456"): {
+                "commits": [{"sha": "def456", "message": "feat"}],
+                "files": [{"filename": "app.py", "patch": "+x"}],
+            }
+        },
+    )
+    stats: dict = {}
+    queue = compute_queue(
+        [_repo("cool-tool"), _repo("old-thing")],
+        entries,
+        RepoReadmesConfig(enabled=True),
+        ALICE,
+        fetch_head=fetchers.fetch_head,
+        fetch_compare=fetchers.fetch_compare,
+        stats=stats,
+    )
+    assert [q.full_name for q in queue] == ["alice/old-thing"]
+    assert stats.get("error") == 1
+    assert "cool-tool" in capsys.readouterr().err
+
+
 # ---- 代码变更入队（Q06/Q08）----
 
 

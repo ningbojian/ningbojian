@@ -197,3 +197,61 @@ def test_unrelated_change_opens_gate_but_untouched_repo_zero_cost(tmp_path, caps
     assert "无变化，跳过更新" not in out  # 门已打开
     assert fetchers.head_calls == PARTICIPANTS  # B 跑过
     assert fetchers.compare_calls == []  # 但未动仓库零成本
+
+
+# ---- 生产事故回归（逐仓隔离 + 状态行诚实，不得用「无事可做」掩盖失败）----
+
+
+def test_fetch_head_404_isolated_and_status_honest(tmp_path, capsys):
+    """生产 404 事故回归：门开 + 某仓 fetch_head 404（PAT 不可见）→ 只跳过该仓、
+    其余照常、整轮退出码 0；状态行写「读取失败」而非「无事可做」。"""
+    from profile_agent.github_client import GitHubError
+
+    cfg = _write_config(tmp_path)
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0  # 首轮：三仓各记基线
+
+    # pending 开门（模拟门开 + 一仓恰好不可见）
+    path = tmp_path / "data" / "snapshot.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["repo_readmes"]["alice/old-thing"]["pending"] = True
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    class HeadErrFetchers(FakeFetchers):
+        def fetch_head(self, full_name):
+            self.head_calls.append(full_name)
+            if full_name == "alice/cool-tool":
+                raise GitHubError("GitHub API 返回 404：用户不存在或仓库不可见")
+            return self.heads[full_name]
+
+    fetchers = HeadErrFetchers(heads=_heads_all())  # 其余 base==head → 零 compare
+    capsys.readouterr()
+    assert _run(cfg, fetchers) == 0  # 整轮不受影响，退出码 0
+    out = capsys.readouterr().out
+    assert "模式 B 状态" in out and "读取失败" in out  # 失败可见
+    assert "无事可做" not in out  # 不再被「无事可做」掩盖
+    # 坏仓被跳过、基线不被强推；其余仓照常处理
+    assert _snapshot(tmp_path)["repo_readmes"]["alice/cool-tool"]["sha"] == "head0001"
+    assert fetchers.head_calls == PARTICIPANTS  # 坏仓抛错后仍继续查其余仓
+
+
+def test_whole_b_crash_shows_failure_not_noop(tmp_path, monkeypatch, capsys):
+    """整体（非逐仓）失败：_save_b_snapshot 落盘抛错 → 状态行写「整体失败」而非
+    「无事可做」，且模式 A 不受影响、退出码 0。"""
+    import profile_agent.cli as cli_mod
+
+    cfg = _write_config(tmp_path)
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0  # 首轮记基线
+    path = tmp_path / "data" / "snapshot.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["repo_readmes"]["alice/cool-tool"]["pending"] = True
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    def _boom(*a, **k):
+        raise RuntimeError("snapshot 落盘炸了")
+
+    monkeypatch.setattr(cli_mod, "_save_b_snapshot", _boom)
+    capsys.readouterr()
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0  # A 不受影响，退出码 0
+    out = capsys.readouterr().out
+    assert "模式 B 状态" in out and "整体失败" in out  # 失败被点名
+    assert "无事可做" not in out

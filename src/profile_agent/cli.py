@@ -183,6 +183,7 @@ _B_STAT_LABELS = (
     ("readme_only", "仅README推进基线"),
     ("no_change", "无新提交"),
     ("reset", "基线重置"),
+    ("error", "读取失败"),
 )
 
 
@@ -324,6 +325,7 @@ def run(
     repo_readmes_state: dict[str, dict] = dict(prev.repo_readmes) if prev else {}
     b_stats: dict = {}
     b_reason = ""
+    b_crash = ""  # 整体（非逐仓）失败原因：状态行不得用「无事可做」掩盖（生产 404 事故回归）
     b_results = []
     b_merged: set[str] = set()
     open_prs: list[dict] = []
@@ -360,14 +362,23 @@ def run(
             # 合并检测：已合并 bot PR 的基线推进到 PR head SHA（§12-R10）；b_merged 供 §5.3 剔除
             if b_client_eff is not None and not dry_run:
                 for _fn, _entry in list(repo_readmes_state.items()):
-                    if _entry.get("sha") and advance_baseline_from_merged_pr(
-                        b_client_eff,
-                        _entry,
-                        _fn,
-                        cfg.repo_readmes.pr_branch,
-                        base=default_bases.get(_fn, "main"),
-                    ):
-                        b_merged.add(_fn)
+                    if not _entry.get("sha"):
+                        continue
+                    try:
+                        if advance_baseline_from_merged_pr(
+                            b_client_eff,
+                            _entry,
+                            _fn,
+                            cfg.repo_readmes.pr_branch,
+                            base=default_bases.get(_fn, "main"),
+                        ):
+                            b_merged.add(_fn)
+                    except Exception as exc:  # noqa: BLE001 —— 逐仓隔离：一仓合并检测失败不拖死其他仓
+                        print(
+                            f"「{_fn}」合并检测失败（本轮跳过该仓，不影响其他仓库）：{exc}",
+                            file=sys.stderr,
+                        )
+                        b_errors.append(f"- `{_fn}` 合并检测失败：{exc}")
 
             b_queue = compute_queue(
                 repos,
@@ -428,6 +439,7 @@ def run(
         except Exception as exc:  # noqa: BLE001 —— B 任何异常都不得阻断 A（§4 护栏）
             print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
             b_errors.append(f"- 整体：{exc}")
+            b_crash = str(exc)
         if b_progress or b_errors:
             _append_summary(
                 "### 模式 B 逐仓进度\n" + "\n".join(b_progress + b_errors)
@@ -454,7 +466,9 @@ def run(
                 )
 
     # 「模式 B 状态」行（§8①）：七种静默场景各有可读原因，日志 + Summary 同源；每轮必有（OR11②）
-    if b_force and not cfg.repo_readmes.enabled:
+    if b_crash:
+        b_reason = f"整体失败（不影响模式 A）：{b_crash}"  # 失败不得被「无事可做」掩盖
+    elif b_force and not cfg.repo_readmes.enabled:
         b_reason = "未运行（勾选与 config 开关冲突，见上方警告）"
     elif not cfg.repo_readmes.enabled:
         b_reason = "未启用（config.yaml repo_readmes.enabled=false）"
