@@ -330,3 +330,17 @@ def test_topics_affect_fingerprint_and_bio_payload():
     assert stats_fingerprint(totals, repos_b, []) != fp_a
     payload = build_bio_payload(_user(), repos_b, AIConfig())
     assert payload["repos"][0]["topics"] == ["cli", "tools"]
+
+
+def test_render_fingerprint_changes_with_ai_language():
+    """ai.language 进指纹：改主语言 → 指纹变化（强制重渲染，双语首跑开门）。"""
+    import dataclasses
+    from profile_agent.aggregate import render_fingerprint
+    from profile_agent.config import Config
+
+    cfg = Config()
+    user = _user()
+    fp = render_fingerprint(cfg, b"t", user)
+    cfg2 = dataclasses.replace(cfg)
+    cfg2.ai = dataclasses.replace(cfg.ai, language="zh-TW")
+    assert render_fingerprint(cfg2, b"t", user) != fp

@@ -62,6 +62,7 @@ class TemplateContext:
 @dataclass
 class BioInfo:
     text: str = ""
+    text_en: str = ""  # 英文简介（bilingual 单次 JSON 双语调用产出；schema 4）
     input_hash: str = ""
     generated_at: str = ""
     model: str = ""
@@ -70,7 +71,7 @@ class BioInfo:
 
 @dataclass
 class Snapshot:
-    schema: int = 3
+    schema: int = 4
     username: str = ""
     stats_fingerprint: str = ""
     stats_config_hash: str = ""
@@ -80,4 +81,8 @@ class Snapshot:
     # 模式 B（repo_readmes）逐仓状态：full_name → {sha, block_hash, mode,
     # failed_hash, last_input_hash, pending, updated_at}（设计 §5.1，schema 3）
     repo_readmes: dict[str, dict] = field(default_factory=dict)
+    # 最近一次渲染的生效置顶名单（README 勾选面板解析结果，schema 4）
+    pins: list[str] = field(default_factory=list)
+    # 上次实际写入的 README 内容——生成区三路合并的 base（schema 4）
+    readme_last: str = ""
     generated_at: str = ""

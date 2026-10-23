@@ -48,10 +48,13 @@ def load_snapshot(path: Path) -> Snapshot | None:
     bio_raw = data.get("bio") or {}
     if not isinstance(bio_raw, dict):
         bio_raw = {}
+    pins_raw = data.get("pins") or []
+    if not isinstance(pins_raw, list):
+        pins_raw = []
     try:
         return Snapshot(
-            # schema 1/2 旧快照读入时自动升级为 3（设计 §5.1）
-            schema=max(3, int(data.get("schema") or 1)),
+            # schema 1/2/3 旧快照读入时自动升级为 4（设计 §5.1）
+            schema=max(4, int(data.get("schema") or 1)),
             username=str(data.get("username") or ""),
             stats_fingerprint=str(data.get("stats_fingerprint") or ""),
             stats_config_hash=str(data.get("stats_config_hash") or ""),
@@ -59,12 +62,15 @@ def load_snapshot(path: Path) -> Snapshot | None:
             repos=data.get("repos") or [],
             bio=BioInfo(
                 text=str(bio_raw.get("text") or ""),
+                text_en=str(bio_raw.get("text_en") or ""),
                 input_hash=str(bio_raw.get("input_hash") or ""),
                 generated_at=str(bio_raw.get("generated_at") or ""),
                 model=str(bio_raw.get("model") or ""),
                 prompt_version=int(bio_raw.get("prompt_version") or 0),
             ),
             repo_readmes=_normalize_repo_readmes(data.get("repo_readmes")),
+            pins=[str(x) for x in pins_raw],
+            readme_last=str(data.get("readme_last") or ""),
             generated_at=str(data.get("generated_at") or ""),
         )
     except (TypeError, ValueError):

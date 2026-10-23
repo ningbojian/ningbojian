@@ -196,6 +196,7 @@ def render_fingerprint(cfg, template_bytes: bytes, user: dict) -> str:
         "ai": {
             "enabled": cfg.ai.enabled,
             "model": cfg.ai.model,
+            "language": cfg.ai.language,  # 主语言变化 → 指纹变化（双语首跑开门）
             "max_repos": cfg.ai.max_repos,
             "bio_min_chars": cfg.ai.bio_min_chars,
             "bio_max_chars": cfg.ai.bio_max_chars,

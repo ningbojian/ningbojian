@@ -31,6 +31,7 @@ readme:
     show: ["stats", "top_langs", "streak"] # 可选: stats, top_langs, streak
   include_update_time: true
   visitors_badge: true # 主页嵌入「主页访问量」计数徽章（komarev.com 免费第三方服务，页面渲染一次 +1）
+  bilingual: true # 同时生成 README.en.md（英文版），两文件顶部互链切换；false = 只更新中文 README.md
 
 ai:
   enabled: true

@@ -58,6 +58,7 @@ class ReadmeConfig:
     cards: CardsConfig = field(default_factory=CardsConfig)
     include_update_time: bool = True
     visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章（komarev.com）
+    bilingual: bool = True  # true = 同时生成 README.en.md 英文版，顶部互链切换
 
 
 @dataclass
@@ -220,6 +221,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         ),
         include_update_time=bool(readme.get("include_update_time", True)),
         visitors_badge=bool(readme.get("visitors_badge", False)),
+        bilingual=bool(readme.get("bilingual", True)),
     )
 
     ai = _section(data, "ai")
@@ -233,6 +235,11 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         raise ConfigError(
             'ai.provider="openai" 时必须填 ai.base_url（如 https://api.deepseek.com）'
         )
+    language = str(ai.get("language") or "zh-CN")
+    if language != "zh-CN":
+        raise ConfigError(
+            f'ai.language 目前只支持 "zh-CN"（输出语言由 readme.bilingual 控制），收到：{language}'
+        )
     cfg.ai = AIConfig(
         enabled=bool(ai.get("enabled", True)),
         provider=provider,
@@ -243,7 +250,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         max_age_days=int(ai.get("max_age_days", 14)),
         bio_min_chars=int(ai.get("bio_min_chars", 100)),
         bio_max_chars=int(ai.get("bio_max_chars", 150)),
-        language=str(ai.get("language") or "zh-CN"),
+        language=language,
         prompt_version=int(ai.get("prompt_version", 1)),
         fill_empty_descriptions=bool(ai.get("fill_empty_descriptions", True)),
     )

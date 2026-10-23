@@ -226,3 +226,24 @@ def test_repo_readmes_include_must_be_list(tmp_path):
     )
     with pytest.raises(ConfigError, match="include"):
         load_config(path)
+
+
+def test_readme_bilingual_defaults_true(tmp_path):
+    """双语开关：默认开启；config.yaml 可显式关掉（一键回退单文件）。"""
+    path = _write(tmp_path, 'github:\n  username: "alice"\n')
+    assert load_config(path).readme.bilingual is True
+    path2 = _write(
+        tmp_path, 'github:\n  username: "alice"\nreadme:\n  bilingual: false\n'
+    )
+    assert load_config(path2).readme.bilingual is False
+
+
+def test_ai_language_only_zh_cn_accepted(tmp_path):
+    """ai.language 转正为「主语言」：仅接受 zh-CN（双语输出由 bilingual 开关控制）。"""
+    path = _write(tmp_path, 'github:\n  username: "alice"\n')
+    assert load_config(path).ai.language == "zh-CN"  # 默认合法
+    path_en = _write(
+        tmp_path, 'github:\n  username: "alice"\nai:\n  language: "en"\n'
+    )
+    with pytest.raises(ConfigError, match="zh-CN"):
+        load_config(path_en)

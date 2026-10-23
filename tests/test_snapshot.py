@@ -74,7 +74,10 @@ def test_load_non_dict_json_returns_none(tmp_path):
 
 
 def test_schema2_upgrades_to_3_with_empty_repo_readmes(tmp_path):
-    """SB01：schema 2 旧快照读入自动升级为 3 并补空 repo_readmes，旧字段原样保留。"""
+    """SB01：schema 2 旧快照读入自动升级并补空 repo_readmes，旧字段原样保留。
+
+    有意变更（schema 4 双语/面板/三路合并）：升级目标由 3 改为 4。
+    """
     path = tmp_path / "s.json"
     path.write_text(
         json.dumps(
@@ -90,19 +93,22 @@ def test_schema2_upgrades_to_3_with_empty_repo_readmes(tmp_path):
     )
     loaded = load_snapshot(path)
     assert loaded is not None
-    assert loaded.schema == 3
+    assert loaded.schema == 4
     assert loaded.repo_readmes == {}
     assert loaded.username == "alice"
     assert loaded.bio.text == "旧简介"
-    # 二次往返后仍 schema=3 且含 "repo_readmes": {}
+    # 二次往返后仍 schema=4 且含 "repo_readmes": {}
     save_snapshot(path, loaded)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema"] == 3
+    assert data["schema"] == 4
     assert data["repo_readmes"] == {}
 
 
 def test_schema1_upgrades_to_3(tmp_path):
-    """SB02：schema 1 快照同样兼容读入。"""
+    """SB02：schema 1 快照同样兼容读入。
+
+    有意变更（schema 4 双语/面板/三路合并）：升级目标由 3 改为 4。
+    """
     path = tmp_path / "s.json"
     path.write_text(
         json.dumps({"schema": 1, "username": "alice", "stats_fingerprint": "sha256:abc"}),
@@ -110,7 +116,7 @@ def test_schema1_upgrades_to_3(tmp_path):
     )
     loaded = load_snapshot(path)
     assert loaded is not None
-    assert loaded.schema == 3
+    assert loaded.schema == 4
     assert loaded.repo_readmes == {}
     assert loaded.stats_fingerprint == "sha256:abc"
 
@@ -174,3 +180,44 @@ def test_malformed_repo_readme_entry_fills_defaults(tmp_path):
     assert entry["last_input_hash"] == ""
     assert entry["failed_hash"] == ""
     assert entry["mode"] == "block"
+
+
+def test_snapshot_schema4_roundtrip_pins_and_bio_en(tmp_path):
+    """schema 4：新增 pins（生效置顶名单）、bio.text_en（英文简介）、
+    readme_last（上次写入内容，三路合并 base）——保存后读回逐字段一致。"""
+    snap = Snapshot(
+        schema=4,
+        username="alice",
+        pins=["alice/cool-tool", "alice/web-app"],
+        bio=BioInfo(text="你好。", text_en="Hi.", input_hash="sha256:x"),
+        readme_last="# 上次写入的 README\n",
+    )
+    p = tmp_path / "snapshot.json"
+    save_snapshot(p, snap)
+    got = load_snapshot(p)
+    assert got is not None
+    assert got.schema == 4
+    assert got.pins == ["alice/cool-tool", "alice/web-app"]
+    assert got.bio.text_en == "Hi."
+    assert got.readme_last == "# 上次写入的 README\n"
+
+
+def test_schema3_upgrades_to_4(tmp_path):
+    """旧快照（schema 3、无新字段）读入自动升级：schema=4、新字段空缺省。"""
+    old = {
+        "schema": 3,
+        "username": "alice",
+        "stats_fingerprint": "sha256:abc",
+        "repos": [],
+        "bio": {"text": "你好。", "input_hash": "h", "generated_at": "", "model": "", "prompt_version": 1},
+        "repo_readmes": {},
+        "generated_at": "",
+    }
+    p = tmp_path / "snapshot.json"
+    p.write_text(json.dumps(old, ensure_ascii=False), encoding="utf-8")
+    got = load_snapshot(p)
+    assert got is not None
+    assert got.schema == 4
+    assert got.pins == []
+    assert got.bio.text_en == ""
+    assert got.readme_last == ""
