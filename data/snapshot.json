@@ -1,8 +1,8 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:e407fbc591b97d3a241bb6b1cdec038294f98bcc02ab30b424bbd681f8e60d87",
-  "stats_config_hash": "sha256:ae9647d3d41e3ab1725e0a78e5f4eb8198133266009562739ed56a6fab0010a8",
+  "stats_fingerprint": "sha256:00d06b97ad9b7ae979362778dd64f7658d35b90feb9093a40f4dd27803c9a667",
+  "stats_config_hash": "sha256:e2f65558ae18200f275dfedc456b219ef6fdbfef74044aa6ac1bd6f5b4307de8",
   "totals": {
     "public_repos": 12,
     "followers": 2,
@@ -13,7 +13,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-22T15:51:27+00:00",
+      "pushed_at": "2026-10-22T17:47:39+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -21,7 +21,7 @@
       "full_name": "ningbojian/github-trending-agent",
       "stars": 0,
       "language": "TypeScript",
-      "pushed_at": "2026-10-22T15:18:56+00:00",
+      "pushed_at": "2026-10-22T16:22:39+00:00",
       "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
       "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
       "ai_generated": false
@@ -140,7 +140,16 @@
       "last_input_hash": "",
       "pending": false,
       "updated_at": "2026-10-22T14:39:42.211662+00:00"
+    },
+    "ningbojian/github-trending-agent": {
+      "sha": "caab049b1fd169afb046a3777d0823bf88008b03",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-10-23T00:05:01.224021+00:00"
     }
   },
-  "generated_at": "2026-10-22T15:59:28.581925+00:00"
+  "generated_at": "2026-10-23T00:05:06.705630+00:00"
 }
