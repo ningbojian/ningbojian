@@ -1,8 +1,8 @@
 {
-  "schema": 3,
+  "schema": 4,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:470889e28b5e76a6481078ffc531ae1267bfa45bcdf7d8f68483ca0e2c048926",
-  "stats_config_hash": "sha256:2170c5b3a8d4a086c9360875ed1578c9bc7e9b5cc2e93462879e05909f01eb9e",
+  "stats_fingerprint": "sha256:ca405cf9fc574853f21ac5bdd2825490faa0f5feda696600116adb8825a64f07",
+  "stats_config_hash": "sha256:b030c4ee1d192873213683e9241017e6c03fb71074a7efe5e11abc120be7de21",
   "totals": {
     "public_repos": 12,
     "followers": 2,
@@ -13,9 +13,18 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-23T14:33:01+00:00",
+      "pushed_at": "2026-10-23T19:08:24+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+    },
+    {
+      "full_name": "ningbojian/github-trending-agent",
+      "stars": 0,
+      "language": "TypeScript",
+      "pushed_at": "2026-10-23T17:33:05+00:00",
+      "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
+      "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
+      "ai_generated": false
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -25,15 +34,6 @@
       "intro_hash": "sha256:48557513b6c07f4d69a146d1f656a5323465c593dc0e8616f064cd7b2a76ff3d",
       "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
       "ai_generated": true
-    },
-    {
-      "full_name": "ningbojian/github-trending-agent",
-      "stars": 0,
-      "language": "TypeScript",
-      "pushed_at": "2026-10-23T14:32:44+00:00",
-      "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
-      "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
-      "ai_generated": false
     },
     {
       "full_name": "ningbojian/agri-ecommerce-platform",
@@ -58,8 +58,9 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-23T13:16:39+00:00",
-      "short_intro": "自动维护你的 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介与简历素材，每周定时增量更新，数据没变化不消耗 AI 额度。",
-      "short_intro_hash": "sha256:4d93b66971e6092dbdbdfcdf2b820dfdc8c2fd961025cf3ab89e63c7846f5d15"
+      "short_intro": "模板仓库：一键生成自动更新的 GitHub 个人主页 README，含仓库统计、精选项目卡片与中文 AI 简介，每周定时刷新。",
+      "short_intro_en": "A template that auto-generates a self-updating GitHub profile README with repo s",
+      "short_intro_hash": "sha256:e72721b4c650077a9191aeb460131e0da6ed632ade559f5c108301eb189008ab"
     },
     {
       "full_name": "ningbojian/MultiFuncCalculator",
@@ -75,14 +76,16 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-22T14:53:29+00:00",
-      "short_intro": "连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。",
-      "short_intro_hash": "sha256:29e71d113a033fefaad4939463735c51dea9d9044a155a6208a35bf603b3bcf2"
+      "short_intro": "Windows 下的手机热点代理助手，自动探测手机侧代理并一键设置系统级代理，关窗自动关闭，零依赖单文件。",
+      "short_intro_en": "A Windows helper that auto-detects a phone-side proxy and toggles the system pro",
+      "short_intro_hash": "sha256:384c388608057331ce6cd4991df26cc80559c1c0176a4d723fd817cffbfa1611"
     }
   ],
   "bio": {
-    "text": "Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。代表项目：MultiFuncCalculator 桌面计算器与益智游戏合集、RoboArmDev-Showcase 机械臂视觉绘画、agri-ecommerce-platform 助农电商全栈平台。常用 Python、JavaScript 等技术栈。\n\n亮点：\n- 12个公开仓库，覆盖桌面应用、CV与电商\n- 机械臂绘画项目：OpenCV轨迹提取至执行链路\n- 助农电商：微信小程序与Spring Boot前后端",
-    "input_hash": "sha256:74b3c85e1fa95cd3eea04952271945b2488defe07de0e39f5b357ff20d908fbf",
-    "generated_at": "2026-10-22T14:58:13.828035+00:00",
+    "text": "ningbojian，软件开发学习者，主攻 Python 桌面与工具应用，也涉足 Web 与机器人方向。MultiFuncCalculator 集成科学计算、进制转换与 2048、数独等小游戏；RoboArmDev-Showcase 打通机械臂绘画写字的图像处理与轨迹生成；另有 Django 姓氏文化可视化站点。\n\n亮点：\n- 公开仓库 12 个，关注者 2 人\n- MultiFuncCalculator：计算器与益智游戏合集\n- RoboArmDev-Showcase：机械臂绘画写字链路",
+    "text_en": "I'm a software development learner focused on Python desktop and utility apps, with some exposure to web and robotics. MultiFuncCalculator bundles scientific calculation, base conversion and puzzle games like 2048 and Sudoku; RoboArmDev-Showcase covers the image processing and trajectory pipeline behind a robotic arm drawing and writing; I also built a Django-based surname culture visualization site.\n\nHighlights:\n- 12 public repos, 2 followers\n- MultiFuncCalculator: calculator and puzzle game collection\n- RoboArmDev-Showcase: robotic arm drawing/writing pipeline",
+    "input_hash": "sha256:ddb4ce245b17f32fdd444eeb3510479dbf5a05e0c56bbba026cc59ef8d286500",
+    "generated_at": "2026-10-23T23:33:30.120450+00:00",
     "model": "mimo-v2.6-flash",
     "prompt_version": 1
   },
@@ -151,5 +154,8 @@
       "updated_at": "2026-10-23T06:36:15.778781+00:00"
     }
   },
-  "generated_at": "2026-10-23T14:46:59.010381+00:00"
+  "pins": [],
+  "readme_last": "<!-- 此 README 由 profile-agent 自动生成：生成区随数据更新、手工微调会保留（与数据冲突处以数据为准、删除会恢复），详见 docs/guide.md。\n     可编辑区：页面底部的置顶配置面板与 custom 标记内容，永远保留。 -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 你好，我是 ningbojian\n\nningbojian，软件开发学习者，主攻 Python 桌面与工具应用，也涉足 Web 与机器人方向。MultiFuncCalculator 集成科学计算、进制转换与 2048、数独等小游戏；RoboArmDev-Showcase 打通机械臂绘画写字的图像处理与轨迹生成；另有 Django 姓氏文化可视化站点。\n\n亮点：\n- 公开仓库 12 个，关注者 2 人\n- MultiFuncCalculator：计算器与益智游戏合集\n- RoboArmDev-Showcase：机械臂绘画写字链路\n\n---\n\n## 📊 统计信息\n\n![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-2-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-0-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub 统计卡片\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"语言分布卡片\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"连续贡献卡片\" />\n</p>\n\n---\n\n## 🏷️ 技术标签\n\n![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat) ![Python](https://img.shields.io/badge/Python-0%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-0%E2%98%85-5e81a8?style=flat)\n\n---\n\n## 📦 仓库列表\n\n| 仓库 | 简介 | Stars | 语言 |\n| --- | --- | --- | --- |\n| [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) | 模板仓库：一键生成自动更新的 GitHub 个人主页 README，含仓库统计、精选项目卡片与中文 AI 简介，每周定时刷新。 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) | 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) | 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |\n| [github-trending-agent](https://github.com/ningbojian/github-trending-agent) | GitHub Trending Agent - WeCom daily trending digest + NL search + star sync | 0 | ![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) |\n| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | Windows 下的手机热点代理助手，自动探测手机侧代理并一键设置系统级代理，关窗自动关闭，零依赖单文件。 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n\n---\n\n## ℹ️ 说明备注\n\n> [!NOTE]\n> 本页面由 profile-agent 自动生成于 2026-10-24 07:33（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。\n\n![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)\n<details>\n<summary><b>📌 置顶配置面板（网页直接勾选）</b></summary>\n\n<!-- pin-config:start -->\n- [ ] ningbojian/MultiFuncCalculator\n- [ ] ningbojian/ProfileReadmeAgent\n- [ ] ningbojian/RoboArmDev-Showcase\n- [ ] ningbojian/agri-ecommerce-platform\n- [ ] ningbojian/github-trending-agent\n- [ ] ningbojian/ningbojian\n- [ ] ningbojian/phone-hotspot-proxy\n- [ ] ningbojian/shiyuan\n<!-- pin-config:end -->\n\n每项一句后果：勾选 = 进入上方 📌 置顶板块，取消勾选 = 移出板块（行仍留在本面板，可随时勾回）。\n在本页点右上角编辑图标勾选后 **Commit 保存**，几秒内自动生效，无需回本地运行。\n只改变本页展示顺序，不修改任何仓库内容、不合并任何 PR。\n本面板为托管区（工具自动重建，请勿手改结构）；自由文字请写页面底部 custom 区。\n</details>\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
+  "readme_last_en": "<!-- This README is auto-generated by profile-agent: the generated region follows your data and your manual tweaks are preserved (data wins on conflict; deletions are restored). See docs/guide.md.\n     Editable areas — the pin panel at the bottom and content between custom markers — are always preserved. -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 Hi, I'm ningbojian\n\nI'm a software development learner focused on Python desktop and utility apps, with some exposure to web and robotics. MultiFuncCalculator bundles scientific calculation, base conversion and puzzle games like 2048 and Sudoku; RoboArmDev-Showcase covers the image processing and trajectory pipeline behind a robotic arm drawing and writing; I also built a Django-based surname culture visualization site.\n\nHighlights:\n- 12 public repos, 2 followers\n- MultiFuncCalculator: calculator and puzzle game collection\n- RoboArmDev-Showcase: robotic arm drawing/writing pipeline\n\n---\n\n## 📊 Statistics\n\n![Public repos](https://img.shields.io/badge/Public%20repos-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-2-8aa6c4?style=flat) ![Total stars](https://img.shields.io/badge/Total%20stars-0-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub stats card\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"Language chart\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"Contribution streak\" />\n</p>\n\n---\n\n## 🏷️ Tech Stack\n\n![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat) ![Python](https://img.shields.io/badge/Python-0%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-0%E2%98%85-5e81a8?style=flat)\n\n---\n\n## 📦 Repositories\n\n| Repo | Description | Stars | Lang |\n| --- | --- | --- | --- |\n| [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) | A template that auto-generates a self-updating GitHub profile README with repo s | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) | 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) | 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |\n| [github-trending-agent](https://github.com/ningbojian/github-trending-agent) | GitHub Trending Agent - WeCom daily trending digest + NL search + star sync | 0 | ![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) |\n| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | A Windows helper that auto-detects a phone-side proxy and toggles the system pro | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n| [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |\n\n---\n\n## ℹ️ Notes\n\n> [!NOTE]\n> This page is auto-generated by profile-agent at 2026-10-24 07:33 (UTC+8); repo data comes from the GitHub API and badge values refresh live.\n\n![Profile views](https://komarev.com/ghpvc/?username=ningbojian)\n> ⚙️ Pin configuration lives in the pin panel at the bottom of the Chinese README (tick, then Commit — it takes effect within seconds).\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
+  "generated_at": "2026-10-23T23:33:30.120450+00:00"
 }
