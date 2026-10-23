@@ -57,6 +57,13 @@ class TemplateContext:
     short_intros: dict[str, str] = field(default_factory=dict)  # full_name → AI 补位文案
     visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章
     key_env: str = "ANTHROPIC_API_KEY"  # 用户实际配置的 AI key secret 名（简介缺失提示用）
+    # ---- 双语/面板/保留（2026-10-23 WP3-WP6）----
+    bio_text_en: str = ""  # 英文简介（en 文件用；空 → 英文占位注释）
+    short_intros_en: dict[str, str] = field(default_factory=dict)  # 英文补位文案
+    switch_zh_href: str = "./README.md"  # 顶部切换行互链（双文件互切）
+    switch_en_href: str = "./README.en.md"
+    custom_text: str = ""  # custom 标记区内容（WP5：逐文件独立提取、永久保留）
+    pin_panel: str = ""  # 置顶勾选面板 HTML（WP6：zh 文件底部托管区）
 
 
 @dataclass

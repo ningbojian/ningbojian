@@ -604,3 +604,72 @@ def test_snapshot_repos_carry_pushed_at(tmp_path):
     by_name = {r["full_name"]: r for r in data["repos"]}
     # 供勾选框标签显示「最近推送日期」用
     assert by_name["alice/cool-tool"]["pushed_at"].startswith("2026-10-01")
+
+
+# ============================ WP3 双语 README（2026-10-23） ============================
+
+
+def test_full_run_writes_both_readme_files(tmp_path):
+    """bilingual 默认开：一次运行同时写 README.md（中文）与 README.en.md（英文），
+    两文件顶部互链切换。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    zh = (tmp_path / "README.md").read_text(encoding="utf-8")
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "统计信息" in zh and "Statistics" in en
+    switch = "🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)"
+    assert switch in zh and switch in en
+
+
+def test_bilingual_false_writes_only_readme_md(tmp_path):
+    """bilingual: false 一键回退单文件：只产 README.md，不产 en（迁移护栏）。"""
+    as_posix = lambda p: p.as_posix()  # noqa: E731
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+  bilingual: false
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    assert _run(cfg) == 0
+    assert (tmp_path / "README.md").exists()
+    assert not (tmp_path / "README.en.md").exists()
+
+
+def test_deleted_en_readme_regenerated_by_gate(tmp_path):
+    """en 文件被手删 → 增量门视为「readme 缺失」开门，重渲染时重建 README.en.md。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    (tmp_path / "README.en.md").unlink()
+    assert _run(cfg) == 0  # 门不得早退
+    assert (tmp_path / "README.en.md").exists()
+
+
+def test_dry_run_prints_both_languages(tmp_path, capsys):
+    """--dry-run 双语分段打印（zh 段 + en 段），不落盘。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg, dry_run=True) == 0
+    out = capsys.readouterr().out
+    assert "统计信息" in out and "Statistics" in out
+    assert not (tmp_path / "README.md").exists()
+    assert not (tmp_path / "README.en.md").exists()
+
+
+def test_second_run_is_noop_with_bilingual(tmp_path):
+    """双语幂等：连跑两遍，第二遍 zh/en 文件时间戳均不变（零写入）。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    zh, en = tmp_path / "README.md", tmp_path / "README.en.md"
+    zh_mt, en_mt = zh.stat().st_mtime_ns, en.stat().st_mtime_ns
+    assert _run(cfg) == 0
+    assert zh.stat().st_mtime_ns == zh_mt
+    assert en.stat().st_mtime_ns == en_mt

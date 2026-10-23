@@ -1,30 +1,31 @@
-<!-- 此 README 由 profile-agent 自动生成，请勿手动修改。
-     配置见 config.yaml，使用指南见 docs/guide.md -->
+<!-- {{ L.header_a }}
+     {{ L.header_b }} -->
+{{ switch_line }}
 
-# 👋 你好，我是 {{ display_name or username }}
+{{ L.greeting }} {{ display_name or username }}
 
 {% if bio_text %}
 {{ bio_text }}
 {% else %}
-<!-- AI 简介暂不可用：配置 {{ key_env }} 后运行 profile-agent 即可生成 -->
+<!-- {{ bio_placeholder }} -->
 {% endif %}
 
 ---
 
-## 📊 统计信息
+{{ L.stats_title }}
 
-{{ stat_badge("公开仓库", totals.public_repos) }} {{ stat_badge("Followers", totals.followers) }} {{ stat_badge("总 Star", totals.total_stars) }}
+{{ stat_badge(L.public_repos, totals.public_repos) }} {{ stat_badge("Followers", totals.followers) }} {{ stat_badge(L.total_stars, totals.total_stars) }}
 {% if cards_show %}
 
 <p align="center">
 {% if "stats" in cards_show %}
-  <img src="https://github-readme-stats.vercel.app/api?username={{ username }}&amp;theme={{ cards_theme }}&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
+  <img src="https://github-readme-stats.vercel.app/api?username={{ username }}&amp;theme={{ cards_theme }}&amp;show_icons=true&amp;hide_border=true" alt="{{ L.alt_stats }}" />
 {% endif %}
 {% if "top_langs" in cards_show %}
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username={{ username }}&amp;layout=compact&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="语言分布卡片" />
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username={{ username }}&amp;layout=compact&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="{{ L.alt_langs }}" />
 {% endif %}
 {% if "streak" in cards_show %}
-  <img src="https://streak-stats.demolab.com/?user={{ username }}&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="连续贡献卡片" />
+  <img src="https://streak-stats.demolab.com/?user={{ username }}&amp;theme={{ cards_theme }}&amp;hide_border=true" alt="{{ L.alt_streak }}" />
 {% endif %}
 </p>
 {% endif %}
@@ -32,7 +33,7 @@
 
 ---
 
-## 🏷️ 技术标签
+{{ L.tags_title }}
 
 {% for lang, stars in totals.top_languages[:8] %}{{ lang_star_badge(lang, stars) }}{{ " " if not loop.last }}{% endfor %}
 
@@ -43,7 +44,7 @@
 
 ---
 
-## 📌 置顶项目
+{{ L.pinned_title }}
 
 {% for repo in pinned %}
 ⭐ **[{{ repo.name }}]({{ repo.html_url }})**｜{{ [lang_badge(repo.language), stars_badge(repo.full_name), forks_badge(repo.full_name), push_badge(repo.pushed_at)] | reject("equalto", "") | join(" ") }}
@@ -65,9 +66,9 @@
 
 ---
 
-## 📦 仓库列表
+{{ L.repos_title }}
 
-| 仓库 | 简介 | Stars | 语言 |
+| {{ L.th_repo }} | {{ L.th_desc }} | Stars | {{ L.th_lang }} |
 | --- | --- | --- | --- |
 {% for repo in ns.rest %}| [{{ repo.name }}]({{ repo.html_url }}) | {{ (repo.description or short_intros.get(repo.full_name, "") or "—").replace("|", " \\| ").replace("\n", " ") }} | {{ repo.stars }} | {{ lang_badge(repo.language) }} |
 {% endfor %}
@@ -75,18 +76,18 @@
 
 ---
 
-## 📦 仓库列表
+{{ L.repos_title }}
 
-<!-- 暂无符合条件的项目 -->
+<!-- {{ L.no_repos }} -->
 {% endif %}
 
 ---
 
-## ℹ️ 说明备注
+{{ L.notes_title }}
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成{% if include_update_time %}于 {{ updated_at }}{% endif %}；仓库数据来自 GitHub API，徽章数值实时刷新。
+> {{ L.note_prefix }}{% if include_update_time %}{{ L.note_at }}{{ updated_at }}{{ L.note_tz }}{% endif %}{{ L.note_suffix }}
 {% if visitors_badge %}
 
-![主页访问计数](https://komarev.com/ghpvc/?username={{ username }})
+![{{ L.alt_visitors }}](https://komarev.com/ghpvc/?username={{ username }})
 {% endif %}

@@ -259,6 +259,8 @@ def run(
 
     root = cfg_path.parent
     readme_path = root / cfg.readme.path
+    # 双语第二文件（2026-10-23 WP3）：README.md → 同目录 README.en.md，零配置派生
+    en_readme_path = readme_path.with_name(readme_path.stem + ".en.md")
     template_path = root / cfg.readme.template
     readme_active = cfg.readme.enabled and not skip_readme
     projects_active = cfg.projects.enabled and not skip_projects
@@ -446,6 +448,8 @@ def run(
         and prev.stats_fingerprint == fingerprint
         and prev.stats_config_hash == cfg_hash
         and (not readme_active or readme_path.exists())
+        # 双语开时 en 文件被手删也视为「缺失」开门重建（WP3）
+        and (not (readme_active and cfg.readme.bilingual) or en_readme_path.exists())
         and bio_fresh
         and (not projects_active or _projects_clean(proj_targets, cfg, prev, root, ai_active=ai_active))
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
@@ -899,18 +903,34 @@ def run(
             cards_theme=cfg.readme.cards.theme,
             cards_show=cfg.readme.cards.show,
             include_update_time=cfg.readme.include_update_time,
-            updated_at=now_bj.strftime("%Y-%m-%d %H:%M") + "（北京时间）",
+            # 时间戳本体不含时区字样——「（北京时间）」/「 (UTC+8)」由模板 labels 提供（WP3）
+            updated_at=now_bj.strftime("%Y-%m-%d %H:%M"),
             short_intros=short_intros,
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
         )
         content = render_readme(ctx, template_path)
+        # 英文版（WP3）：整页换 labels，简介/补位换 en 来源（WP4 前恒空 → 英文占位注释）
+        content_en = ""
+        if cfg.readme.bilingual:
+            content_en = render_readme(
+                dataclasses.replace(
+                    ctx, bio_text=ctx.bio_text_en, short_intros=ctx.short_intros_en
+                ),
+                template_path,
+                lang="en",
+            )
 
         if dry_run:
             print(content)
+            if cfg.readme.bilingual:
+                print(f"\n{'=' * 20} README.en.md (English) {'=' * 20}")
+                print(content_en)
             return 0
 
         changed = write_if_changed(readme_path, content)
+        if cfg.readme.bilingual and write_if_changed(en_readme_path, content_en):
+            changed = True
     elif dry_run:
         print("readme 已禁用（readme.enabled=false 或 --skip-readme），跳过 overview 生成")
         return 0
@@ -936,7 +956,7 @@ def run(
     merged_states.update(project_states)
     merged_states.update(short_states)
     new_snap = Snapshot(
-        schema=3,
+        schema=4,  # 2026-10-23 WP1：pins/readme_last/BioInfo.text_en（load 端逐字段升级）
         username=cfg.github.username,
         stats_fingerprint=fingerprint,
         stats_config_hash=cfg_hash,
