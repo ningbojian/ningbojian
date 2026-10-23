@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:c7ff9b9aece5d4a580016b276e3000bba84df80aa415a8347ac4a7bc87c23f15",
+  "stats_fingerprint": "sha256:470889e28b5e76a6481078ffc531ae1267bfa45bcdf7d8f68483ca0e2c048926",
   "stats_config_hash": "sha256:2170c5b3a8d4a086c9360875ed1578c9bc7e9b5cc2e93462879e05909f01eb9e",
   "totals": {
     "public_repos": 12,
@@ -13,18 +13,45 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-23T14:25:37+00:00",
+      "pushed_at": "2026-10-23T14:33:01+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+    },
+    {
+      "full_name": "ningbojian/shiyuan",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-23T14:32:47+00:00",
+      "intro_hash": "sha256:48557513b6c07f4d69a146d1f656a5323465c593dc0e8616f064cd7b2a76ff3d",
+      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
+      "ai_generated": true
     },
     {
       "full_name": "ningbojian/github-trending-agent",
       "stars": 0,
       "language": "TypeScript",
-      "pushed_at": "2026-10-23T14:11:10+00:00",
+      "pushed_at": "2026-10-23T14:32:44+00:00",
       "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
       "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
       "ai_generated": false
+    },
+    {
+      "full_name": "ningbojian/agri-ecommerce-platform",
+      "stars": 0,
+      "language": "JavaScript",
+      "pushed_at": "2026-10-23T14:32:41+00:00",
+      "intro_hash": "sha256:820c57992f159e8417cf955b887616859c6058a1097e0720aef9fc91da5b8c65",
+      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
+      "ai_generated": true
+    },
+    {
+      "full_name": "ningbojian/RoboArmDev-Showcase",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-23T14:32:38+00:00",
+      "intro_hash": "sha256:4b56b8f43143b17f3f14f6fb9f4c0f96c0038b229f6aabed78c57aff4d3c14b6",
+      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
+      "ai_generated": true
     },
     {
       "full_name": "ningbojian/ProfileReadmeAgent",
@@ -50,33 +77,6 @@
       "pushed_at": "2026-10-22T14:53:29+00:00",
       "short_intro": "连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。",
       "short_intro_hash": "sha256:29e71d113a033fefaad4939463735c51dea9d9044a155a6208a35bf603b3bcf2"
-    },
-    {
-      "full_name": "ningbojian/shiyuan",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-23T06:37:08+00:00",
-      "intro_hash": "sha256:48557513b6c07f4d69a146d1f656a5323465c593dc0e8616f064cd7b2a76ff3d",
-      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
-      "ai_generated": true
-    },
-    {
-      "full_name": "ningbojian/agri-ecommerce-platform",
-      "stars": 0,
-      "language": "JavaScript",
-      "pushed_at": "2026-10-23T06:36:14+00:00",
-      "intro_hash": "sha256:820c57992f159e8417cf955b887616859c6058a1097e0720aef9fc91da5b8c65",
-      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
-      "ai_generated": true
-    },
-    {
-      "full_name": "ningbojian/RoboArmDev-Showcase",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-23T06:35:31+00:00",
-      "intro_hash": "sha256:4b56b8f43143b17f3f14f6fb9f4c0f96c0038b229f6aabed78c57aff4d3c14b6",
-      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
-      "ai_generated": true
     }
   ],
   "bio": {
@@ -151,5 +151,5 @@
       "updated_at": "2026-10-23T06:36:15.778781+00:00"
     }
   },
-  "generated_at": "2026-10-23T14:33:00.287235+00:00"
+  "generated_at": "2026-10-23T14:46:59.010381+00:00"
 }
