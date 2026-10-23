@@ -1,8 +1,8 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:e2960ddd9fc307e6f71057a82681d76e2eb264bb58395c594281d983d281d810",
-  "stats_config_hash": "sha256:e2f65558ae18200f275dfedc456b219ef6fdbfef74044aa6ac1bd6f5b4307de8",
+  "stats_fingerprint": "sha256:c7ff9b9aece5d4a580016b276e3000bba84df80aa415a8347ac4a7bc87c23f15",
+  "stats_config_hash": "sha256:2170c5b3a8d4a086c9360875ed1578c9bc7e9b5cc2e93462879e05909f01eb9e",
   "totals": {
     "public_repos": 12,
     "followers": 2,
@@ -10,21 +10,38 @@
   },
   "repos": [
     {
+      "full_name": "ningbojian/ningbojian",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-23T14:25:37+00:00",
+      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
+      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+    },
+    {
       "full_name": "ningbojian/github-trending-agent",
       "stars": 0,
       "language": "TypeScript",
-      "pushed_at": "2026-10-23T10:36:54+00:00",
+      "pushed_at": "2026-10-23T14:11:10+00:00",
       "intro_hash": "sha256:8d9bbf358e55f7a44f60c75fdb401167930bfb9c58ec846884c9b2178c671243",
       "intro_generated_at": "2026-10-22T14:56:08.239369+00:00",
       "ai_generated": false
     },
     {
-      "full_name": "ningbojian/ningbojian",
+      "full_name": "ningbojian/ProfileReadmeAgent",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-23T09:49:52+00:00",
-      "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
-      "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
+      "pushed_at": "2026-10-23T13:16:39+00:00",
+      "short_intro": "自动维护你的 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介与简历素材，每周定时增量更新，数据没变化不消耗 AI 额度。",
+      "short_intro_hash": "sha256:4d93b66971e6092dbdbdfcdf2b820dfdc8c2fd961025cf3ab89e63c7846f5d15"
+    },
+    {
+      "full_name": "ningbojian/MultiFuncCalculator",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-23T13:16:37+00:00",
+      "intro_hash": "sha256:92f1d231cc511c54d4e0b910e68493ec439ba4b67a99ee94c9c938a9a383f308",
+      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
+      "ai_generated": true
     },
     {
       "full_name": "ningbojian/phone-hotspot-proxy",
@@ -33,14 +50,6 @@
       "pushed_at": "2026-10-22T14:53:29+00:00",
       "short_intro": "连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。",
       "short_intro_hash": "sha256:29e71d113a033fefaad4939463735c51dea9d9044a155a6208a35bf603b3bcf2"
-    },
-    {
-      "full_name": "ningbojian/ProfileReadmeAgent",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-23T06:34:45+00:00",
-      "short_intro": "自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介，定时增量更新，AI 内容经 PR 审核后发布。",
-      "short_intro_hash": "sha256:76ed26a419d0de532652c5d8205d2d2fb80c6a8eb245b4b667974e9e82165a5c"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -68,15 +77,6 @@
       "intro_hash": "sha256:4b56b8f43143b17f3f14f6fb9f4c0f96c0038b229f6aabed78c57aff4d3c14b6",
       "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
       "ai_generated": true
-    },
-    {
-      "full_name": "ningbojian/MultiFuncCalculator",
-      "stars": 0,
-      "language": "Python",
-      "pushed_at": "2026-10-23T06:34:17+00:00",
-      "intro_hash": "sha256:92f1d231cc511c54d4e0b910e68493ec439ba4b67a99ee94c9c938a9a383f308",
-      "intro_generated_at": "2026-10-21T15:27:41.422384+00:00",
-      "ai_generated": true
     }
   ],
   "bio": {
@@ -88,7 +88,7 @@
   },
   "repo_readmes": {
     "ningbojian/shiyuan": {
-      "sha": "b7040c52062c3de61e6f4d5ac5ceb8c1751a8980",
+      "sha": "bd562651c184dafda362a9a09492be4e9e1cc00a",
       "block_hash": "sha256:610dcac0541b2fc8257943ca3e14cdd7246a4dd2a86f9a9485f7bdc43c61f0d1",
       "mode": "block",
       "failed_hash": "",
@@ -115,7 +115,7 @@
       "updated_at": "2026-10-23T06:34:17.857486+00:00"
     },
     "ningbojian/RoboArmDev-Showcase": {
-      "sha": "d49731c159de0ccc94ffdb26017f339bf5f7d640",
+      "sha": "579cb669395156f2c5a3d81bdbb277d1753c5f72",
       "block_hash": "sha256:0cc5ce56575b7aa7785ac47e94c36332dce6ad0443a24ac1135086aeda3d3cba",
       "mode": "block",
       "failed_hash": "",
@@ -124,7 +124,7 @@
       "updated_at": "2026-10-23T06:34:46.613668+00:00"
     },
     "ningbojian/agri-ecommerce-platform": {
-      "sha": "896a60d66b3b0791a6c43fa47a001159154eedc0",
+      "sha": "b278cd0e686cf457fb5dda3624bed61bb7e5e773",
       "block_hash": "sha256:70f27f33cb2a18a050ec8a4a01ce389c176e7e1f9512900cd80a34445c852707",
       "mode": "block",
       "failed_hash": "",
@@ -142,7 +142,7 @@
       "updated_at": "2026-10-22T14:39:42.211662+00:00"
     },
     "ningbojian/github-trending-agent": {
-      "sha": "caab049b1fd169afb046a3777d0823bf88008b03",
+      "sha": "52be29d567761429d604c8c0ea495902962e7a8a",
       "block_hash": "sha256:3554baf2125ab6eae019688f54692620f39b1cc62adce227084035d0d017b55c",
       "mode": "block",
       "failed_hash": "",
@@ -151,5 +151,5 @@
       "updated_at": "2026-10-23T06:36:15.778781+00:00"
     }
   },
-  "generated_at": "2026-10-23T13:16:54.494829+00:00"
+  "generated_at": "2026-10-23T14:33:00.287235+00:00"
 }

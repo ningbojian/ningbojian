@@ -10,88 +10,44 @@ Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。�
 - 机械臂绘画项目：OpenCV轨迹提取至执行链路
 - 助农电商：微信小程序与Spring Boot前后端
 
+---
+
+## 📊 统计信息
+
+![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-2-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-0-8aa6c4?style=flat)
+
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
   <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true" alt="语言分布卡片" />
   <img src="https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true" alt="连续贡献卡片" />
 </p>
 
-<p align="center">
-  <img src="https://komarev.com/ghpvc/?username=ningbojian" alt="主页访问计数" />
-</p>
+---
 
-## 📊 仓库统计
+## 🏷️ 技术标签
 
-| 指标 | 数值 |
-| --- | --- |
-| 公开仓库 | 12 |
-| Followers | 2 |
-| 总 Star | 0 |
-
-**主要语言**：
-`JavaScript`（0★） · 
-`Python`（0★） · 
-`TypeScript`（0★）
-
-## 🌟 我的项目
-
-<table>
-  <tr>
-    <td align="center" valign="top">
-      <h3><a href="https://github.com/ningbojian/MultiFuncCalculator">🐍 MultiFuncCalculator</a></h3>
-      <p>多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame）</p>
-      <p><img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/MultiFuncCalculator?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/github/forks/ningbojian/MultiFuncCalculator?style=flat-square&amp;label=forks" alt="Forks" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /></p>
-      <p><code>#2048</code> <code>#calculator</code> <code>#desktop-app</code> <code>#huarongdao</code> <code>#pygame</code> </p>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top">
-      <h3><a href="https://github.com/ningbojian/ProfileReadmeAgent">🐍 ProfileReadmeAgent</a></h3>
-      <p>自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介，定时增量更新，AI 内容经 PR 审核后发布。</p>
-      <p><img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat-square&amp;label=forks" alt="Forks" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /></p>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top">
-      <h3><a href="https://github.com/ningbojian/RoboArmDev-Showcase">🐍 RoboArmDev-Showcase</a></h3>
-      <p>六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路</p>
-      <p><img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/RoboArmDev-Showcase?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/github/forks/ningbojian/RoboArmDev-Showcase?style=flat-square&amp;label=forks" alt="Forks" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /></p>
-      <p><code>#computer-vision</code> <code>#halcon</code> <code>#image-processing</code> <code>#opencv</code> <code>#python</code> </p>
-    </td>
-  </tr>
-</table>
-<table>
-  <tr>
-    <td align="center" valign="top" width="50%">
-      <a href="https://github.com/ningbojian/agri-ecommerce-platform"><b>📜 agri-ecommerce-platform</b></a><br>
-      电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台<br>
-      <img src="https://img.shields.io/badge/JavaScript-f7df1e?style=flat-square" alt="JavaScript" /> <img src="https://img.shields.io/github/stars/ningbojian/agri-ecommerce-platform?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /><br>
-<code>#ecommerce</code> <code>#mybatis-plus</code> <code>#mysql</code> <code>#portfolio-project</code> <code>#rural-revitalization</code>     </td>
-    <td align="center" valign="top" width="50%">
-      <a href="https://github.com/ningbojian/github-trending-agent"><b>📘 github-trending-agent</b></a><br>
-      GitHub Trending Agent - WeCom daily trending digest + NL search + star sync<br>
-      <img src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square" alt="TypeScript" /> <img src="https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" />    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" width="50%">
-      <a href="https://github.com/ningbojian/ningbojian"><b>🐍 ningbojian</b></a><br>
-      （暂无描述）<br>
-      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" />    </td>
-    <td align="center" valign="top" width="50%">
-      <a href="https://github.com/ningbojian/phone-hotspot-proxy"><b>🐍 phone-hotspot-proxy</b></a><br>
-      连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。<br>
-      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/phone-hotspot-proxy?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--22-lightgrey?style=flat-square" alt="最后推送" />    </td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" width="50%">
-      <a href="https://github.com/ningbojian/shiyuan"><b>🐍 shiyuan</b></a><br>
-      Django + 姓氏文化查询与可视化网站<br>
-      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/shiyuan?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /><br>
-<code>#data-visualization</code> <code>#django</code> <code>#mysql</code> <code>#pyecharts</code> <code>#python</code>     </td>
-    <td align="center" valign="top" width="50%"></td>
-  </tr>
-</table>
+![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat) ![Python](https://img.shields.io/badge/Python-0%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-0%E2%98%85-5e81a8?style=flat)
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-23 21:16（北京时间） 自动更新
+## 📦 仓库列表
+
+| 仓库 | 简介 | Stars | 语言 |
+| --- | --- | --- | --- |
+| [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent) | 自动维护你的 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介与简历素材，每周定时增量更新，数据没变化不消耗 AI 额度。 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase) | 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) | 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |
+| [github-trending-agent](https://github.com/ningbojian/github-trending-agent) | GitHub Trending Agent - WeCom daily trending digest + NL search + star sync | 0 | ![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) |
+| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | 连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+
+---
+
+## ℹ️ 说明备注
+
+> [!NOTE]
+> 本页面由 profile-agent 自动生成于 2026-10-23 22:33（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+
+![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
