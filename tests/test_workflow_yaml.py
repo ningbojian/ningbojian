@@ -113,3 +113,55 @@ def test_wf_dialog_descriptions_single_line_short_and_plain():
     assert "『立即重写』" in update_desc
     interval_desc = inputs["schedule_interval"]["description"]
     assert "本轮结束后" in interval_desc  # 何时生效说清楚
+
+
+# ---- WP8 保存即触发（push → main + README 路径过滤）----
+
+
+def test_wf_push_trigger_targets_main_readme_paths():
+    """WP8：README/README.en.md 保存到 main 即触发（用户选定「保存即触发」）。
+
+    paths 只圈两个 README 文件——其余 push 不触发；
+    防循环三重保险之一（bot 提交 [skip ci] + paths 过滤 + branches:[main]）。
+    """
+    push = _wf()["push"]  # PyYAML 解析为 dict（branches/paths 两个键，非 list 形态）
+    assert push["branches"] == ["main"]
+    assert push["paths"] == ["README.md", "README.en.md"]
+
+
+def test_wf_steps_bypass_interval_gate_for_non_schedule():
+    """WP8：push 下工作步骤穿透定时门（核验结论：两门内聚于 check 步，无需改 if）。
+
+    工作步骤条件恒为 `!= 'schedule' || schedule=='true'`（push 下左操作数真短路）；
+    仅 check 步（schedule 专属）与间隔改写步（dispatch 专属）是事件专属条件。
+    不存在任何把 push 挡在门外的其他 if 形态。
+    """
+    raw = yaml.safe_load(WF.read_text(encoding="utf-8"))  # _wf() 只返回 on 段，jobs 在根文档
+    steps = raw["jobs"]["update"]["steps"]
+    allowed = {
+        "github.event_name == 'schedule'",
+        "github.event_name == 'workflow_dispatch'",
+        "github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'",
+    }
+    conds = [s["if"] for s in steps if s.get("if")]
+    assert conds, "工作步骤不得全部无条件（定时门必须存在于 check/工作步）"
+    assert [c for c in conds if c not in allowed] == []
+
+
+def test_wf_git_add_includes_readme_en():
+    """WP8：提交步 git add 带上 README.en.md（路径步输出 readme_en，与 cli 派生同口径）。"""
+    text = WF.read_text(encoding="utf-8")
+    assert 'print(f"readme_en=' in text  # 读取配置路径步输出 en 路径
+    assert "steps.paths.outputs.readme_en" in text  # 提交步消费该输出
+    # add 行同时含 readme 与 readme_en 两个输出（双文件一起进 main）
+    add_line = next(
+        line for line in text.splitlines() if "git add" in line and "outputs.readme" in line
+    )
+    assert "outputs.readme }}" in add_line and "outputs.readme_en }}" in add_line
+
+
+def test_wf_bot_commit_keeps_skip_ci():
+    """WP8：bot 的两个提交都保留 [skip ci]（防 push 触发自循环的第一道保险）。"""
+    text = WF.read_text(encoding="utf-8")
+    assert 'git commit -m "chore: 自动更新 Profile README [skip ci]"' in text
+    assert 'git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"' in text

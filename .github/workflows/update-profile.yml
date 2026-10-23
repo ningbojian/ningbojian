@@ -5,7 +5,12 @@ name: Update Profile README
 #     （Run workflow 的「定时运行间隔」下拉可一键改 1–7 天，见 docs/guide.md）
 #   - 手动 Run workflow：对话框可选 强制重生成 / 模式 B（repo_readmes）/ 等待合并 / 更新主页
 #     （模式 B 的 git-data 推送与 PR 需配置 WORKFLOW_PAT secret，见 docs/guide.md）
+#   - 保存即触发（push）：README.md / README.en.md 推到 main 即唤醒，秒级生效；
+#     与定时/手动共用 concurrency 串行，防循环由 [skip ci] + paths 过滤 + branches:[main] 三重保险
 on:
+  push:
+    branches: [main]
+    paths: [README.md, README.en.md] # 只圈两个 README 文件——其余 push 不触发
   schedule:
     - cron: "23 2 * * *" # 每天 02:23 UTC ≈ 北京 10:23 唤醒；间隔门决定今天是否真跑
     # interval_days: 3 —— 定时运行间隔（天）；Run workflow 下拉改写，勿手改
@@ -99,7 +104,10 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import yaml
           c = yaml.safe_load(open('config.yaml', encoding='utf-8')) or {}
-          print(f"readme={(c.get('readme') or {}).get('path', 'README.md')}")
+          rp = (c.get('readme') or {}).get('path', 'README.md')
+          print(f"readme={rp}")
+          # 双语第二文件与 cli 同口径派生：README.md → README.en.md（WP8）
+          print(f"readme_en={rp[:-3] + '.en.md' if rp.endswith('.md') else rp + '.en.md'}")
           print(f"snapshot={(c.get('snapshot') or {}).get('path', 'data/snapshot.json')}")
           PY
 
@@ -235,7 +243,7 @@ jobs:
             pr_route=true
           fi
 
-          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.snapshot }}"
+          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.readme_en }}" "${{ steps.paths.outputs.snapshot }}"
           # 勾选框同步产物（workflow 输入块 + 仓库映射）跟 README 一起直接进 main
           for p in .github/workflows/update-profile.yml data/repo_inputs.json; do
             if [ -e "$p" ]; then git add "$p"; fi
