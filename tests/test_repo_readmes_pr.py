@@ -17,6 +17,7 @@ from profile_agent.repo_readmes_pr import (
     build_pr_body,
     build_pr_title,
     get_pr_detail,
+    get_pr_state,
     merge_pr,
     open_or_refresh_pr,
     parse_commit_titles,
@@ -547,3 +548,37 @@ def test_parse_commit_titles_round_trips_build_pr_body():
     assert parse_commit_titles(empty) == []
     # marker 之前的内容不掺入
     assert parse_commit_titles("三结局警示\n覆盖提交范围：`a..b`\n涉及提交：\n") == []
+
+
+# ---- 勾选合并降噪（2026-10-23 WP2：PUT 前先 GET 状态，已合并/已关闭不再吓人） ----
+
+
+def test_get_pr_state_merged_via_merged_at():
+    """真实 LIST/GET API 只有 merged_at（null/ISO）无 merged 布尔——merged_at 命中即 merged。"""
+    http = FakeHttp()
+    http.add("GET", f"{REPO_URL}/pulls/7",
+             FakeResponse(json_data={"number": 7, "state": "closed",
+                                     "merged_at": "2026-10-23T02:00:00Z"}))
+    assert get_pr_state(_client(http), FULL, 7) == "merged"
+
+
+def test_get_pr_state_closed_not_merged_and_open():
+    http = FakeHttp()
+    http.add("GET", f"{REPO_URL}/pulls/7",
+             FakeResponse(json_data={"number": 7, "state": "closed", "merged_at": None}))
+    assert get_pr_state(_client(http), FULL, 7) == "closed"
+    http.add("GET", f"{REPO_URL}/pulls/8",
+             FakeResponse(json_data={"number": 8, "state": "open", "merged_at": None}))
+    assert get_pr_state(_client(http), FULL, 8) == "open"
+
+
+def test_get_pr_state_404_and_error_degrade_to_unknown():
+    """404/网络错误 → unknown（不抛）：状态查询失败时仍允许走 PUT 尝试，不阻断合并。"""
+    http = FakeHttp()
+    http.add("GET", f"{REPO_URL}/pulls/9", FakeResponse(status=404, text="not found"))
+    assert get_pr_state(_client(http), FULL, 9) == "unknown"
+    broken = FakeHttp()
+    # 403 非限流 → 立即 GitHubError（无重试），get_pr_state 降级 unknown
+    broken.add("GET", f"{REPO_URL}/pulls/10",
+               FakeResponse(status=403, text="forbidden"))
+    assert get_pr_state(_client(broken), FULL, 10) == "unknown"

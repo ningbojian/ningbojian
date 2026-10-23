@@ -664,6 +664,11 @@ def test_iw27_ticked_merge_put_uses_p_pat(tmp_path, monkeypatch):
                                 "body": ticked}),
         sticky=True,
     )
+    http.add(  # PUT 前的状态查询（WP2 降噪）：仍 open → 照常 PUT
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7)),
+        sticky=True,
+    )
     http.add(
         "PUT", f"{B}/repos/{FN}/pulls/7/merge",
         FakeResponse(json_data={"merged": True, "sha": "f" * 40, "message": "merged"}),
@@ -1262,6 +1267,11 @@ def test_or30_checked_merge_at_run_start_advances_baseline_same_round(tmp_path, 
             "body": ticked,
         },
     )
+    http.add(  # PUT 前的状态查询（2026-10-23 WP2 降噪）：PR 仍 open → 照常 PUT
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7)),
+        sticky=True,
+    )
     http.add(
         "PUT", f"{B}/repos/{FN}/pulls/7/merge",
         FakeResponse(json_data={"merged": True, "sha": "f" * 40,
@@ -1324,7 +1334,13 @@ def test_or31_checkbox_merge_during_wait_converges_same_tick(tmp_path, monkeypat
         FakeResponse(json_data={"merged": True, "sha": "f" * 40, "message": "merged"}),
     )
     merged = FakeResponse(json_data=_pr(FN, number=7, merged=True, state="closed"))
-    http.add("GET", f"{B}/repos/{FN}/pulls/7", merged, merged)  # 轮询 + §5.6 结清复查
+    # FIFO：状态查询（open，WP2 降噪前置 GET）→ 轮询（merged）→ §5.6 结清复查（merged）
+    http.add(
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7)),
+        merged,
+        merged,
+    )
     _add_merge_detect(http, FN, prs=[])
     _add_head(http, FN, HEAD)
     _add_scan(http, FN, prs=[_pr(FN, number=7)])
@@ -1338,11 +1354,14 @@ def test_or31_checkbox_merge_during_wait_converges_same_tick(tmp_path, monkeypat
         )
         == 0
     )
-    # ① 勾选合并真实发生，且先于本轮轮询（tick → poll 顺序）
+    # ① 勾选合并真实发生，且先于本轮轮询（状态查询 → PUT → poll 顺序；
+    #    WP2 降噪后 PUT 前多一次 GET pulls/7 状态查询，断言按 FIFO 顺序锚定）
     methods = [(r["method"], r["url"]) for r in http.requests]
+    i_state = methods.index(("GET", f"{B}/repos/{FN}/pulls/7"))  # PUT 前的状态查询
     i_put = methods.index(("PUT", f"{B}/repos/{FN}/pulls/7/merge"))
-    i_poll = methods.index(("GET", f"{B}/repos/{FN}/pulls/7"))
-    assert i_put < i_poll
+    polls = [i for i, (m, u) in enumerate(methods)
+             if m == "GET" and u == f"{B}/repos/{FN}/pulls/7"]
+    assert i_state < i_put < polls[1]  # 状态查询先于合并，合并先于轮询
     # ② 当轮收敛：一次轮询即清空（未耗尽 30 分钟窗口），清单关闭
     assert clock.t == 30  # 恰一个 POLL_SECONDS
     assert any(
@@ -1404,6 +1423,11 @@ def test_or32_ticked_during_ai_phase_merged_by_prescan_hook(tmp_path, monkeypatc
                                 "body": ticked}),
         sticky=True,
     )
+    http.add(  # PUT 前的状态查询（WP2 降噪）：仍 open → 照常 PUT
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7)),
+        sticky=True,
+    )
     http.add(
         "PUT", f"{B}/repos/{FN}/pulls/7/merge",
         FakeResponse(json_data={"merged": True, "sha": "f" * 40, "message": "merged"}),
@@ -1435,3 +1459,166 @@ def test_or32_ticked_during_ai_phase_merged_by_prescan_hook(tmp_path, monkeypatc
               if r["method"] == "PATCH" and r["json"].get("state") == "closed"]
     assert closes and "/pull/7" not in closes[0]["json"]["body"]
     assert "（推送后）" in summary.read_text(encoding="utf-8")
+
+
+# ============================ 2026-10-23 勾选降噪 + 钩子③（WP2） ============================
+
+
+def test_merge_ticked_already_merged_prints_notice_no_put(tmp_path, monkeypatch, capsys):
+    """已手动合并的 PR 再被勾选 → 先 GET 状态分流成「已合并，无需处理」，不发吓人的
+    405「勾选合并失败」，也不再 PUT；同轮仍推基线（下轮不重跑该批次）。"""
+    summary = _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="")], readmes={FN: "合并后真源"})
+    http = FakeHttp()
+    ticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-22 18:30，北京时间）\n"
+        "@alice\n"
+        "- [x] cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
+        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
+    )
+    _add_issues(http, existing={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": ticked})
+    http.add(  # PUT 前的状态查询：已合并（真实 API 用 merged_at）
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7, merged=True, state="closed")),
+        sticky=True,
+    )
+    # 无 PUT merge 路由——真发了 PUT 会被 FakeHttp 直接 AssertionError
+    _add_merge_detect(http, FN, prs=[_pr(FN, number=7, merged=True, state="closed")])
+    _add_head(http, FN, HEAD)
+    http.add("GET", f"{B}/repos/{FN}/readme", _readme_resp("合并后真源"))
+    _add_scan(http, FN, prs=[])
+    _seed_snapshot(tmp_path, {FN: _entry(sha=BASE)})
+
+    counter = {"n": 0}
+    capsys.readouterr()
+    assert _run_b(tmp_path, monkeypatch, fake_a, http, readme_generate=_ai(counter)) == 0
+
+    out = capsys.readouterr().out
+    assert "已合并，无需处理" in out  # ① 降噪文案（不再是吓人的「勾选合并失败」）
+    assert "勾选合并失败" not in out
+    puts = [r for r in http.writes() if r["method"] == "PUT"]
+    assert puts == []  # ② 不发任何 PUT
+    snap = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    assert snap["repo_readmes"][FN]["sha"] == HEAD  # ③ 同轮推基线
+    text = summary.read_text(encoding="utf-8")
+    assert "已合并，无需处理" in text  # ④ Summary 留痕
+
+
+def test_merge_ticked_closed_pr_warns_no_put(tmp_path, monkeypatch, capsys):
+    """已关闭（拒绝）的 PR 再被勾选 → 警告「已关闭（拒绝），不会合并」，不发 PUT。"""
+    _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="")], readmes={FN: "真源"})
+    http = FakeHttp()
+    ticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-22 18:30，北京时间）\n"
+        "@alice\n"
+        "- [x] cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
+        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
+    )
+    _add_issues(http, existing={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": ticked})
+    http.add(
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data={"number": 7, "state": "closed", "merged": False,
+                                "merged_at": None}),
+        sticky=True,
+    )
+    # 无 PUT merge 路由；合并检测无记录（closed 未合并 → 基线不动）
+    _add_merge_detect(http, FN, prs=[])
+    _add_head(http, FN, BASE)
+    http.add("GET", f"{B}/repos/{FN}/readme", _readme_resp("真源"))
+    _add_scan(http, FN, prs=[])
+    _seed_snapshot(tmp_path, {FN: _entry(sha=BASE)})
+
+    capsys.readouterr()
+    assert _run_b(tmp_path, monkeypatch, fake_a, http, no_ai=True) == 0
+
+    out = capsys.readouterr()
+    assert "已关闭（拒绝）" in out.err  # ① 警告（stderr，不伪装成功）
+    assert [r for r in http.writes() if r["method"] == "PUT"] == []  # ② 不 PUT
+    snap = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    assert snap["repo_readmes"][FN]["sha"] == BASE  # ③ 未合并 → 基线不动
+
+
+def test_merge_ticked_forged_repo_filtered_out(tmp_path, monkeypatch, capsys):
+    """安全过滤：清单 body 被改成指向他人仓库的 PR（伪造链接）→ allowed 过滤直接忽略，
+    绝不拿 PAT 去合并本账号之外的仓库；整轮其余流程照常。"""
+    _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="有描述")])
+    http = FakeHttp()
+    ticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-23 10:00，北京时间）\n"
+        "@alice\n"
+        "- [x] other：[PR](https://github.com/evil/other/pull/3)"
+        "（[新版 README 预览](https://github.com/evil/other/blob/readme-auto/update/README.md)）\n"
+    )
+    _add_issues(http, existing={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": ticked})
+    http.add(  # 钩子①'/钩子③ 复读同 body
+        "GET", f"{B}/repos/{SELF}/issues/5",
+        FakeResponse(json_data={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": ticked}),
+        sticky=True,
+    )
+    _full_b_routes(http)  # 本账号仓库的常规 B 流程照常（evil 仓库零路由）
+    _seed_snapshot(tmp_path, {FN: _entry(sha=BASE)})
+
+    capsys.readouterr()
+    assert _run_b(tmp_path, monkeypatch, fake_a, http, no_ai=True) == 0
+
+    out = capsys.readouterr()
+    assert "不在本账号仓库范围" in out.err  # ① 明确警告
+    evil_reqs = [r for r in http.requests if "evil/other" in r["url"]]
+    assert evil_reqs == []  # ② 对伪造仓库零请求（GET/PUT 都没有）
+
+
+def test_or34_ticked_before_rebuild_merged_by_hook3(tmp_path, monkeypatch, capsys):
+    """钩子③（2026-10-23 勾选丢失窗口修复）：勾选出现在钩子①' 复读之后、清单重建之前
+    ——重建前再收割一次，勾选仍被合并（否则会被重建抹掉、永不生效）。"""
+    summary = _prep(monkeypatch, tmp_path)
+    fake_a = FakeAClient([_repo(FN, desc="")], readmes={FN: "真源"})
+    http = FakeHttp()
+    unticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-23 10:00，北京时间）\n"
+        "@alice\n"
+        "- [ ] cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
+        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
+    )
+    ticked = unticked.replace("- [ ] cool-tool：", "- [x] cool-tool：")
+    _add_issues(http, existing={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": unticked})  # 开局搜索：未勾
+    http.add(  # 按号复读 FIFO：钩子①' 读到未勾（1st）、钩子③ 读到刚勾上的（2nd）
+        "GET", f"{B}/repos/{SELF}/issues/5",
+        FakeResponse(json_data={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": unticked}),
+        FakeResponse(json_data={"number": 5, "html_url": f"https://github.com/{SELF}/issues/5",
+                                "body": ticked}),
+    )
+    http.add(  # PUT 前的状态查询（WP2 降噪）：仍 open → 照常 PUT
+        "GET", f"{B}/repos/{FN}/pulls/7",
+        FakeResponse(json_data=_pr(FN, number=7)),
+        sticky=True,
+    )
+    http.add(  # 钩子③ 的 PUT：重建前收割发生在此
+        "PUT", f"{B}/repos/{FN}/pulls/7/merge",
+        FakeResponse(json_data={"merged": True, "sha": "f" * 40, "message": "merged"}),
+    )
+    _add_merge_detect(http, FN, prs=[_pr(FN, number=7, merged=True, state="closed")])
+    _add_head(http, FN, HEAD)
+    _add_compare(http, FN)  # 队列期基线未推进（BASE≠HEAD）→ compare 照常
+    http.add("GET", f"{B}/repos/{FN}/readme", _readme_resp("真源"))
+    _add_scan(http, FN, prs=[])  # 钩子③ 时尚无 open PR；合并后基线推进
+    _seed_snapshot(tmp_path, {FN: _entry(sha=BASE)})
+
+    capsys.readouterr()
+    assert _run_b(tmp_path, monkeypatch, fake_a, http, no_ai=True) == 0
+
+    puts = [r for r in http.writes() if r["method"] == "PUT"]
+    assert puts and puts[0]["url"] == f"{B}/repos/{FN}/pulls/7/merge"  # ① 钩子③ 完成合并
+    snap = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    assert snap["repo_readmes"][FN]["sha"] == HEAD  # ② 同轮推基线
+    assert "已按清单勾选合并（重建前）" in summary.read_text(encoding="utf-8")  # ③ 留痕
+    closes = [r for r in http.writes()
+              if r["method"] == "PATCH" and r["json"].get("state") == "closed"]
+    assert closes and "/pull/7" not in closes[0]["json"]["body"]  # ④ 重建无幻影条目

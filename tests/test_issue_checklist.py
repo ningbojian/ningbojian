@@ -349,3 +349,39 @@ def test_body_mergeable_state_warning_renders_even_without_stats():
     # clean/draft-无/缺失 → 不打旗（不噪音）
     clean = dict(PR7, mergeable_state="clean")
     assert "⚠️" not in build_checklist_body([clean], username="alice", updated_at="t")
+
+
+# ============================ 2026-10-23 交互文案治理（WP2） ============================
+
+
+def test_body_header_explainer_within_three_lines():
+    """头部总则 ≤3 行（标题 + @你 + 一行总则）——新人打开 issue 第一眼就看懂勾选语义，
+    不用读完长文抓重点。"""
+    body = build_checklist_body([PR7], username="alice", updated_at="t")
+    header = []
+    for ln in body.splitlines():
+        if ln.startswith("- ["):
+            break
+        if ln.strip():
+            header.append(ln)
+    assert len(header) == 3  # 标题行、@行、总则行
+    assert "勾选" in header[2] and "自动合并" in header[2]
+
+
+def test_body_each_control_states_when_it_takes_effect():
+    """每个控件一行说清「勾了/点了发生什么、何时生效」——回应用户反复追问的
+    「我勾这个到底会不会造成那种后果」。"""
+    body = build_checklist_body([PR7], username="alice", updated_at="t")
+    assert "下次运行" in body  # 勾选的生效时机
+    assert "立即生效" in body  # 手动 Merge 的生效时机
+    assert "刷新时清除" in body  # 失败勾选的命运（修复后需重勾）
+    assert "重新勾选" in body
+
+
+def test_body_says_checkboxes_only_fill_missing_description_on_overview():
+    """准确口径（核验 major 回填）：合并只落仓库；主页仅缺描述仓库的补位简介随后吸收，
+    统计与其余内容不受影响——不得再写「主页本轮已经吸收」的过强承诺。"""
+    body = build_checklist_body([PR7], username="alice", updated_at="t")
+    assert "缺描述" in body and "随后吸收" in body
+    assert "统计与其余内容不受影响" in body
+    assert "主页本轮已经吸收" not in body

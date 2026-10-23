@@ -41,6 +41,7 @@ from .repo_readmes_pr import (
     advance_baseline_from_merged_pr,
     get_open_pr,
     get_pr_detail,
+    get_pr_state,
     merge_pr,
     parse_commit_titles,
     push_results,
@@ -369,14 +370,43 @@ def run(
         记录不中断（修复后重新勾选、下轮重试）；同轮已试过的条目直接跳过（attempted：
         防重复 PUT 与「成功后再报失败」）；src 非 dict（None=无清单、UNSET=预取失败
         未命中）直接跳过——UNSET 是 truthy 哨兵，不能只判 falsy。
+
+        2026-10-23 交互治理两道防线：
+        - allowed 过滤：full_name ∉ 本账号仓库集合 → 忽略（清单 body 可被网页编辑，
+          伪造链接不得借 PAT 合并他人仓库）；
+        - PUT 前先 GET 状态降噪：已合并 → 「已合并，无需处理」不 PUT（修复 405 吓人
+          报错）；已关闭 → 「已关闭（拒绝）」不 PUT。已合并的条目仍进 merged_refs——
+          同轮推基线，下轮不重跑该批次。
         """
         if not isinstance(src, dict) or b_client_eff is None:
             return []
+        # 本账号仓库集合（normalize 后本轮可见仓库 + 主页仓库本身）：PR 只可能来自它们
+        allowed = {r.full_name for r in repos} | {owner_repo}
         merged_refs: list[tuple[str, int]] = []
         for _cf, _cn in parse_merge_targets(str(src.get("body") or "")):
             if (_cf, _cn) in attempted:
                 continue
             attempted.add((_cf, _cn))
+            if _cf not in allowed:
+                _line = (
+                    f"「{_cf}」PR #{_cn} 不在本账号仓库范围，已忽略"
+                    f"（{where}；清单正文可被编辑，防伪造链接误合并他人仓库）"
+                )
+                print(_line, file=sys.stderr)
+                _append_summary(f"- ⚠️ {_line}")
+                continue
+            _state = get_pr_state(b_client_eff, _cf, _cn)
+            if _state == "merged":
+                merged_refs.append((_cf, _cn))  # 已合并 → 同轮推基线即可
+                _line = f"「{_cf}」PR #{_cn} 已合并，无需处理（{where}）"
+                print(_line)
+                _append_summary(f"- ✅ {_line}")
+                continue
+            if _state == "closed":
+                _line = f"「{_cf}」PR #{_cn} 已关闭（拒绝），不会合并（{where}）"
+                print(_line, file=sys.stderr)
+                _append_summary(f"- ⚠️ {_line}")
+                continue
             _ok, _why = merge_pr(b_client_eff, _cf, _cn)
             if _ok:
                 merged_refs.append((_cf, _cn))
@@ -534,31 +564,37 @@ def run(
 
     # 钩子①'（2026-10-23 设计验证修订）：扫描前再收割一次——AI/推送阶段（可达数分钟）期间
     # 新勾选若不先收割会被清单重建抹掉；合并成功即同轮推进该仓基线（attempted 挡重复 PUT）
+    def _advance_after_merge(refs: list[tuple[str, int]]) -> None:
+        """勾选合并（含已合并降噪分流）的条目同轮推进基线；逐仓隔离不拖死后续流程。"""
+        for _cf, _cn in refs:
+            _merged_entry = repo_readmes_state.get(_cf)
+            if _merged_entry and _merged_entry.get("sha"):
+                try:
+                    if advance_baseline_from_merged_pr(
+                        b_client_eff,
+                        _merged_entry,
+                        _cf,
+                        cfg.repo_readmes.pr_branch,
+                        base=default_bases.get(_cf, "main"),
+                    ):
+                        b_merged.add(_cf)
+                except Exception as exc:  # noqa: BLE001 —— 逐仓隔离：推进失败不拖死扫描
+                    print(
+                        f"「{_cf}」合并后基线推进失败（不影响清单重建）：{exc}",
+                        file=sys.stderr,
+                    )
+
+    def _reread_issue() -> dict | None:
+        """按号复读清单最新 body（dict 预取 → 按号 GET；确认无 → None；预取失败 → 重查）。"""
+        if isinstance(issue_cached, dict):
+            return get_issue(issue_eff, owner_repo, int(issue_cached["number"]))
+        if issue_cached is None:
+            return None  # 开局确认无既有清单：本轮新建的不可能有用户勾选
+        return find_checklist_issue(issue_eff, owner_repo)  # 预取失败退化重查
+
     if b_client_eff is not None and not dry_run and issue_eff is not None:
         try:
-            if isinstance(issue_cached, dict):
-                cur_issue = get_issue(issue_eff, owner_repo, int(issue_cached["number"]))
-            elif issue_cached is None:
-                cur_issue = None  # 开局确认无既有清单：本轮新建的不可能有用户勾选
-            else:
-                cur_issue = find_checklist_issue(issue_eff, owner_repo)  # 预取失败退化重查
-            for _cf, _cn in _merge_from_issue(cur_issue, "推送后"):
-                _merged_entry = repo_readmes_state.get(_cf)
-                if _merged_entry and _merged_entry.get("sha"):
-                    try:
-                        if advance_baseline_from_merged_pr(
-                            b_client_eff,
-                            _merged_entry,
-                            _cf,
-                            cfg.repo_readmes.pr_branch,
-                            base=default_bases.get(_cf, "main"),
-                        ):
-                            b_merged.add(_cf)
-                    except Exception as exc:  # noqa: BLE001 —— 逐仓隔离：推进失败不拖死扫描
-                        print(
-                            f"「{_cf}」合并后基线推进失败（不影响清单重建）：{exc}",
-                            file=sys.stderr,
-                        )
+            _advance_after_merge(_merge_from_issue(_reread_issue(), "推送后"))
         except Exception as exc:  # noqa: BLE001 —— 收割失败不拖死扫描与清单
             print(f"扫描前清单收割失败（忽略，清单重建照旧）：{exc}", file=sys.stderr)
 
@@ -620,6 +656,13 @@ def run(
     # 3.6 清单/通知 + 等待（§4-2/§4-3）：有 open PR 才动 issue；等待仅勾选且非空时执行
     # （issue_eff 已在开局解析；issue_cached 为钩子①的预取——省一次搜索，条件同款）
     if cfg.repo_readmes.enabled and b_client_eff is not None and not dry_run:
+        # 钩子③（2026-10-23 勾选丢失窗口修复）：清单重建前再收割一次——钩子①' 与重建
+        # 之间用户刚勾上的条目若不收割，重建（body 由本任务重写）会把它抹掉、永不生效
+        if issue_eff is not None:
+            try:
+                _advance_after_merge(_merge_from_issue(_reread_issue(), "重建前"))
+            except Exception as exc:  # noqa: BLE001 —— 收割失败不拖死清单重建
+                print(f"重建前清单收割失败（忽略，清单重建照旧）：{exc}", file=sys.stderr)
         wait_hint = ""
         if merge_wait_minutes > 0 and open_prs:
             _until = (

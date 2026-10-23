@@ -278,6 +278,12 @@ def _checkbox_round_routes(http, issue_body):
         ),
         sticky=True,
     )
+    http.add(  # PUT 前的状态查询（2026-10-23 WP2 降噪）：仍 open → 照常 PUT
+        "GET",
+        "https://api.github.com/repos/alice/cool-tool/pulls/7",
+        FakeResponse(json_data={"number": 7, "state": "open", "merged": False}),
+        sticky=True,
+    )
     http.add(
         "PUT",
         "https://api.github.com/repos/alice/cool-tool/pulls/7/merge",

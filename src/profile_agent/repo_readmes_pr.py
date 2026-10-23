@@ -166,6 +166,30 @@ def merge_pr(client: GitHubClient, full_name: str, number: int) -> tuple[bool, s
         return False, str(exc)
 
 
+def get_pr_state(client: GitHubClient, full_name: str, number: int) -> str:
+    """读 PR 当前状态：merged / closed / open / unknown（2026-10-23 勾选合并降噪）。
+
+    已手动合并的 PR 再被勾选会 PUT 405 并打出吓人的「勾选合并失败」——先 GET
+    分流成「已合并，无需处理」；已关闭同理。查询失败（404/限流/网络）→ unknown，
+    调用方仍可走 PUT 尝试（状态查不到不该阻断合并）。真实 API 只有 merged_at
+    （null/ISO）无 merged 布尔——两族形状都认（与 find_latest_merged_pr 同款防线）。
+    """
+    try:
+        data, _ = client._get(f"{API}/repos/{full_name}/pulls/{number}", allow_404=True)
+    except GitHubError:
+        return "unknown"
+    if not isinstance(data, dict):
+        return "unknown"
+    if data.get("merged_at") or data.get("merged"):
+        return "merged"
+    state = str(data.get("state") or "")
+    if state == "closed":
+        return "closed"
+    if state == "open":
+        return "open"
+    return "unknown"
+
+
 def push_readme(
     client: GitHubClient, full_name: str, content: str, head_sha: str, *, branch: str = PR_BRANCH
 ) -> str:
