@@ -71,6 +71,7 @@ def load_snapshot(path: Path) -> Snapshot | None:
             repo_readmes=_normalize_repo_readmes(data.get("repo_readmes")),
             pins=[str(x) for x in pins_raw],
             readme_last=str(data.get("readme_last") or ""),
+            readme_last_en=str(data.get("readme_last_en") or ""),
             generated_at=str(data.get("generated_at") or ""),
         )
     except (TypeError, ValueError):

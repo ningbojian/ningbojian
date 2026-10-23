@@ -90,6 +90,7 @@ class Snapshot:
     repo_readmes: dict[str, dict] = field(default_factory=dict)
     # 最近一次渲染的生效置顶名单（README 勾选面板解析结果，schema 4）
     pins: list[str] = field(default_factory=list)
-    # 上次实际写入的 README 内容——生成区三路合并的 base（schema 4）
+    # 上次渲染输出（非合并写入）——生成区三路合并的 base，zh/en 各自独立（schema 4）
     readme_last: str = ""
+    readme_last_en: str = ""
     generated_at: str = ""

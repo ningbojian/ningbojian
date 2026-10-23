@@ -34,6 +34,7 @@ from .config import Config, ConfigError, load_config
 from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
+from .preserve import extract_custom, merge_readme_3way
 from .render import render_readme, write_if_changed
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
@@ -184,6 +185,20 @@ def _short_intros_clean(targets, cfg: Config, prev: Snapshot | None, readme_of) 
         ):
             return False
     return True
+
+
+def _report_custom_mode(mode: str, where: str) -> None:
+    """WP5 custom 区状态提示（take_over/broken 才出声，正常路径零扰民）。"""
+    if mode == "take_over":
+        print(
+            f"{where}：检测到手写 README（无 profile-agent 标记），原文已整体保留到 custom 区",
+            file=sys.stderr,
+        )
+    elif mode == "broken":
+        print(
+            f"警告：{where} 的 custom 标记不配对（start/end 须各恰好一次），本次按空处理",
+            file=sys.stderr,
+        )
 
 
 def _append_summary(markdown: str) -> None:
@@ -919,7 +934,22 @@ def run(
 
     now_bj = datetime.now(_BEIJING)
     changed = False
+    # WP5：三路合并 base = 本轮渲染输出（存含手改的写入内容会让下轮把手改误当已拥有而抹掉）
+    readme_last_new = prev.readme_last if prev else ""
+    readme_last_en_new = prev.readme_last_en if prev else ""
     if readme_active:
+        # 盘上内容 + custom 区提取（zh/en 逐文件独立，en 只从 en 文件提取）
+        disk_zh = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+        custom_zh, mode_zh = extract_custom(disk_zh)
+        _report_custom_mode(mode_zh, "README.md")
+        disk_en = ""
+        custom_en = ""
+        if cfg.readme.bilingual:
+            disk_en = (
+                en_readme_path.read_text(encoding="utf-8") if en_readme_path.exists() else ""
+            )
+            custom_en, mode_en = extract_custom(disk_en)
+            _report_custom_mode(mode_en, "README.en.md")
         ctx = TemplateContext(
             username=cfg.github.username,
             display_name=user.get("name") or cfg.github.username,
@@ -938,18 +968,24 @@ def run(
             short_intros_en=short_intros_en,  # WP4：en 表格补位文案（空 → 回落 description）
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
+            custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
         )
         content = render_readme(ctx, template_path)
-        # 英文版（WP3）：整页换 labels，简介/补位换 en 来源（WP4 前恒空 → 英文占位注释）
+        # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取
         content_en = ""
         if cfg.readme.bilingual:
             content_en = render_readme(
                 dataclasses.replace(
-                    ctx, bio_text=ctx.bio_text_en, short_intros=ctx.short_intros_en
+                    ctx,
+                    bio_text=ctx.bio_text_en,
+                    short_intros=ctx.short_intros_en,
+                    custom_text=custom_en,
                 ),
                 template_path,
                 lang="en",
             )
+        readme_last_new = content
+        readme_last_en_new = content_en if cfg.readme.bilingual else ""
 
         if dry_run:
             print(content)
@@ -958,9 +994,16 @@ def run(
                 print(content_en)
             return 0
 
-        changed = write_if_changed(readme_path, content)
-        if cfg.readme.bilingual and write_if_changed(en_readme_path, content_en):
-            changed = True
+        # WP5 三路合并：手改保留、冲突以数据为准、删除恢复；升级首跑 base 兜底取盘上
+        # （该轮以新渲染为准，一次性——文档明示）
+        base_zh = prev.readme_last if (prev and prev.readme_last) else disk_zh
+        merged_zh = merge_readme_3way(base_zh, disk_zh, content)
+        changed = write_if_changed(readme_path, merged_zh)
+        if cfg.readme.bilingual:
+            base_en = prev.readme_last_en if (prev and prev.readme_last_en) else disk_en
+            merged_en = merge_readme_3way(base_en, disk_en, content_en)
+            if write_if_changed(en_readme_path, merged_en):
+                changed = True
     elif dry_run:
         print("readme 已禁用（readme.enabled=false 或 --skip-readme），跳过 overview 生成")
         return 0
@@ -988,10 +1031,13 @@ def run(
     merged_states.update(project_states)
     merged_states.update(short_states)
     new_snap = Snapshot(
-        schema=4,  # 2026-10-23 WP1：pins/readme_last/BioInfo.text_en（load 端逐字段升级）
+        schema=4,  # 2026-10-23 WP1：pins/readme_last/readme_last_en/BioInfo.text_en
         username=cfg.github.username,
         stats_fingerprint=fingerprint,
         stats_config_hash=cfg_hash,
+        # WP5：三路合并 base 存「本轮渲染」而非合并写入（防下轮把手改误当已拥有而抹掉）
+        readme_last=readme_last_new,
+        readme_last_en=readme_last_en_new,
         totals={
             "public_repos": totals.public_repos,
             "followers": totals.followers,
