@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:bedb9708af751841a87a09a1eb65190478a70d8c91570ee4a794db56bf8db458",
+  "stats_fingerprint": "sha256:cbe1491f6318044628826b7088d1c9c16d40b7cb9797694f7550142e6910bc6e",
   "stats_config_hash": "sha256:e2f65558ae18200f275dfedc456b219ef6fdbfef74044aa6ac1bd6f5b4307de8",
   "totals": {
     "public_repos": 12,
@@ -13,7 +13,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-23T00:05:07+00:00",
+      "pushed_at": "2026-10-23T01:15:02+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -39,8 +39,8 @@
       "stars": 0,
       "language": "Python",
       "pushed_at": "2026-10-21T16:06:28+00:00",
-      "short_intro": "自动维护 GitHub 个人主页 README 的模板仓库：一键生成并每周定时更新仓库统计、精选项目卡片与中文 AI 简介，支持增量更新与 PR 人工审核。",
-      "short_intro_hash": "sha256:59c060807718daf4a78035a7f809b1b4a8590252180efb0f100f5c91c4e5554a"
+      "short_intro": "用 Python 自动聚合 GitHub 数据生成个人主页 README，含 AI 中文简介与项目卡片，支持定时自动刷新。",
+      "short_intro_hash": "sha256:c42e2c5af4e4b4b411c207020ac7096404a54493dac8397f6410b367776e0a8e"
     },
     {
       "full_name": "ningbojian/shiyuan",
@@ -89,48 +89,48 @@
   "repo_readmes": {
     "ningbojian/shiyuan": {
       "sha": "b7040c52062c3de61e6f4d5ac5ceb8c1751a8980",
-      "block_hash": "",
+      "block_hash": "sha256:78e3e3fd295f270ff5e75f2aba20edf8c7c23b2d0aefe02d066efdb043173b47",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:8aa51e1d1f7c2e01da5c88e35413f5dd21edaee8e7bafafda097706a7fd40bac",
       "pending": false,
-      "updated_at": "2026-10-22T12:46:41.124606+00:00"
+      "updated_at": "2026-10-23T05:31:03.156855+00:00"
     },
     "ningbojian/MultiFuncCalculator": {
       "sha": "a7e52dbeb5175ba32de9cbaebc6de026f02f6cb7",
-      "block_hash": "",
+      "block_hash": "sha256:231e220b8fa68c2bb516266255a11ba2d8bf3e27a830152385a6807b3f52d7db",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:9a176305e835433fcd900c161ce747dbe5c2c3b8abc928a2cb91908b38d15887",
       "pending": false,
-      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+      "updated_at": "2026-10-23T05:29:10.559756+00:00"
     },
     "ningbojian/ProfileReadmeAgent": {
       "sha": "7b5efc8c0899535969b17745ee13603a8c444b0c",
-      "block_hash": "",
+      "block_hash": "sha256:c3129ba5eab7aa1cfd705012b49fc22f26adf924ea54964ad0bf94ffd4eb3940",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:4cd6167c88d1950b71a453da1178f00c381811abdc8117a51bd2033816cf4721",
       "pending": false,
-      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+      "updated_at": "2026-10-23T05:29:32.579857+00:00"
     },
     "ningbojian/RoboArmDev-Showcase": {
       "sha": "d49731c159de0ccc94ffdb26017f339bf5f7d640",
-      "block_hash": "",
+      "block_hash": "sha256:bd3e9bd483778bb5f15946ecddeb04a50d7db6f00f75facd5f7a8d458a58c93e",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:d0cfe1f67691be1c921057a6e3dbab8c3df02cbd45c89ac9f104628b934d4a21",
       "pending": false,
-      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+      "updated_at": "2026-10-23T05:29:49.034252+00:00"
     },
     "ningbojian/agri-ecommerce-platform": {
       "sha": "896a60d66b3b0791a6c43fa47a001159154eedc0",
-      "block_hash": "",
+      "block_hash": "sha256:238f919b0dbcd47f95c1cd05a4a63ecd7509dd703b4f10706d63cfc47da8863a",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:3354a7f5ad0869ae50612019f685f64fc87f1fe674dcf57ee24957f6db2454c3",
       "pending": false,
-      "updated_at": "2026-10-22T14:39:42.211662+00:00"
+      "updated_at": "2026-10-23T05:30:05.993131+00:00"
     },
     "ningbojian/phone-hotspot-proxy": {
       "sha": "9ca4efd10b7ad59417ac5b719e69cf1a9de58130",
@@ -143,13 +143,13 @@
     },
     "ningbojian/github-trending-agent": {
       "sha": "caab049b1fd169afb046a3777d0823bf88008b03",
-      "block_hash": "",
+      "block_hash": "sha256:cc768cdb1d43f2dd399722ea5af9d6134ccb64ef8d8abc177138dc72fb422d9a",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "",
+      "last_input_hash": "sha256:ea6748e9485746ae9b7f1ce1ee3ec675e8812047720b840974af7259a2880427",
       "pending": false,
-      "updated_at": "2026-10-23T00:05:01.224021+00:00"
+      "updated_at": "2026-10-23T05:30:37.229686+00:00"
     }
   },
-  "generated_at": "2026-10-23T00:29:30.917245+00:00"
+  "generated_at": "2026-10-23T05:31:43.283679+00:00"
 }
