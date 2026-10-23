@@ -1,7 +1,7 @@
 {
   "schema": 3,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:00d06b97ad9b7ae979362778dd64f7658d35b90feb9093a40f4dd27803c9a667",
+  "stats_fingerprint": "sha256:bedb9708af751841a87a09a1eb65190478a70d8c91570ee4a794db56bf8db458",
   "stats_config_hash": "sha256:e2f65558ae18200f275dfedc456b219ef6fdbfef74044aa6ac1bd6f5b4307de8",
   "totals": {
     "public_repos": 12,
@@ -13,7 +13,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 0,
       "language": "Python",
-      "pushed_at": "2026-10-22T17:47:39+00:00",
+      "pushed_at": "2026-10-23T00:05:07+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -151,5 +151,5 @@
       "updated_at": "2026-10-23T00:05:01.224021+00:00"
     }
   },
-  "generated_at": "2026-10-23T00:05:06.705630+00:00"
+  "generated_at": "2026-10-23T00:29:30.917245+00:00"
 }

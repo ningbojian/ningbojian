@@ -76,7 +76,7 @@ Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。�
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/ningbojian"><b>🐍 ningbojian</b></a><br>
       （暂无描述）<br>
-      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--22-lightgrey?style=flat-square" alt="最后推送" />    </td>
+      <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" />    </td>
     <td align="center" valign="top" width="50%">
       <a href="https://github.com/ningbojian/phone-hotspot-proxy"><b>🐍 phone-hotspot-proxy</b></a><br>
       连接手机热点后一键自动探测并配置 Windows 系统代理，免去每次手动改 IP 端口；单文件零依赖，用完关闭即自动还原。<br>
@@ -94,4 +94,4 @@ Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。�
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-23 08:05（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-23 08:29（北京时间） 自动更新
