@@ -157,8 +157,8 @@ def process_queue(
                     "updated_at": now_iso,
                 },
             )
-            # 积压标记挂在已有条目上（门的开门条件，§7）；force 首见 + 缺 key 时
-            # 没有可靠基线可回退（空树 SHA 不保证能 compare），按首见收口记基线、不置积压
+            # 积压标记挂在已有条目上（门的开门条件，§7）；force 合成全量项没有真实
+            # diff 基线可回退，按首见收口记基线、不置积压
             entry["pending"] = had_entry
             entry["updated_at"] = now_iso
             results.append(
@@ -219,8 +219,10 @@ def process_queue(
 
         # 输入构造：无文本 patch 时降级为文件树（§5.3）。prompt 的 diff 段不能用队列层
         # 预拼的 item.diff_text——剔除必须生效、README hunk 不得回流。
+        # force 合成全量项 files 为空且 diff 无 patch，同样走树降级（仓库当前文件结构
+        # 就是全量重跑的事实资料）
         has_text_patch = any(f.get("patch") for f in files)
-        if files and not has_text_patch and fetch_tree is not None:
+        if not has_text_patch and fetch_tree is not None:
             diff_text = _tree_diff_text(item, fetch_tree(item.full_name, item.head_sha))
         else:
             diff_text = base_diff

@@ -2,10 +2,15 @@
 
 - 无新提交            → 跳过（零调用，base==head 连 compare 都不发）
 - 变更只有 README 自身 → 只推进基线（防自触发循环）
-- 首次见到该仓库      → 只记基线（防启用即 PR 风暴），--force 例外（diff 从空树起算）
+- 首次见到该仓库      → 只记基线（防启用即 PR 风暴）；--force 例外见下
 - compare 404/409     → 基线重置到当前 HEAD + 中文警告（历史被 rebase 重写，§12-R6）
 - 有代码变更          → 进入处理队列，基线不前进（§5.1「开 PR 时基线不前进」）
 - head/compare 读取失败 → 逐仓跳过 + error 计数 + 中文警告（一仓不可见不拖死整队）
+
+--force（或 --repo-readmes）= 全量重跑：首见仓与「已基线但无新提交」的仓都
+合成全量队列项入队（不发 compare——GitHub compare API 拒绝空树 SHA，实测 404；
+diff 原料由 AI 层文件树降级 §5.3 补齐）。force 不绕过「有代码变更才入队」的
+正常 compare 路径：base != head 时照常走 compare。
 
 纯函数 + 注入 fetcher：不碰网络、不碰 snapshot 文件；entries 就地更新（调用方落盘）。
 """
@@ -18,9 +23,6 @@ from datetime import datetime, timezone
 
 from .config import RepoReadmesConfig
 from .models import Repo
-
-# git 的空树对象 SHA（首见 + force 时 diff 的虚拟基线）
-EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 # 截断处的显式标记（裁定 R-T1：上限约束正文，标记允许超出少量字符）
 TRUNCATED_MARK = "\n…（diff 超过上限已截断，仅保留最近提交的部分）…"
@@ -124,17 +126,38 @@ def compute_queue(
         try:
             head = fetch_head(full_name)
             entry = entries.get(full_name)
+            # force（--force/--repo-readmes）= 全量重跑：首见仓与「已基线但无新提交」的
+            # 仓都合成全量队列项，不发 compare——GitHub compare API 拒绝空树 SHA（实测
+            # 404 会被误判成基线失效），diff 原料由 AI 层文件树降级（§5.3）补齐
+            force_full = False
             if entry is None:
                 if not force:
                     entries[full_name] = _blank_entry(head, now_iso)  # 首见只记基线
                     counts["first_seen"] += 1
                     continue
-                base = EMPTY_TREE_SHA  # force 例外：diff 从空树起算
+                force_full = True
             else:
                 base = str(entry.get("sha") or "")
                 if base == head:
-                    counts["no_change"] += 1
-                    continue  # 无新提交：零成本跳过，连 compare 都不发
+                    if not force:
+                        counts["no_change"] += 1
+                        continue  # 无新提交：零成本跳过，连 compare 都不发
+                    force_full = True
+            if force_full:
+                counts["queued"] += 1
+                queue.append(
+                    QueueItem(
+                        full_name=full_name,
+                        base_sha=head,
+                        head_sha=head,
+                        commits=[
+                            {"sha": head, "message": "强制重跑：按当前文件树重新生成 README"}
+                        ],
+                        files=[],
+                        diff_text="",
+                    )
+                )
+                continue
             try:
                 data = fetch_compare(full_name, base, head)
             except CompareGone:

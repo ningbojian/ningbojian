@@ -14,12 +14,12 @@ on:
     inputs:
       force:
         description: >-
-          忽略增量检测，强制重新生成。
-          模式 B 流程：逐仓 AI 生成 README → 开 PR → 清单 issue 通知 → 可选等待合并 → 主页同轮吸收（合并=新版、仍 open=分支内容、被关=回退旧文）。
+          强制重生成 A+B：忽略增量门，重新生成主页 overview，并把全部公开仓库的
+          README 全量重跑（逐仓 AI 生成 → 开 PR → 主页同轮吸收）。只想强制模式 B 就勾 repo_readmes。
         type: boolean
         default: false
       repo_readmes:
-        description: "只强制模式 B（各仓库 README 托管区更新：AI 生成 → 开 PR → 主页吸收）；不影响模式 A 与项目介绍的门"
+        description: "只强制模式 B：全部公开仓库的 README 全量重跑（AI 生成 → 开 PR → 主页吸收），不影响主页 overview"
         type: boolean
         default: false
       wait_for_merges:

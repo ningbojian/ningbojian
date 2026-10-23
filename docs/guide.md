@@ -20,12 +20,12 @@
 1. **一键获取仓库**：打开模板仓库 [ningbojian/ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)，点绿色 **"Use this template" → Create a new repository**，把新仓库改名为 `你的用户名/你的用户名`。
    > 用户名不用填：工具会自动读取仓库所有者作为用户名。
 2. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用（AI 内容降级为数据版）。
-3. **配勾选框（要用勾选框必配，2 分钟）**：生成一个 classic PAT（勾 `repo` + `workflow` 两项），存成 secret `WORKFLOW_PAT`——配好第一次运行就自动生成你的勾选框；不配则对话框只有通用输入框（点名用 `projects_repos`）。详细步骤见下文「配置勾选框」。
+3. **配模式 B 令牌（要用「各仓库 README 自动更新」必配，2 分钟）**：生成一个 classic PAT（勾 `repo` + `workflow` 两项），存成 secret `WORKFLOW_PAT`——没有它模式 B 无法推送分支/开 PR，其余功能不受影响。详细步骤与常见坑见下文「配置 WORKFLOW_PAT」。
 4. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
    - **overview 更新**直接出现在 README；
-   - **项目介绍 / 简历素材**（AI 生成内容）会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才把文件放进 `docs/projects/`（你的简历素材库，**不会逐个链接到主页**，主页保持干净）；不想要就点 **Close**（同一内容之后不会重复打扰你）。
+   - **项目介绍 / 简历素材**（AI 生成内容，默认关闭）开启后会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才把文件放进 `docs/projects/`（你的简历素材库，**不会逐个链接到主页**，主页保持干净）；不想要就点 **Close**（同一内容之后不会重复打扰你）。
 
-之后默认每 7 天定时自动更新（北京时间约 10:23 唤醒检查），也可随时手动触发。所有可选项都在 `config.yaml` 里，网页上点 Edit 就能改。
+之后默认每 3 天定时自动更新（北京时间约 10:23 唤醒检查），也可随时手动触发。所有可选项都在 `config.yaml` 里，网页上点 Edit 就能改。
 
 ## 本地运行
 
@@ -84,7 +84,7 @@ ai:
 默认机制是「**每天唤醒 + 间隔门**」：cron 每天 02:23 UTC（北京 10:23）唤醒一次，第一步读 workflow 文件里的两行标记决定今天是否真跑——
 
 ```yaml
-# interval_days: 7      ← 每 N 天跑一次（Run workflow 下拉改写）
+# interval_days: 3       ← 每 N 天跑一次（Run workflow 下拉改写）
 # interval_anchor: 2026-10-22  ← 间隔锚点日期（改间隔时自动重置为当天）
 ```
 
@@ -108,11 +108,11 @@ overview 和项目介绍（简历素材）互相独立，三种玩法：
 
 | 想要的效果 | 配置（config.yaml） | 或手动触发时 |
 | --- | --- | --- |
-| 两者都更新 | 默认 | 默认 |
-| 只更新 overview | `projects.enabled: false` | 取消勾选 update_projects |
+| overview + 项目介绍都更新 | `projects.enabled: true` | 同左（对话框没有项目介绍开关，已隐式跟随 config） |
+| 只更新 overview（默认） | `projects.enabled: false` | 默认 |
 | 只更新项目介绍 | `readme.enabled: false` | 取消勾选 update_readme |
 
-**选择给哪些仓库生成介绍**（多选，也可以都不选），两种方式：
+**选择给哪些仓库生成介绍**（多选，也可以都不选）：
 
 ```yaml
 projects:
@@ -122,24 +122,7 @@ projects:
 
 在网页上编辑 `config.yaml` 保存即可，下次运行生效。
 
-**勾选框选仓库（推荐，一步到位）**：Actions → Update Profile README → **Run workflow**，对话框里每个公开仓库都有一个独立勾选框（带最近推送日期，一眼看出哪个仓库最近活跃）——勾选想更新的仓库，点 Run workflow，完成。勾选的仓库会**强制重新生成**（即使数据没变、即使不在精选/白名单里）；一个都不勾则按 config 的 include/exclude 规则正常更新。
-
-> **勾选框和增量检测各管一件事**：你在 GitHub 上改了仓库描述、推了代码、加了 topic——数据哈希变了，**不勾也会自动重新生成**（定时跑就是这样）。勾选框是用来对付增量检测管不到的情况：「数据没变，但我对 AI 写的这篇文案不满意，重写一版」。也就是说：数据变了等自动更新即可；想重写某篇介绍才勾它。成本上，不勾=增量零浪费，勾几个=花几次 AI 调用，明码选择。
-
-> 勾选框从哪来？GitHub 的触发框本身不支持动态列表，勾选框是工具在每次运行结束时把当前仓库列表同步进 workflow 文件实现的（新仓库自动出现、删除的自动消失）。也正因如此，**模板不预置任何勾选框**——预置会把模板作者的仓库带给你；配置 `WORKFLOW_PAT` 后的第一次运行，就会生成**只含你自己仓库**的勾选框。
-
-**配置勾选框（要用勾选框，必配一次，2 分钟）**：GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 永远无权修改 `.github/workflows/` 下的文件（实测确认：连推到新分支也被拒），所以勾选框的生成与自动同步都需要你自己的令牌：
-
-1. 右上角头像 → Settings → Developer settings → Personal access tokens。这里有两种令牌，**选 `Tokens (classic)`**：
-   - *Fine-grained tokens*（新）：按仓库、按权限项精细授权，配置繁琐，且部分老工具/场景兼容性一般；
-   - *Tokens (classic)*（经典）：按「权限域」授权，简单通用。本工具只需要它。
-2. **Generate new token (classic)**，勾选 **`repo`** 和 **`workflow`** 两项权限（`repo` 负责读写仓库内容，`workflow` 负责修改 workflow 文件；令牌还要替你把 README/统计提交推上去，所以不能只勾 workflow），有效期自选
-3. 回到本仓库 → Settings → Secrets and variables → Actions → **New repository secret**，名称填 `WORKFLOW_PAT`，值粘贴刚生成的 token
-4. 完成。第一次运行即生成只含你自己仓库的勾选框；之后新增/删除的仓库每次运行自动同步，无需再管
-
-> **不配置也完全能用**：README、统计、定时更新都不受影响。区别只在勾选框：已有勾选框照常勾选，但新建/删除的仓库不会自动增删（运行日志有 warning 提醒）；从模板新建、还没有勾选框的仓库则完全不生成（保持纯净）。这两种情况都可用 `projects_repos` 输入框点名，或在本地跑 `--repos 仓库名`。另外注意：如果你编辑过 workflow 文件（比如改了 cron），内置 token 同样推不上去，也会需要这个 secret。
-
-**命令行/脚本点名**（自动化用）：`gh workflow run "Update Profile README" -f projects_repos=shiyuan,agri-ecommerce-platform`，或在对话框的 `projects_repos` 输入框填逗号分隔仓库名（留空=按 config 规则；`all`=按 config 规则的全部，与留空等效）。点名的仓库同样是强制重新生成语义。
+> 项目介绍功能当前默认关闭（`projects.enabled: false`）——上面的 include/exclude 与「AI 内容审核流」一节在你重新开启后生效。
 
 **每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败）。
 
@@ -160,6 +143,20 @@ projects:
 
 纯统计/overview 的机械更新不走 PR、直接生效，不打断你。想关掉审核流直接提交：`projects.review_via_pr: false`（不建议）。
 
+## 配置 WORKFLOW_PAT（模式 B / 改 workflow 文件必配）
+
+GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 无权修改 `.github/workflows/` 下的文件，也无权替你向其他仓库推送分支/开 PR，所以这两件事都需要你自己的令牌：
+
+1. 右上角头像 → Settings → Developer settings → Personal access tokens。这里有两种令牌，**选 `Tokens (classic)`**：
+   - *Fine-grained tokens*（新）：按仓库、按权限项精细授权。**注意有个隐蔽坑**：如果生成时选了 "Only select repositories"，令牌对**未勾选的公开仓库也会返回 404**（表现为模式 B 状态行「读取失败 N 仓」，其余仓库一切正常）——本工具读写的是你全部公开仓库，不建议用 fine-grained；
+   - *Tokens (classic)*（经典）：按「权限域」授权，对全部仓库（含之后新建的）生效。本工具只需要它。
+2. **Generate new token (classic)**，勾选 **`repo`** 和 **`workflow`** 两项权限（`repo` 负责读写仓库内容，`workflow` 负责修改 workflow 文件；令牌还要替你把 README/统计提交推上去，所以不能只勾 workflow），有效期自选
+3. 回到本仓库 → Settings → Secrets and variables → Actions → **New repository secret**，名称填 `WORKFLOW_PAT`，值粘贴刚生成的 token
+
+> **换令牌后必须重新粘贴进 secret**：secret 存的是你粘贴那一刻的值，在 PAT 页面重建/续期/改权限都**不会**自动同步到 `WORKFLOW_PAT`——换了令牌却忘了更新 secret，是「明明配了 classic PAT 却还是 404」的第一大原因。
+
+> **不配置也完全能用**：overview、统计、定时更新都不受影响；只是模式 B 静默跳过，改了 workflow 文件（如 cron）也推不上去。
+
 ## 各仓库 README 自动更新（模式 B，默认关闭）
 
 让每个仓库的 README 也跟着代码一起长：**某仓库有新提交 → AI 更新它的 README → 开 PR 给你审 → 你的个人主页 Overview 同轮吸收最新内容**。只动 README 里一对标记之间的「托管区」，标记外你手写的内容一个字节都不会碰。
@@ -172,7 +169,7 @@ projects:
 
 ### 怎么启用
 
-1. 需要已配置 `WORKFLOW_PAT` secret（勾选框那一步的同一个 classic PAT，`repo` + `workflow` 两个 scope）——没有它工具无法替你推送分支/开 PR，会静默跳过模式 B，其余功能不受影响。
+1. 需要已配置 `WORKFLOW_PAT` secret（classic PAT，`repo` + `workflow` 两个 scope，见上文「配置 WORKFLOW_PAT」）——没有它工具无法替你推送分支/开 PR，会静默跳过模式 B，其余功能不受影响。
 2. `config.yaml` 打开开关。**灰度建议先放 1 个仓库试跑**：
 
    ```yaml
@@ -181,8 +178,9 @@ projects:
      include: ["你的某个仓库名"] # 空 = 全部仓库；先放 1 个灰度，稳了再清空
    ```
 
-3. 手动触发 Run workflow 时多了两个可选勾选（不勾 = 与定时跑完全一样的默认行为）：
-   - **repo_readmes**：只强制重跑模式 B 队列，不影响主页/项目介绍的门；
+3. 手动触发 Run workflow 时有三个可选勾选（不勾 = 与定时跑完全一样的默认行为）：
+   - **force**：强制重生成 A+B——忽略增量门重写主页 overview，并把**全部公开仓库**的 README 全量重跑一遍（AI 生成 → 开 PR → 主页吸收）。新仓库/没提交过的仓库也会立即出第一份 README PR，不用等真实提交；
+   - **repo_readmes**：只强制模式 B（同上的全量重跑），不影响主页 overview 的增量门；
    - **wait_for_merges**：暂停，等你合并 PR（最多 30 分钟），合并完立刻继续；不勾则直接继续，PR 事后随时可合。
 
 ### 清单在哪、怎么通知你
@@ -198,7 +196,7 @@ projects:
 
 ### 不产出也是正常状态（静默路径）
 
-Summary 里每轮必有一行「模式 B 状态」：没变化、首见记基线（新仓库要等下一次真实提交才出第一份 README）、AI 缺 key 积压、与上次失败输入相同已跳过（新提交或 force 才重试）……这些都不是错误。读取失败（如某仓 token 不可见导致 404）、AI 失败、推送失败都被逐仓隔离——一个仓库出问题只会把它自己跳过并在「模式 B 状态」里显示「读取失败 N 仓」，绝不影响其他仓库与主页更新。
+Summary 里每轮必有一行「模式 B 状态」：没变化、首见记基线（新仓库默认等下一次真实提交才出第一份 README；不想等就勾 force/repo_readmes 立即全量生成）、AI 缺 key 积压、与上次失败输入相同已跳过（新提交或 force 才重试）……这些都不是错误。读取失败（如某仓 token 不可见导致 404）、AI 失败、推送失败都被逐仓隔离——一个仓库出问题只会把它自己跳过并在「模式 B 状态」里显示「读取失败 N 仓」，绝不影响其他仓库与主页更新。
 
 ## 配置项参考（config.yaml）
 
@@ -256,7 +254,8 @@ repo_readmes:
 ## 常见问题
 
 - **想关掉自动更新**：`config.yaml` 里 `schedule.enabled: false` 提交即可；或在 Actions 页面 Disable workflow。
-- **Run workflow 对话框里没有仓库勾选框**：模板不预置勾选框（预置会把模板作者的仓库带给你）。按上文「配置勾选框」配好 `WORKFLOW_PAT` 后，第一次运行自动生成；已生成但缺了新建仓库的，说明自动同步未配置或令牌过期，同样按该节检查。急用可先在 `projects_repos` 里点名。
+- **想让所有仓库立刻出/更新 README PR**：Run workflow 勾 **force**（A+B 全量）或 **repo_readmes**（只 B 全量）——全部公开仓库（profile 自身除外）都会重新生成并开 PR，不勾则只处理有新代码提交的仓库。
+- **某仓「读取失败 404」但它明明是公开仓库**：几乎都是 `WORKFLOW_PAT` 的问题。按顺序查：① secret 里的值是不是 **classic PAT**（`ghp_` 开头）——fine-grained PAT 若选了 "Only select repositories"，对未勾选的公开仓一律 404；② 换了新令牌后**有没有把新值重新粘进 secret**（在 PAT 页面重建/续期不会自动同步到 secret，这是最常见的坑）；③ 令牌是否已过期。一个仓读取失败只跳过它自己，不影响其他仓库。
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **README 被我改坏了**：手动改动会被下次运行覆盖——所有可定制内容都在 `config.yaml` 与 `templates/profile.md.j2` 里改。
 - **数据是旧的**：Actions 手动触发 + force 即可刷新。

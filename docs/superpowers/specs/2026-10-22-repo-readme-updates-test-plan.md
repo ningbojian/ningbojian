@@ -106,17 +106,18 @@
 - 前置：基线 base123；compare 显示 src/app.py 等非 README 文件带 patch（fixture `compare_code_change`）
 - 断言：① 队列含该仓且入队项带 commits（标题+SHA）与 files（patch）；② 基线仍为 base123（入队阶段绝不推进，否则被 Close 拒绝的批次永久丢失）；③ 本层不触发 AI
 
-**Q07 · 首见配合 force 从空树起算入队** `M1` `P0` — 依据 §4 队列图、§5.1
-- 前置：snapshot 无该仓条目，force=True，空树 diff 含多个代码文件（fixture `empty_tree_force_diff`）
-- 断言：① 队列含该仓（与 Q03 相反）；② diff 覆盖全部文件（空树语义）；③ 截断约束仍生效（Q08）
+**Q07 · 首见配合 force 合成全量队列项入队** `M1` `P0` — 依据 §4 队列图、§5.1
+> 修订（2026-10-23）：原设计「diff 从空树起算」不可行——GitHub compare API 拒绝空树 SHA（实测 404，会被误判成基线失效）。改为合成全量队列项（不发 compare），diff 原料由 AI 层文件树降级（§5.3）补齐。
+- 前置：snapshot 无该仓条目，force=True
+- 断言：① 队列含该仓（与 Q03 相反）；② 合成项 base_sha==head_sha、files 为空、零 compare 调用；③ 不记基线（开 PR 时基线不前进）
 
-**Q08 · force 空树 diff 超限时截断并带标记** `M1` `P1` — 依据 §4「仍受截断约束」、§5.3
-- 前置：首见+force；空树输入中单文件 patch 远超 max_diff_chars（默认 6000）
+**Q08 · diff 超限时截断并带标记** `M1` `P1` — 依据 §4「仍受截断约束」、§5.3
+- 前置：正常 compare 路径；单文件 patch 远超 max_diff_chars（默认 6000）
 - 断言：① 正文长度 ≤ max_diff_chars（显式标记允许超出少量字符——裁定 R-T1）；② 存在显式截断标记；③ 截断不导致跳过（仍在队列）
 
 **Q09 · 全局 force 同时强制 A 与 B** `M1` `P1` — 依据 §6、§12-R2 — 文件 `test_repo_readmes_gate.py`
 - 前置：数据无变化（A 门本应关）、存在首见仓库；run(force=True)（离线 fixture + 假 AI）
-- 断言：① 输出不含「无变化，跳过更新」；② B 侧首见仓按 force 入队（空树 diff）而非只记基线；③ 与 Q21 成对：全局 force=A+B，勾选只 B
+- 断言：① 输出不含「无变化，跳过更新」；② B 侧首见仓合成全量队列项入队（「入队 N 仓」状态行、零 compare）而非只记基线；③ 与 Q21 成对：全局 force=A+B，勾选只 B
 
 **Q10 · 硬排除 profile 自身仓库永不入队** `M1` `P0` — 依据 §4、§12-R1
 - 前置：github.username=alice，参与仓库含 alice/alice；include 明确点名 ["alice"]，叠加 force

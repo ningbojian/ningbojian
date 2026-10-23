@@ -64,3 +64,21 @@ def test_wf_dialog_hides_projects_inputs():
     }
     text = WF.read_text(encoding="utf-8")
     assert "REPO_CHECKBOXES_START" not in text  # 勾选框区块标记（移除后同步步骤自我跳过）
+
+
+def test_wf_force_and_repo_readmes_descriptions_match_semantics():
+    """对话框文案与实际旗标语义一致（防「勾 Force 以为是模式 B」的文案回退）。
+
+    force = 强制 A+B 全量重跑（compute_queue 的 force 同时驱动 A 门与 B 队列）；
+    repo_readmes = 只强制 B。force 旧文案曾把「模式 B 流程」写在自己名下，
+    误导用户只勾 force 却以为 B 会被强制——语义上 force 确实覆盖 B，但两者
+    都必须把「全量重跑/开 PR」说清楚。
+    """
+    inputs = _wf()["workflow_dispatch"]["inputs"]
+    force_desc = inputs["force"]["description"]
+    rr_desc = inputs["repo_readmes"]["description"]
+    assert "A+B" in force_desc
+    assert "全量重跑" in force_desc
+    assert "只强制模式 B" in rr_desc
+    assert "全量重跑" in rr_desc
+    assert "不影响主页 overview" in rr_desc

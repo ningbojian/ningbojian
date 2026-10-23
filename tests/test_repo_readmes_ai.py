@@ -147,6 +147,28 @@ def test_binary_files_degrade_to_tree_prompt():
     assert not any(line.startswith("+") for line in prompt.splitlines())  # 无 hunk 行
 
 
+def test_synthesized_full_item_degrades_to_tree_prompt():
+    """force 合成项（files 为空、diff_text 为空）同样降级为文件树 + 提交标题喂 AI。"""
+    item = _item(
+        commits=[{"sha": "def4567890", "message": "强制重跑：按当前文件树重新生成 README"}],
+        files=[],
+        diff_text="",
+    )
+    tree_calls = []
+
+    def fetch_tree(full_name, sha):
+        tree_calls.append((full_name, sha))
+        return ["app/main.py", "assets/icon.png"]
+
+    rec = Recorder()
+    _process([item], {"alice/cool-tool": _entry()}, rec, force=True, fetch_tree=fetch_tree)
+    assert tree_calls == [("alice/cool-tool", "def4567890")]
+    prompt = rec.calls[0][1]
+    assert "assets/icon.png" in prompt and "app/main.py" in prompt  # 树内路径
+    assert "强制重跑" in prompt  # 合成提交标题如实入 prompt
+    assert "（无文本 diff）" not in prompt  # 已降级，不再逐文件报无 diff
+
+
 def test_strip_readme_hunks_removes_self_references():
     """AP04：合并推进后的首轮剔除主干已合并的 README/marker hunk（§5.3）。"""
     files = [

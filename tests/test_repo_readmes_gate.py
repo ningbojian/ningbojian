@@ -92,25 +92,16 @@ def _snapshot(tmp_path: Path) -> dict:
 
 
 def test_global_force_forces_b_first_seen_without_recording_baseline(tmp_path, capsys):
-    """Q09：全局 force 同时强制 A 与 B——首见仓按 force 入队（空树 diff）而非只记基线。"""
+    """Q09：全局 force 同时强制 A 与 B——首见仓合成全量队列项入队（不发 compare、不记基线）。"""
     cfg = _write_config(tmp_path)
-    from profile_agent.repo_readmes import EMPTY_TREE_SHA
-
-    fetchers = FakeFetchers(
-        heads=_heads_all("head789"),
-        compares={
-            (fn, EMPTY_TREE_SHA, "head789"): {
-                "commits": [{"sha": "head789", "message": "feat: 初始代码"}],
-                "files": [{"filename": "app.py", "patch": "+x = 1"}],
-            }
-            for fn in PARTICIPANTS
-        },
-    )
+    fetchers = FakeFetchers(heads=_heads_all("head789"))
     assert _run(cfg, fetchers, force=True) == 0
     out = capsys.readouterr().out
     assert "无变化，跳过更新" not in out  # force 开门
+    assert "入队 3 仓" in out  # 三仓合成入队（旧空树 compare 路径在生产必 404）
+    assert fetchers.compare_calls == []
     assert (tmp_path / "README.md").exists()  # A 照常
-    assert _snapshot(tmp_path)["repo_readmes"] == {}  # 入队不记基线（与 Q21 成对：全局 force=A+B）
+    assert _snapshot(tmp_path)["repo_readmes"] == {}  # no_ai 不落条目（与 Q21 成对：全局 force=A+B）
 
 
 def test_pending_opens_gate_and_b_runs(tmp_path, capsys):

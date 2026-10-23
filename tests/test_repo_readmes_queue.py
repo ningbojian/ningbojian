@@ -1,14 +1,15 @@
 """repo_readmes.py 队列计算测试（测试计划 Q01-Q13、Q26，模式 B 五分支，全离线）。
 
 设计 §4 队列图：无新提交跳过 / 仅 README 只推进基线 / 首见只记基线（force 例外，
-空树起算）/ compare 404/409 重置基线+中文警告 / 有代码变更入队且基线不前进。
+合成全量队列项——GitHub compare 拒绝空树 SHA，不发 compare）/ compare 404/409
+重置基线+中文警告 / 有代码变更入队且基线不前进。
 """
 
 import pytest
 
 from profile_agent.config import RepoReadmesConfig
 from profile_agent.models import Repo
-from profile_agent.repo_readmes import EMPTY_TREE_SHA, CompareGone, compute_queue, participants
+from profile_agent.repo_readmes import CompareGone, compute_queue, participants
 
 ALICE = "alice"
 
@@ -114,27 +115,31 @@ def test_first_seen_records_baseline_only():
     assert fetchers.compare_calls == []  # 无 compare、无 AI
 
 
-def test_first_seen_with_force_queues_from_empty_tree():
-    """Q07：首见 + force → 从空树起算入队，diff 覆盖全部文件。"""
+def test_first_seen_with_force_queues_synthesized_full_item():
+    """Q07：首见 + force → 合成全量队列项入队（不发 compare——空树 compare 被 GitHub 404 拒绝）。"""
     entries: dict = {}
-    files = [
-        {"filename": "app.py", "patch": "print('hi')"},
-        {"filename": "src/core.py", "patch": "def add(a, b):\n    return a + b"},
-    ]
-    fetchers = FakeFetchers(
-        heads={"alice/cool-tool": "head789"},
-        compares={
-            ("alice/cool-tool", EMPTY_TREE_SHA, "head789"): {
-                "commits": [{"sha": "head789", "message": "init"}],
-                "files": files,
-            }
-        },
-    )
+    fetchers = FakeFetchers(heads={"alice/cool-tool": "head789"})
     queue = _run([_repo("cool-tool")], entries, fetchers, force=True)
     assert [q.full_name for q in queue] == ["alice/cool-tool"]
-    assert queue[0].base_sha == EMPTY_TREE_SHA
-    assert queue[0].files == files
+    item = queue[0]
+    assert item.head_sha == "head789"
+    assert item.base_sha == "head789"  # 无真实 diff 基线
+    assert item.files == [] and item.diff_text == ""  # 原料由 AI 层文件树降级补齐
+    assert item.commits and "强制重跑" in item.commits[0]["message"]
+    assert fetchers.compare_calls == []  # 合成路径零 compare（生产空树 compare 必 404）
     assert "alice/cool-tool" not in entries  # 入队不记基线（开 PR 时基线不前进）
+
+
+def test_baselined_no_change_with_force_queues_synthesized_full_item():
+    """force 对已基线且无新提交的仓同样全量重跑：绕过 base==head 的零成本跳过。"""
+    entries = {"alice/cool-tool": _entry("head789")}
+    fetchers = FakeFetchers(heads={"alice/cool-tool": "head789"})
+    queue = _run([_repo("cool-tool")], entries, fetchers, force=True)
+    assert [q.full_name for q in queue] == ["alice/cool-tool"]
+    assert queue[0].base_sha == queue[0].head_sha == "head789"
+    assert queue[0].files == []
+    assert fetchers.compare_calls == []
+    assert entries["alice/cool-tool"]["sha"] == "head789"  # 基线不前进
 
 
 # ---- compare 失效（Q04/Q05）----
@@ -273,15 +278,15 @@ def test_code_change_queues_without_advancing_baseline():
     assert entries["alice/cool-tool"]["sha"] == "base123"  # 入队阶段绝不推进
 
 
-def test_force_huge_diff_truncates_recent_first_with_marker():
-    """Q08：force 空树 diff 超限 → 正文截到 max（裁定 R-T1：标记允许超出少量），最近优先。"""
-    entries: dict = {}
+def test_huge_diff_truncates_recent_first_with_marker():
+    """Q08：diff 超限 → 正文截到 max（裁定 R-T1：标记允许超出少量），最近优先。"""
+    entries = {"alice/cool-tool": _entry("base1234")}
     old_patch = "OLD_SENTINEL " + "旧" * 300
     new_patch = "NEW_SENTINEL " + "新" * 300
     fetchers = FakeFetchers(
         heads={"alice/cool-tool": "head789"},
         compares={
-            ("alice/cool-tool", EMPTY_TREE_SHA, "head789"): {
+            ("alice/cool-tool", "base1234", "head789"): {
                 "commits": [
                     {"sha": "c111111", "message": "oldest"},
                     {"sha": "c222222", "message": "middle"},
@@ -295,7 +300,7 @@ def test_force_huge_diff_truncates_recent_first_with_marker():
             }
         },
     )
-    queue = _run([_repo("cool-tool")], entries, fetchers, force=True, )
+    queue = _run([_repo("cool-tool")], entries, fetchers)
     from profile_agent.repo_readmes import build_diff_text  # 截断口径直接对函数断言
 
     text = build_diff_text(queue[0].commits, queue[0].files, 200)
@@ -317,21 +322,10 @@ def test_hard_exclude_self_repo_even_when_named_and_forced():
     assert participants(repos, cfg, ALICE) == ["alice/cool-tool"]
     # force 下同样排除：self 仓不进队列
     entries: dict = {}
-    fetchers = FakeFetchers(
-        heads={"alice/alice": "head789", "alice/cool-tool": "head789"},
-        compares={
-            ("alice/alice", EMPTY_TREE_SHA, "head789"): {
-                "commits": [{"sha": "head789", "message": "x"}],
-                "files": [{"filename": "a.py", "patch": "+x"}],
-            },
-            ("alice/cool-tool", EMPTY_TREE_SHA, "head789"): {
-                "commits": [{"sha": "head789", "message": "x"}],
-                "files": [{"filename": "a.py", "patch": "+x"}],
-            },
-        },
-    )
+    fetchers = FakeFetchers(heads={"alice/alice": "head789", "alice/cool-tool": "head789"})
     queue = _run(repos, entries, fetchers, cfg=cfg, force=True)
     assert [q.full_name for q in queue] == ["alice/cool-tool"]
+    assert fetchers.compare_calls == []  # force 走合成入队，零 compare
 
 
 def test_include_limits_b_scope_and_skips_compare_for_others():
@@ -339,20 +333,13 @@ def test_include_limits_b_scope_and_skips_compare_for_others():
     cfg = RepoReadmesConfig(enabled=True, include=["cool-tool"])
     repos = [_repo("cool-tool"), _repo("old-thing")]
     assert participants(repos, cfg, ALICE) == ["alice/cool-tool"]
-    # 首见 + force 走空树 compare：old-thing 的 head/compare 都不会被查询
-    # （FakeFetchers 对未注册键直接 KeyError，能跑通即证明未查询）
-    fetchers = FakeFetchers(
-        heads={"alice/cool-tool": "h1"},
-        compares={
-            ("alice/cool-tool", EMPTY_TREE_SHA, "h1"): {
-                "commits": [{"sha": "h1", "message": "f"}],
-                "files": [{"filename": "a.py", "patch": "+x"}],
-            }
-        },
-    )
+    # 首见 + force 合成入队（不发 compare）：old-thing 的 head/compare 都不会被查询
+    # （FakeFetchers 对未注册键直接 AssertionError，能跑通即证明未查询）
+    fetchers = FakeFetchers(heads={"alice/cool-tool": "h1"})
     queue = _run(repos, {}, fetchers, cfg=cfg, force=True)
     assert [q.full_name for q in queue] == ["alice/cool-tool"]
     assert fetchers.head_calls == ["alice/cool-tool"]
+    assert fetchers.compare_calls == []
 
 
 def test_exclude_removes_from_include_set():
