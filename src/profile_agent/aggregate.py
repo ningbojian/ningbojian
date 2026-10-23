@@ -215,7 +215,9 @@ def render_fingerprint(cfg, template_bytes: bytes, user: dict) -> str:
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
-def build_bio_payload(user: dict, featured: list[Repo], cfg: AIConfig) -> dict:
+def build_bio_payload(
+    user: dict, featured: list[Repo], cfg: AIConfig, bilingual: bool = True
+) -> dict:
     """构建喂给 AI 的简介输入（截取前 max_repos 个精选仓库）。"""
     return {
         "name": user.get("name") or user.get("login") or "",
@@ -225,6 +227,8 @@ def build_bio_payload(user: dict, featured: list[Repo], cfg: AIConfig) -> dict:
             "public_repos": user.get("public_repos") or 0,
             "followers": user.get("followers") or 0,
         },
+        # bilingual 入 payload → 入指纹：单语↔双语切换触发一次重生成（迁移成本一次）
+        "bilingual": bilingual,
         "repos": [
             {
                 "name": r.name,
@@ -239,9 +243,17 @@ def build_bio_payload(user: dict, featured: list[Repo], cfg: AIConfig) -> dict:
 
 
 def bio_input_hash(payload: dict, cfg: AIConfig) -> str:
-    """简介输入的指纹（含 prompt_version），变化才重新生成简介。"""
+    """简介输入的指纹（含 prompt_version），变化才重新生成简介。
+
+    成本护栏：repos 按 name 排序后再哈希——置顶顺序调整（同一批仓库）
+    不改变指纹，不触发简介重生成；集合变化仍触发。
+    """
+    normalized = {
+        **payload,
+        "repos": sorted(payload.get("repos", []), key=lambda r: r.get("name") or ""),
+    }
     blob = json.dumps(
-        {"payload": payload, "prompt_version": cfg.prompt_version},
+        {"payload": normalized, "prompt_version": cfg.prompt_version},
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),

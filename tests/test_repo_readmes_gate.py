@@ -208,11 +208,21 @@ def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys
 
     counters = {"bio_gen": 0, "intro": 0}
 
-    def fake_bio(payload, cfg, *, input_hash, prev_hash, prev_text, prev_generated_at):
+    def fake_bio(
+        payload,
+        cfg,
+        *,
+        input_hash,
+        prev_hash,
+        prev_text,
+        prev_text_en="",
+        prev_generated_at,
+        bilingual=True,
+    ):
         if prev_text and input_hash == prev_hash:
-            return prev_text, False  # 新鲜复用（与真 generate_bio 的内部跳过同语义）
+            return prev_text, prev_text_en, False  # 新鲜复用（与真 generate_bio 的内部跳过同语义）
         counters["bio_gen"] += 1
-        return "测试简介，用于主页展示的中文简介文本。", True
+        return "测试简介，用于主页展示的中文简介文本。", "", True
 
     def fake_intro(*args, **kwargs):
         counters["intro"] += 1

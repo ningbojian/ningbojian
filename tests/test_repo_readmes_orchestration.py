@@ -172,12 +172,12 @@ def _prep(monkeypatch, tmp_path, *, ai_key=True):
     monkeypatch.delenv("WORKFLOW_PAT", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.setattr(cli_mod, "datetime", _FrozenDT)
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介文本", False))
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介文本", "", False))
     # 短文案完整携带 README 输入——Overview 里直接找特征串即为 A 的输入断言
     monkeypatch.setattr(
         cli_mod,
         "generate_short_intro",
-        lambda r, cfg_ai, readme=None: f"短文案[{readme or ''}]",
+        lambda r, cfg_ai, readme=None, **k: (f"短文案[{readme or ''}]", ""),
     )
     return summary
 

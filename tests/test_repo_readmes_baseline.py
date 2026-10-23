@@ -556,8 +556,9 @@ def _noop_a(monkeypatch):
     """模式 A 的 AI 出口换成假实现（B 的假 AI 走 readme_generate 注入，互不干扰）。"""
     import profile_agent.cli as cli_mod
 
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("你好，我是 Alice。", True))
-    monkeypatch.setattr(cli_mod, "generate_short_intro", lambda *a, **k: "")
+    # 有意变更（WP4）：fake 需带 en——双语下 en 缺失会触发下轮重生成，门回指纹断言碎
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("你好，我是 Alice。", "Hi, I'm Alice.", True))
+    monkeypatch.setattr(cli_mod, "generate_short_intro", lambda *a, **k: ("", ""))
 
 
 CODE_CHANGE = {

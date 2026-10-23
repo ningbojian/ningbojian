@@ -151,12 +151,12 @@ snapshot:
 
 
 def _gen(monkeypatch, texts, calls):
-    """替换 generate_bio：记录调用并按序返回 (text, generated)。"""
+    """替换 generate_bio：记录调用并按序返回 (zh, en, generated) 三元组（WP4）。"""
     import profile_agent.cli as cli_mod
 
     def fake(payload, cfg, **kwargs):
         calls.append(kwargs)
-        return texts[len(calls) - 1], True
+        return texts[len(calls) - 1]
 
     monkeypatch.setattr(cli_mod, "generate_bio", fake)
 
@@ -171,7 +171,8 @@ def test_ai_bio_generated_then_gate_skips(tmp_path, monkeypatch):
         projects_mod, "generate_project_intro", lambda repo, cfg_ai, **kw: "AI 介绍"
     )
     calls = []
-    _gen(monkeypatch, [("初始简介", True)], calls)
+    # 有意变更（WP4）：fake 需带 en——双语下 en 缺失会触发下轮重生成，门关不严
+    _gen(monkeypatch, [("初始简介", "Initial EN", True)], calls)
     assert run(cfg, fixture=FIXTURES) == 0
     assert len(calls) == 1
     assert "初始简介" in (tmp_path / "README.md").read_text(encoding="utf-8")
@@ -187,7 +188,7 @@ def test_ai_available_upgrades_stub_on_next_run(tmp_path, monkeypatch):
 
     cfg = _write_config(tmp_path)
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
 
     def failing(repo, cfg_ai, **kwargs):
         raise RuntimeError("boom")
@@ -220,7 +221,7 @@ def test_stale_bio_regenerates_even_when_data_unchanged(tmp_path, monkeypatch):
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
     _block_project_ai(monkeypatch)
     calls = []
-    _gen(monkeypatch, [("初始简介", True), ("刷新后的简介", True)], calls)
+    _gen(monkeypatch, [("初始简介", "", True), ("刷新后的简介", "", True)], calls)
     run(cfg, fixture=FIXTURES)
     # 把简介时间改老（超过 max_age_days=14）
     snap_path = tmp_path / "data" / "snapshot.json"
@@ -368,12 +369,12 @@ snapshot:
         encoding="utf-8",
     )
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
     calls = []
 
     def fake(repo, cfg_ai, **kwargs):
         calls.append(repo.full_name)
-        return "一个命令行密码生成器。"
+        return "一个命令行密码生成器。", ""
 
     monkeypatch.setattr(cli_mod, "generate_short_intro", fake)
     fx = _empty_desc_fixture(tmp_path)
@@ -454,12 +455,13 @@ snapshot:
         encoding="utf-8",
     )
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
     calls = []
 
     def fake(repo, cfg_ai, **kwargs):
         calls.append(repo.full_name)
-        return "一个命令行密码生成器。"
+        # 有意变更（WP4）：fake 需带 en——双语下 en 缺失会触发下轮重生成，复用断言碎
+        return "一个命令行密码生成器。", "A CLI password generator."
 
     monkeypatch.setattr(cli_mod, "generate_short_intro", fake)
     fx = _empty_desc_fixture(tmp_path)
@@ -496,12 +498,12 @@ snapshot:
         encoding="utf-8",
     )
     _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
     calls = []
     monkeypatch.setattr(
         cli_mod,
         "generate_short_intro",
-        lambda *a, **k: calls.append(1) or "不该被调用",
+        lambda *a, **k: (calls.append(1) or "不该被调用", ""),
     )
     fx = _empty_desc_fixture(tmp_path)
     assert run(cfg_path, fixture=fx) == 0
@@ -548,8 +550,8 @@ def test_only_repos_forces_regenerate_when_unchanged(tmp_path, monkeypatch, caps
         return f"介绍第{len(versions)}版"
 
     monkeypatch.setattr(projects_mod, "generate_project_intro", fake_gen)
-    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", True))
-    monkeypatch.setattr(cli_mod, "generate_short_intro", lambda *a, **k: "不该被调用")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    monkeypatch.setattr(cli_mod, "generate_short_intro", lambda *a, **k: ("不该被调用", ""))
 
     assert run(cfg, fixture=FIXTURES) == 0
     n_first = len(versions)
@@ -673,3 +675,69 @@ def test_second_run_is_noop_with_bilingual(tmp_path):
     assert _run(cfg) == 0
     assert zh.stat().st_mtime_ns == zh_mt
     assert en.stat().st_mtime_ns == en_mt
+
+
+def test_bio_fresh_requires_en_when_bilingual(tmp_path, monkeypatch):
+    """双语下新鲜判据补查 text_en：zh 新鲜但 en 缺失 → 必须重新生成（防单语卡死）。"""
+    cfg = _write_config(tmp_path)
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    _block_project_ai(monkeypatch)
+    calls = []
+    _gen(monkeypatch, [("第一版", "First EN", True), ("第二版", "Second EN", True)], calls)
+    assert run(cfg, fixture=FIXTURES) == 0
+    snap_path = tmp_path / "data" / "snapshot.json"
+    data = json.loads(snap_path.read_text(encoding="utf-8"))
+    assert data["bio"]["text"] == "第一版"
+    assert data["bio"]["text_en"] == "First EN"
+    # 清掉 en：指纹/时间仍新鲜，但双语下不完整 → 门必须开、重新生成
+    data["bio"]["text_en"] = ""
+    snap_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(calls) == 2
+    data = json.loads(snap_path.read_text(encoding="utf-8"))
+    assert data["bio"]["text"] == "第二版"
+    assert data["bio"]["text_en"] == "Second EN"
+
+
+def test_short_intro_clean_requires_en_when_bilingual(tmp_path, monkeypatch):
+    """双语下补位复用判据补查 short_intro_en：en 缺失时不得复用 zh-only 旧文案。"""
+    import profile_agent.cli as cli_mod
+
+    cfg_path = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()
+    cfg_path.write_text(
+        f"""
+github:
+  username: "alice"
+projects:
+  enabled: false
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "Bio EN", True))
+    calls = []
+
+    def fake(repo, cfg_ai, **kwargs):
+        calls.append(repo.full_name)
+        return "一个命令行密码生成器。", "A CLI password generator."
+
+    monkeypatch.setattr(cli_mod, "generate_short_intro", fake)
+    fx = _empty_desc_fixture(tmp_path)
+
+    assert run(cfg_path, fixture=fx) == 0
+    assert "A CLI password generator." in (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert calls == ["alice/mystery"]
+    # 清掉 short_intro_en：hash 仍匹配 → 复用判据必须因缺 en 而拒绝，重新生成
+    snap_path = tmp_path / "data" / "snapshot.json"
+    data = json.loads(snap_path.read_text(encoding="utf-8"))
+    for repo in data["repos"]:
+        repo.pop("short_intro_en", None)
+    snap_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    assert run(cfg_path, fixture=fx) == 0
+    assert calls == ["alice/mystery", "alice/mystery"]

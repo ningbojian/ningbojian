@@ -170,13 +170,18 @@ def _save_b_snapshot(snap_path: Path, prev: Snapshot | None, cfg: Config, state:
 
 
 def _short_intros_clean(targets, cfg: Config, prev: Snapshot | None, readme_of) -> bool:
-    """全部补位目标都有最新文案（指纹含 README 内容）→ 无待生成内容。"""
+    """全部补位目标都有最新双语文案（指纹含 README 内容）→ 无待生成内容。"""
     states = _prev_repo_states(prev)
     for r in targets:
         st = states.get(r.full_name) or {}
         if not st.get("short_intro"):
             return False
-        if st.get("short_intro_hash") != short_intro_input_hash(r, cfg.ai, readme_of(r.full_name)):
+        # 双语下 en 缺失同样视为不完整——否则 hash 命中却永远单语，门永远关着（WP4 死锁防护）
+        if cfg.readme.bilingual and not st.get("short_intro_en"):
+            return False
+        if st.get("short_intro_hash") != short_intro_input_hash(
+            r, cfg.ai, readme_of(r.full_name), bilingual=cfg.readme.bilingual
+        ):
             return False
     return True
 
@@ -312,11 +317,13 @@ def run(
         if (readme_active and ai_active and cfg.ai.fill_empty_descriptions)
         else []
     )
-    payload = build_bio_payload(user, featured, cfg.ai)
+    payload = build_bio_payload(user, featured, cfg.ai, bilingual=cfg.readme.bilingual)
     cur_hash = bio_input_hash(payload, cfg.ai)
     if ai_active and prev is not None:
         bio_fresh = (
             bool(prev.bio.text)
+            # 双语下 en 缺失 → 不完整，须重生成（防 zh 新鲜卡死单语）
+            and (not cfg.readme.bilingual or bool(prev.bio.text_en))
             and prev.bio.input_hash == cur_hash
             and _is_fresh(prev.bio.generated_at, cfg.ai.max_age_days)
         )
@@ -838,37 +845,58 @@ def run(
 
     # 4. 描述补位：缺 description 的精选仓库，用其 README 生成一句主页文案
     short_intros: dict[str, str] = {}
+    short_intros_en: dict[str, str] = {}
     short_states: dict[str, dict] = {}
     if short_targets:
         prev_states_all = _prev_repo_states(prev)
         for r in short_targets:
             readme_text = readme_of(r.full_name)
-            h = short_intro_input_hash(r, cfg.ai, readme_text)
+            h = short_intro_input_hash(
+                r, cfg.ai, readme_text, bilingual=cfg.readme.bilingual
+            )
             st = prev_states_all.get(r.full_name) or {}
-            if st.get("short_intro") and st.get("short_intro_hash") == h:
+            if (
+                st.get("short_intro")
+                and st.get("short_intro_hash") == h
+                # 双语下 en 缺失不得复用（防 hash 命中却永远单语卡死门，WP4）
+                and (not cfg.readme.bilingual or st.get("short_intro_en"))
+            ):
                 short_intros[r.full_name] = st["short_intro"]
+                short_intros_en[r.full_name] = st.get("short_intro_en") or ""
                 continue
             try:
-                text = generate_short_intro(r, cfg.ai, readme=readme_text)
+                text, text_en = generate_short_intro(
+                    r, cfg.ai, readme=readme_text, bilingual=cfg.readme.bilingual
+                )
             except Exception as exc:
                 text = st.get("short_intro") or ""
+                text_en = st.get("short_intro_en") or ""
                 print(f"「{r.name}」描述补位失败，沿用旧文案：{exc}", file=sys.stderr)
-            short_states[r.full_name] = {"short_intro": text, "short_intro_hash": h}
+            short_states[r.full_name] = {
+                "short_intro": text,
+                "short_intro_en": text_en,
+                "short_intro_hash": h,
+            }
             if text:
                 short_intros[r.full_name] = text
+            if text_en:
+                short_intros_en[r.full_name] = text_en
 
     # 4. AI 简介（只在更新 overview 时生成；失败保留旧简介，任务不失败）
     bio_text = prev.bio.text if prev else ""
+    bio_text_en = prev.bio.text_en if prev else ""
     bio_generated = False
     if ai_active and readme_active:
         try:
-            bio_text, bio_generated = generate_bio(
+            bio_text, bio_text_en, bio_generated = generate_bio(
                 payload,
                 cfg.ai,
                 input_hash=cur_hash,
                 prev_hash=prev.bio.input_hash if prev else "",
                 prev_text=prev.bio.text if prev else "",
+                prev_text_en=prev.bio.text_en if prev else "",
                 prev_generated_at=prev.bio.generated_at if prev else "",
+                bilingual=cfg.readme.bilingual,
             )
         except BioError as exc:
             print(f"简介生成失败，沿用旧简介：{exc}", file=sys.stderr)
@@ -900,12 +928,14 @@ def run(
             featured=featured,
             pinned=pinned,
             bio_text=bio_text,
+            bio_text_en=bio_text_en,  # WP4：en 渲染的简介来源（空 → 英文占位注释）
             cards_theme=cfg.readme.cards.theme,
             cards_show=cfg.readme.cards.show,
             include_update_time=cfg.readme.include_update_time,
             # 时间戳本体不含时区字样——「（北京时间）」/「 (UTC+8)」由模板 labels 提供（WP3）
             updated_at=now_bj.strftime("%Y-%m-%d %H:%M"),
             short_intros=short_intros,
+            short_intros_en=short_intros_en,  # WP4：en 表格补位文案（空 → 回落 description）
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
         )
@@ -941,6 +971,7 @@ def run(
         bio_info = dataclasses.replace(
             prev.bio if prev else Snapshot().bio,
             text=bio_text,
+            text_en=bio_text_en,
             input_hash=cur_hash,
             generated_at=now_iso,
             model=cfg.ai.model,
@@ -950,6 +981,7 @@ def run(
         bio_info = dataclasses.replace(
             prev.bio if prev else Snapshot().bio,
             text=bio_text,
+            text_en=bio_text_en,
         )
 
     merged_states = _prev_repo_states(prev)
