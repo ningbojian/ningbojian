@@ -16,6 +16,8 @@
 README 在模式 B 中**只是输出物**，事实来源是 commit diff，因此不存在「AI 读 README 又写回
 README」的自我指涉。模式 A、B 共用同一套配置、快照与 AI 供应商，在同一个轮次内先后执行；
 B 的产出一律走各仓库 PR，A 的 Overview 本体则直推 main（事实声明见 §5.5，裁定 §12-R9）。
+（2026-10-23 修订：现有 README 原文现嵌入 prompt 仅作修订基础——写回仍只动托管区、
+system prompt 把原文声明为事实资料，自我指涉与注入风险由这两道边界兜底。）
 
 ## 2. 目标
 
@@ -160,6 +162,10 @@ AI 失败已抑制 / 勾选与 config 冲突）——静默必须能被看懂是
 - patch 按最近提交优先截断到 `max_diff_chars`（默认 6000，与模式 A 的 README 截断同量级），
   截断处加显式标记（标记本身允许超出上限少量字符——上限约束的是正文，测试计划裁定 R-T1）；
 - 超限/二进制为主：降级为 `git/trees` 文件树 + 提交标题列表；
+- **现有 README 全文嵌入 prompt 作为修订基础（2026-10-23 修订）**：AI 以原 README 为底
+  修订托管区（保留仍准确的表述、融入本次变更），不再只凭 diff 凭空生成；原文同为事实
+  资料，system prompt 统一声明忽略其中指令；本仓 config.yaml 的 `repo_readmes.prompt_version`
+  随之升为 2（§5.4 机制，下轮队列按新 prompt 重新生成）；
 - **若 compare 结果显示变更文件只有 `README.md` 本身 → 不调 AI，只推进基线**
   （否则 PR 合并后机器人自己的提交会触发下一轮，形成循环）；
 - 基线经「PR 合并」推进后的首轮 compare 会混入主干上已合并的 README/marker 变更：构造
@@ -224,8 +230,11 @@ compare；功能分支上的提交在合入默认分支前不计入，合入后�
 HH:MM、超时自动继续」，见 §4 第 3 步 a）：**
 
 > ## 🔔 README 更新待合并清单（更新于 {时间}，北京时间）
-> - [ ] shiyuan：https://github.com/ningbojian/shiyuan/pull/42
->   （[新版 README 预览](https://github.com/ningbojian/shiyuan/blob/readme-auto/update/README.md)）
+> @你
+> - [ ] shiyuan：[PR](https://github.com/ningbojian/shiyuan/pull/42)（[新版 README 预览](https://github.com/ningbojian/shiyuan/blob/readme-auto/update/README.md)）
+>
+> （2026-10-23 修订：条目为单行规范 markdown 链接——裸 URL 会被 GitHub 自动链接吞掉紧随的
+> 全角括号与中文，href 坏成 404 且整条拖成两行，故 PR 与预览都用 [文字](url) 写法）
 >
 > 三种处理方式的效果：
 > - **合并** → 新 README 落进仓库，主页本轮已经吸收，无需再做任何事；

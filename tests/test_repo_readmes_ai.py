@@ -184,19 +184,18 @@ def test_strip_readme_hunks_removes_self_references():
     assert "旧托管区文案" not in prompt  # 机器人旧文案不回流
 
 
-def test_marker_old_content_never_in_input():
-    """AP05：既有 README 的 marker 区旧内容不进 AI 输入——输入只来源于 commits+files。"""
-    existing = f"# 标题\n{START}\n手写的旧托管区内容\n{END}\n手写正文特征句。\n"
+def test_existing_readme_embedded_as_revision_base():
+    """2026-10-23 修订（取代旧 AP05「原文不进输入」）：现有 README 全文嵌入 prompt
+    作为修订基础——用户要求 AI 对比原 README 并在其基础上修改，而不是只凭 diff
+    凭空生成；原文整体分节标注为事实资料，指令注入防线由 system prompt 统一覆盖。"""
+    existing = f"# 标题\n{START}\n旧托管区文案\n{END}\n手写正文特征句。\n"
     rec = Recorder()
-    _process(
-        [_item()],
-        {"alice/cool-tool": _entry()},
-        rec,
-        fetch_readme=lambda fn: existing,
-    )
+    _process([_item()], {"alice/cool-tool": _entry()}, rec, fetch_readme=lambda fn: existing)
     prompt = rec.calls[0][1]
-    assert "手写的旧托管区内容" not in prompt
-    assert "手写正文特征句" not in prompt
+    assert "当前 README 全文" in prompt  # 原文分节进入 prompt
+    assert "手写正文特征句" in prompt  # 手写部分作为修订参考
+    assert "旧托管区文案" in prompt  # 现有托管区同样作为修订基础
+    assert "修订" in prompt  # 提示词明确要求在原文基础上修订
 
 
 # ---- system prompt 防线与约定（AP07/AP08/AP09/AP10）----

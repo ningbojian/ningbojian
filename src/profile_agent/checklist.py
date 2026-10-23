@@ -45,7 +45,12 @@ def build_checklist_body(
         short = full.split("/", 1)[-1]
         b = str(pr.get("branch") or branch)
         preview = f"https://github.com/{full}/blob/{b}/README.md"
-        lines.append(f"- [ ] {short}：{pr.get('html_url', '')}（[新版 README 预览]({preview})）")
+        # 规范 markdown 链接而非裸 URL：GitHub 裸链接会吞掉紧随的全角括号与中文
+        # （href 变成「…/pull/N（[新版」→ 点开 404），整条还被拖成两行（2026-10-23）
+        lines.append(
+            f"- [ ] {short}：[PR]({pr.get('html_url', '')})"
+            f"（[新版 README 预览]({preview})）"
+        )
     lines += [
         "",
         "三种处理方式的效果：",

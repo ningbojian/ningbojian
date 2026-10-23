@@ -159,7 +159,7 @@ GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 无权修改 `.g
 
 ## 各仓库 README 自动更新（模式 B，默认关闭）
 
-让每个仓库的 README 也跟着代码一起长：**某仓库有新提交 → AI 更新它的 README → 开 PR 给你审 → 你的个人主页 Overview 同轮吸收最新内容**。只动 README 里一对标记之间的「托管区」，标记外你手写的内容一个字节都不会碰。
+让每个仓库的 README 也跟着代码一起长：**某仓库有新提交 → AI 更新它的 README → 开 PR 给你审 → 你的个人主页 Overview 同轮吸收最新内容**。AI 生成前会先读取仓库现有的 README 全文作为修订基础——保留仍然准确的表述、把新变更融进去，而不是只看几条提交凭空另写。写回只动 README 里一对标记之间的「托管区」，标记外你手写的内容一个字节都不会碰。
 
 ### 三结局口诀（PR 开出来后只有三种处理，怎么选都不会坏）
 
@@ -245,7 +245,7 @@ repo_readmes:
   include: []              # 空 = 全部仓库；灰度建议先放 1 个，如 ["shiyuan"]
   exclude: []              # 在 include 之上再排除
   max_diff_chars: 6000     # 喂给模型的 diff 字符上限
-  prompt_version: 1        # 改了模式 B 的 prompt 后 +1，强制重新生成
+  prompt_version: 2        # 改了模式 B 的 prompt 后 +1，强制重新生成
   pr_branch: "readme-auto/update"  # PR 分支名；主页从这里读未合并内容
 ```
 

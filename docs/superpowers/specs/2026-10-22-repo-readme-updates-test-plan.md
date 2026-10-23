@@ -364,8 +364,8 @@
 - 前置：compare 含 README.md patch（内嵌 marker 与机器人旧文案）与 src/core.py 代码 patch
 - 断言：① prompt 含代码 patch 特征串；② 不含 "profile-agent:readme" marker 字样；③ 不含机器人旧文案；④ 假 AI 仍被调用
 
-**AP05 · 既有 README 的 marker 区旧内容不进 AI 输入** `M2` `P1` — 依据 §5.2/§5.3
-- 断言：prompt 不含旧托管区文案与手写正文特征句、含本轮代码 patch——输入只来源于 commits+files
+**AP05 · 现有 README 全文嵌入 prompt 作为修订基础**（2026-10-23 修订，取代旧「marker 区旧内容不进输入」）`M2` `P1` — 依据 §5.3（修订）
+- 断言：prompt 含「当前 README 全文」分节、含手写正文与旧托管区文案（原文整体参考）、含「修订」类指令；system 同步把原文声明为事实资料
 
 **AP06 · 变更只有 README 自身时不调 AI 只推进基线** `M2` `P0` — 依据 §5.3/§4（与 Q02/SB06 去重：本条聚焦「AI 零调用」，实现时共用 fixture）
 - 断言：AI 计数 0、基线推进到 HEAD、无分支推送
@@ -470,7 +470,7 @@
 
 **IW01 · 首次产出后创建待合并清单 issue 且结构完整** `M3` `P0` — 依据 §4-2a、§5.5 文案草案、§9
 - 前置：enabled=true、include=[ningbojian/shiyuan]；fake 预置 compare→假 AI→git-data→POST pulls #42；issues 搜索无既有清单
-- 断言：① POST /repos/ningbojian/ningbojian/issues，assignees=["alice"]；② body 含「## 🔔 README 更新待合并清单（更新于」与「北京时间」；③ 含 …/pull/42 链接与预览链接 …/blob/readme-auto/update/README.md；④ 含「合并」「关闭」「先放着」与 @alice；**⑤（核实补缺）「先放着」条含「刷新」与「重读 diff」类关键词**
+- 断言：① POST /repos/ningbojian/ningbojian/issues，assignees=["alice"]；② body 含「## 🔔 README 更新待合并清单（更新于」与「北京时间」；③ 含 …/pull/42 链接与预览链接 …/blob/readme-auto/update/README.md；④ 含「合并」「关闭」「先放着」与 @alice；**⑤（核实补缺）「先放着」条含「刷新」与「重读 diff」类关键词**；⑥（2026-10-23 修复）每仓恰一行、条目为规范 markdown 链接 `[PR](url)`，绝无「：https://」裸链接体（裸 URL 被 GitHub 自动链接吞全角括号致 404、渲染拖成两行）
 
 **IW02 · 有遗留 open PR 但本轮无产出仍刷新清单** `M3` `P0` — 依据 §4-2 首句 — 断言：无 POST /issues、仅 PATCH /issues/5、body 仍含 #7 链接、时间戳已刷新、三结局文案完整
 
@@ -633,7 +633,7 @@
 | `ai_block_text` | 托管区正文样例 | 中文一句话+bullets |
 | `ai_full_readme` | 整份 README 样例（MK10/MK20） | 含 H1 完整文档 |
 | `ai_block_text_with_marker_literals` | marker 字面清洗（MK18） | 正文内嵌 end 字面 |
-| `readme_with_marker_block` | 旧托管区不进输入（AP05） | 含旧文案+手写特征句 |
+| `readme_with_marker_block` | 原文嵌入 prompt（AP05） | 含旧文案+手写特征句 |
 
 **基线/PR 状态类**
 

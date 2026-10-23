@@ -165,3 +165,25 @@ def test_body_builder_respects_custom_branch_in_preview():
         [dict(PR7, branch="docs/readme-bot")], username="alice", updated_at="t"
     )
     assert "/blob/docs/readme-bot/README.md" in body
+
+
+def test_body_items_single_line_markdown_links_no_bare_urls():
+    """2026-10-23 修复：条目用规范 markdown 链接、每仓恰一行。
+
+    裸 URL 会被 GitHub 自动链接吞掉紧随其后的全角括号与中文（href 变成
+    「…/pull/7（[新版」→ 点开 404），markdown 语法也被连带打坏、渲染拖成两行；
+    改成 [PR](url) 写法后可见文本短、链接干净、每仓一行。
+    """
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]")]
+    assert len(entries) == 2  # 每仓恰好一行
+    assert entries[0] == (
+        "- [ ] shiyuan：[PR](https://github.com/ningbojian/shiyuan/pull/7)"
+        "（[新版 README 预览](https://github.com/ningbojian/shiyuan/blob/readme-auto/update/README.md)）"
+    )
+    assert entries[1] == (
+        "- [ ] profile-readme-agent：[PR](https://github.com/ningbojian/profile-readme-agent/pull/43)"
+        "（[新版 README 预览](https://github.com/ningbojian/profile-readme-agent/blob/readme-auto/update/README.md)）"
+    )
+    # 条目里绝不出现「：https://」形式的裸链接体——它就是 404 与两行问题的根源
+    assert all("：https://" not in ln for ln in entries)
