@@ -35,6 +35,7 @@ from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
 from .preserve import extract_custom, merge_readme_3way
+from .pin_panel import panel_candidates, parse_pin_panel, render_pin_panel
 from .render import render_readme, write_if_changed
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
@@ -285,6 +286,17 @@ def run(
     readme_active = cfg.readme.enabled and not skip_readme
     projects_active = cfg.projects.enabled and not skip_projects
 
+    # WP6：README 内置置顶勾选面板——先于聚合解析（勾选即置顶；面板是置顶的唯一 UI，
+    # config 的 featured.pin 仅首跑种子）。锚点缺失/坏 → None 回落种子，由门的
+    # panel_missing 条件负责重建。
+    panel_text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    parsed_pins = (
+        parse_pin_panel(panel_text, warn=lambda m: print(f"警告：{m}", file=sys.stderr))
+        if panel_text
+        else None
+    )
+    effective_pin = list(parsed_pins) if parsed_pins is not None else list(cfg.featured.pin)
+
     # 1. 取数
     gh_client: GitHubClient | None = None
     try:
@@ -299,14 +311,15 @@ def run(
         print(f"获取数据失败：{exc}", file=sys.stderr)
         return 3
 
-    # 2. 聚合
+    # 2. 聚合（WP6：精选/置顶统一用面板解析出的 effective_pin，config pin 仅种子）
     repos = normalize_repos(raw_repos, cfg.repos)
     totals = compute_totals(user, repos)
-    featured = select_featured(repos, cfg.featured)
+    featured_cfg = dataclasses.replace(cfg.featured, pin=effective_pin)
+    featured = select_featured(repos, featured_cfg)
     # 置顶板块：pin 命中且仍在精选名单内（count 截断语义由 select_featured 统一负责），按 pin 顺序
     featured_names = {r.full_name for r in featured}
     pinned = [
-        r for r in resolve_pins(repos, cfg.featured.pin) if r.full_name in featured_names
+        r for r in resolve_pins(repos, effective_pin) if r.full_name in featured_names
     ]
     fingerprint = stats_fingerprint(totals, repos, featured)
     template_bytes = template_path.read_bytes() if template_path.exists() else b""
@@ -315,6 +328,14 @@ def run(
     # 3. 增量门：数据、配置/模板/资料、README 存在、简介新鲜、项目介绍齐备 全部无变化才跳过
     snap_path = root / cfg.snapshot.path
     prev = load_snapshot(snap_path)
+    # WP6 门条件：面板勾选变化 或 面板缺失（锚点被删/旧版升级首跑）→ 开门重建
+    # （只渲染+写入，0 AI——数据与配置指纹未变）
+    pins_changed = (
+        parsed_pins is not None and prev is not None and parsed_pins != list(prev.pins)
+    )
+    panel_missing = readme_active and readme_path.exists() and parsed_pins is None
+    if panel_missing:
+        print("警告：置顶面板缺失（锚点被删或旧版 README），本轮已重建", file=sys.stderr)
     proj_targets = _project_targets(repos, featured, cfg) if projects_active else []
     ai_active = bool(
         not no_ai and cfg.ai.enabled and os.environ.get(cfg.ai.key_env_name)
@@ -472,6 +493,9 @@ def run(
         and (not readme_active or readme_path.exists())
         # 双语开时 en 文件被手删也视为「缺失」开门重建（WP3）
         and (not (readme_active and cfg.readme.bilingual) or en_readme_path.exists())
+        # WP6：面板勾选变化/面板缺失都要开门（仅渲染+写入，0 AI）
+        and not pins_changed
+        and not panel_missing
         and bio_fresh
         and (not projects_active or _projects_clean(proj_targets, cfg, prev, root, ai_active=ai_active))
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
@@ -969,6 +993,16 @@ def run(
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
             custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
+            # WP6：置顶勾选面板（仅 zh 文件；en 文件渲染一行指回中文 README）。
+            # 行序 = 有效置顶序 + 其余候选序（不再二次排序，保证解析→渲染→再解析恒等）
+            pin_panel=(
+                render_pin_panel(
+                    panel_candidates(repos, effective_pin, featured),
+                    count_cap=cfg.featured.count,
+                )
+                if repos
+                else ""
+            ),
         )
         content = render_readme(ctx, template_path)
         # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取
@@ -1038,6 +1072,8 @@ def run(
         # WP5：三路合并 base 存「本轮渲染」而非合并写入（防下轮把手改误当已拥有而抹掉）
         readme_last=readme_last_new,
         readme_last_en=readme_last_en_new,
+        # WP6：最近一次渲染的生效置顶名单（面板解析结果；下轮与面板勾选比对）
+        pins=list(effective_pin),
         totals={
             "public_repos": totals.public_repos,
             "followers": totals.followers,

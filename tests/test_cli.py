@@ -53,7 +53,8 @@ def test_full_run_writes_readme_and_snapshot(tmp_path):
     readme = tmp_path / "README.md"
     snap = tmp_path / "data" / "snapshot.json"
     assert readme.exists() and "统计信息" in readme.read_text(encoding="utf-8")
-    assert "📌" not in readme.read_text(encoding="utf-8")  # 未配置 pin 不出置顶板块
+    # 有意变更（WP6）：置顶板块标题级断言——面板标题也含 📌（面板常驻，未配置 pin 时全部未勾）
+    assert "## 📌" not in readme.read_text(encoding="utf-8")  # 未配置 pin 不出置顶板块
     data = json.loads(snap.read_text(encoding="utf-8"))
     assert data["username"] == "alice"
     assert data["stats_fingerprint"].startswith("sha256:")

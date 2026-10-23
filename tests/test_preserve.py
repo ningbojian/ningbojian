@@ -95,6 +95,17 @@ def test_merge_3way_deleted_generated_section_restored():
     assert "| cool-tool | 120 |" in merged
 
 
+def test_merge_3way_shrinking_replace_restored():
+    """缩行替换（整块删除常被 SequenceMatcher 对齐成缩行 replace）→ 同样恢复 ours。
+
+    WP6 面板锚点块删除回归：不拦缩行 replace 会把面板块当「用户修改」吞掉。
+    """
+    lines = BASE.splitlines(keepends=True)
+    theirs = "".join(lines[:2] + lines[7:])  # 删掉表格块（5 行）→ 缩行
+    merged = merge_readme_3way(BASE, theirs, BASE)
+    assert "| cool-tool | 120 |" in merged
+
+
 def test_merge_3way_user_insert_appended_line_kept():
     """用户在文件尾追加说明 → 保留（规则 1 插入分支）。"""
     theirs = BASE + "\n用户追加的说明\n"

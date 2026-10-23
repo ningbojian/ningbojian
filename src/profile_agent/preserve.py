@@ -53,7 +53,9 @@ def merge_readme_3way(base: str, theirs: str, ours: str) -> str:
     规则（设计锁定）：
     1. theirs 相对 base 修改/插入、ours 未动该处 → 保留 theirs（用户手改）
     2. ours 与 theirs 都动过同一处 → ours（数据为真）
-    3. theirs 删除而 ours 保留 → 恢复 ours（生成区删除无效，防抖动；想隐藏用 config）
+    3. theirs 删除而 ours 保留 → 恢复 ours（生成区删除无效，防抖动；想隐藏用 config）。
+       含删除成分的「缩行替换」同样按删除处理——SequenceMatcher 常把整块删除
+       对齐成缩行 replace 而非 delete，不拦会被规则 1 误收（面板锚点块回归实测）
     4. 其余差异 → ours
     跨越再生成块的用户编辑整段丢弃（保守取 ours，罕见情形不值得冒险）。
     """
@@ -90,11 +92,13 @@ def merge_readme_3way(base: str, theirs: str, ours: str) -> str:
         lo, hi = i1, (i1 if i1 == i2 else i2)
         return any(lo <= h and l <= hi for l, h in o_spans)
 
-    # 收集可应用的用户编辑：replace/insert 且无冲突；delete 按规则 3 永远丢弃
+    # 收集可应用的用户编辑：replace/insert 且无冲突；delete 与缩行替换按规则 3 丢弃
     edits: list[tuple[int, int, list[str]]] = []
     for tag, i1, i2, j1, j2 in ops_t:
         if tag == "equal" or tag == "delete":
             continue
+        if tag == "replace" and (j2 - j1) < (i2 - i1):
+            continue  # 规则 3：含删除成分的缩行替换同样无效（整块删除常被对齐成缩行 replace）
         if conflicts(i1, i2):
             continue  # 规则 2 / 跨块：ours 为准
         edits.append((i1, i2, t[j1:j2]))
