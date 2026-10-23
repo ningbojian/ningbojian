@@ -20,7 +20,7 @@ featured:
   sort_by: "score" # score | stars | updated
   score_stars_weight: 1.0
   score_recency_weight: 0.5
-  pin: [] # 置顶展示的仓库（full_name 或裸名），按此顺序进「📌 置顶项目」板块，如 ["you/cool-tool"]
+  pin: [] # 首渲染种子（full_name 或裸名，如 ["you/cool-tool"]）：首次渲染按此顺序进「📌 置顶项目」；此后以 README 底部勾选面板为准（改这里不再生效）
 
 readme:
   enabled: true # false = 不更新个人主页 overview（可只更新项目介绍）
@@ -61,7 +61,8 @@ projects:
   exclude: [] # 永远跳过这些仓库名
   review_via_pr: true # AI 生成内容走 PR 人工审核；false = 直接提交
 
-# 模式 B：各仓库 README 托管区自动更新（代码提交 → AI 更新该仓库 README → 开 PR → 主页同轮吸收）
+# 模式 B：各仓库 README 托管区自动更新（代码提交 → AI 更新该仓库 README → 开 PR 审核；
+# 主页只有缺描述仓库的一句话简介会随后吸收，统计与其余内容不依赖合并）
 # 开启需配置 WORKFLOW_PAT secret。当前为全量：所有公开仓库有新提交即触发（灰度期已过）。
 repo_readmes:
   enabled: true
