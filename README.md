@@ -47,7 +47,7 @@ Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。�
   <tr>
     <td align="center" valign="top">
       <h3><a href="https://github.com/ningbojian/ProfileReadmeAgent">🐍 ProfileReadmeAgent</a></h3>
-      <p>一键生成并自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片与中文 AI 简介，支持定时增量更新，AI 内容经 PR 人工审核后发布。</p>
+      <p>自动维护 GitHub 个人主页 README：仓库统计、精选项目卡片、中文 AI 简介，定时增量更新，AI 内容经 PR 审核后发布。</p>
       <p><img src="https://img.shields.io/badge/Python-3776AB?style=flat-square" alt="Python" /> <img src="https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat-square&amp;label=stars" alt="Stars" /> <img src="https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat-square&amp;label=forks" alt="Forks" /> <img src="https://img.shields.io/badge/last_push-2026--10--23-lightgrey?style=flat-square" alt="最后推送" /></p>
     </td>
   </tr>
@@ -94,4 +94,4 @@ Python 后端与桌面应用开发者，热衷将技术与生活趣味结合。�
 
 ---
 
-> ⏱️ 本页面由机器人于 2026-10-23 14:37（北京时间） 自动更新
+> ⏱️ 本页面由机器人于 2026-10-23 21:16（北京时间） 自动更新
