@@ -101,6 +101,23 @@ def test_readme_only_change_advances_baseline_not_queue():
     assert entries["alice/cool-tool"]["last_input_hash"] == ""
 
 
+def test_en_only_commit_advances_baseline_not_queue():
+    """WP7：变更只有 README.en.md 自身 → 与 README.md 同等防自触发：只推进基线不入队。"""
+    entries = {"alice/cool-tool": _entry("base123")}
+    fetchers = FakeFetchers(
+        heads={"alice/cool-tool": "def456"},
+        compares={
+            ("alice/cool-tool", "base123", "def456"): {
+                "commits": [{"sha": "def456", "message": "docs: 更新英文 README"}],
+                "files": [{"filename": "README.en.md", "patch": "@@ -1 +1 @@\n-Old\n+New"}],
+            }
+        },
+    )
+    queue = _run([_repo("cool-tool")], entries, fetchers)
+    assert queue == []
+    assert entries["alice/cool-tool"]["sha"] == "def456"
+
+
 # ---- 首见（Q03/Q07）----
 
 

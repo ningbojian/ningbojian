@@ -582,3 +582,70 @@ def test_get_pr_state_404_and_error_degrade_to_unknown():
     broken.add("GET", f"{REPO_URL}/pulls/10",
                FakeResponse(status=403, text="forbidden"))
     assert get_pr_state(_client(broken), FULL, 10) == "unknown"
+
+
+# ---- WP7 双文件推送（单 tree 多 blob）----
+
+
+def test_push_results_dual_files_single_tree():
+    """WP7：content_en 存在 → 一个 commit 里同时落 README.md 与 README.en.md 两个 blob。"""
+    http = FakeHttp()
+    _open_pr_check(http, [])
+    http.add("GET", f"{REPO_URL}/git/ref/heads/readme-auto/update",
+             FakeResponse(status=404, text="not found"))
+    http.add("POST", f"{REPO_URL}/git/refs",
+             FakeResponse(status=201, json_data={"ref": "refs/heads/readme-auto/update"}))
+    http.add("POST", f"{REPO_URL}/git/blobs",
+             FakeResponse(status=201, json_data={"sha": "blob-zh"}),
+             FakeResponse(status=201, json_data={"sha": "blob-en"}))
+    http.add("POST", f"{REPO_URL}/git/trees", FakeResponse(status=201, json_data={"sha": "tree1"}))
+    http.add("POST", f"{REPO_URL}/git/commits", FakeResponse(status=201, json_data={"sha": "commit1"}))
+    http.add("POST", f"{REPO_URL}/pulls",
+             FakeResponse(status=201, json_data={"number": 50, "html_url": "https://x/50"}))
+    entries: dict[str, dict] = {}
+    res = push_results(
+        _client(http),
+        [_result(content="# 中文托管区\n", content_en="# EN managed block\n")],
+        entries=entries,
+    )
+    assert [r.number for r in res] == [50]
+    blobs = [r for r in http.writes() if r["url"].endswith("/git/blobs")]
+    assert [b["json"]["content"] for b in blobs] == ["# 中文托管区\n", "# EN managed block\n"]
+    tree = next(r for r in http.writes() if r["url"].endswith("/git/trees"))
+    assert tree["json"]["tree"] == [
+        {"path": "README.md", "mode": "100644", "type": "blob", "sha": "blob-zh"},
+        {"path": "README.en.md", "mode": "100644", "type": "blob", "sha": "blob-en"},
+    ]
+    # 单 commit 单 ref：两文件同船，不各开一条 PR
+    commits = [r for r in http.writes() if r["url"].endswith("/git/commits")]
+    assert len(commits) == 1
+    # 快照回写双语哈希（en 漂移检测信号）
+    assert entries[FULL]["block_hash"].startswith("sha256:")
+    assert entries[FULL]["block_hash_en"].startswith("sha256:")
+
+
+def test_push_results_no_en_single_blob_unchanged():
+    """护栏：content_en 为空 → 单 blob，与旧版载荷字节一致。"""
+    http = FakeHttp()
+    _open_pr_check(http, [])
+    _happy_gitdata(http)
+    http.add("POST", f"{REPO_URL}/pulls",
+             FakeResponse(status=201, json_data={"number": 51, "html_url": "https://x/51"}))
+    entries: dict[str, dict] = {}
+    push_results(_client(http), [_result()], entries=entries)
+    blobs = [r for r in http.writes() if r["url"].endswith("/git/blobs")]
+    assert len(blobs) == 1
+    assert "block_hash_en" not in entries[FULL]
+
+
+def test_build_pr_body_bilingual_mentions_two_files():
+    """PR body 在双语推送时说明两个文件同 PR 审核（交互文案可懂）。"""
+    body = build_pr_body(
+        commits=[{"sha": "def4567890"}], base_sha="base1234567", head_sha="def4567890",
+        bilingual=True,
+    )
+    assert "README.md" in body and "README.en.md" in body
+    body_zh = build_pr_body(
+        commits=[{"sha": "def4567890"}], base_sha="base1234567", head_sha="def4567890",
+    )
+    assert "README.en.md" not in body_zh  # 单语 body 不提 en

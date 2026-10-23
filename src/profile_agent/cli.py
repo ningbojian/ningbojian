@@ -573,6 +573,15 @@ def run(
                             fetch_readme=(
                                 b_client_eff.get_repo_readme if b_client_eff is not None else None
                             ),
+                            fetch_readme_en=(
+                                (
+                                    lambda fn: b_client_eff.get_repo_readme(
+                                        fn, path="README.en.md"
+                                    )
+                                )
+                                if b_client_eff is not None and cfg.readme.bilingual
+                                else None
+                            ),
                             fetch_tree=(
                                 (lambda fn, sha: _fetch_tree_paths(b_client_eff, fn, sha))
                                 if b_client_eff is not None
@@ -580,6 +589,7 @@ def run(
                             ),
                             strip_readme=b_merged,
                             force=force or b_force,
+                            bilingual=cfg.readme.bilingual,
                         )
                         b_results.extend(one)
                         if b_client_eff is not None and not dry_run:

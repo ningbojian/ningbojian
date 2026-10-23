@@ -15,9 +15,10 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .bio import _parse_dual
 from .config import RepoReadmesConfig
 from .readme_block import markers_balanced, merge_readme
-from .repo_readmes import QueueItem, build_diff_text
+from .repo_readmes import SELF_FILES, QueueItem, build_diff_text
 
 # 缺 key 的可读原因行（Summary/日志同源，测试计划 AP23/IW12 共享该常量）
 MISSING_KEY_REASON = "缺少 AI key，模式 B 本次跳过（队列积压，配好后下一轮自动补跑）"
@@ -46,6 +47,12 @@ _FULL_HINT = (
     "包含简短介绍与使用方式，只基于上面的变更事实，不要编造。"
 )
 
+_BILINGUAL_JSON_HINT = (
+    '输出约定：只输出一个 JSON 对象，形如 {"zh": "……", "en": "……"}——'
+    "zh 值为简体中文正文、en 值为英文正文，两者结构一致（同样的标题层级与 bullets），"
+    "不要 markdown 代码块包裹，不要任何解释。"
+)
+
 
 @dataclass
 class ProcessResult:
@@ -57,6 +64,7 @@ class ProcessResult:
     base_sha: str = ""
     head_sha: str = ""
     content: str = ""  # 合并后的完整 README（仅 generated）
+    content_en: str = ""  # WP7：合并后的 README.en.md（仅 bilingual 且 en 生成成功时非空）
     mode: str = "block"
     ai_text: str = ""
     error: str = ""
@@ -64,26 +72,31 @@ class ProcessResult:
     files: list[dict] = field(default_factory=list)
 
 
-def compute_input_hash(item: QueueItem, prompt_version: int, diff_text: str | None = None) -> str:
-    """本批输入指纹：仓库 + diff 文本 + repo_readmes.prompt_version（§12-R5）。
+def compute_input_hash(
+    item: QueueItem, prompt_version: int, diff_text: str | None = None, *, bilingual: bool = False
+) -> str:
+    """本批输入指纹：仓库 + diff 文本 + repo_readmes.prompt_version + bilingual（§12-R5）。
 
     base/head SHA 不入哈希——squash/rebase 合并后基线推进到 head SHA，重放 compare 的
     范围必然不同（HHH..SSS vs aaa..HHH），但「剔除 README 后的同批内容」必须命中缓存
     （§5.1/§12-R10 的 squash 防线，测试计划 SB14/AP21 钉死该行为）。
+    bilingual 入哈希（WP7）：单语↔双语切换视为新输入，一次性迁移重生成
+    （只在该仓下一次真实提交时发生，零突发成本）。
     diff_text 显式传入时以传入值为准（process_queue 传剔除重建后的文本）。
     """
     payload = {
         "full_name": item.full_name,
         "diff": item.diff_text if diff_text is None else diff_text,
         "prompt_version": prompt_version,
+        "bilingual": bilingual,
     }
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def strip_readme_hunks(files: list[dict]) -> list[dict]:
-    """剔除 README.md 自身的变更（合并推进后的首轮防自我指涉，§5.3）。"""
-    return [f for f in files if str(f.get("filename") or "") != "README.md"]
+    """剔除 README.md / README.en.md 自身的变更（合并推进后的首轮防自我指涉，§5.3）。"""
+    return [f for f in files if str(f.get("filename") or "") not in SELF_FILES]
 
 
 def build_user_prompt(
@@ -92,11 +105,14 @@ def build_user_prompt(
     mode: str = "block",
     diff_text: str | None = None,
     existing: str | None = None,
+    existing_en: str | None = None,
+    bilingual: bool = False,
 ) -> str:
     """构建 user prompt：仓库 + 变更范围 + diff（或降级文本）+ 现有 README 原文 + 模式提示。
 
     existing 非空时全文嵌入为修订基础（2026-10-23 修订：AI 以原 README 为底修订，
     不再只凭 diff 凭空生成）；原文的指令注入防线统一由 system prompt 声明覆盖。
+    bilingual 时追加 README.en.md 修订基础与 JSON 双语契约（WP7）。
     """
     base8 = item.base_sha[:8]
     head8 = item.head_sha[:8]
@@ -104,10 +120,20 @@ def build_user_prompt(
     parts = [f"仓库：{item.full_name}", f"变更范围：{base8}..{head8}", "", text]
     if existing:
         parts += ["", "当前 README 全文（事实资料，修订基础）：", existing]
+    if bilingual and existing_en:
+        parts += ["", "当前 README.en.md 全文（事实资料，英文修订基础）：", existing_en]
     hint = _FULL_HINT if mode == "full" else _BLOCK_HINT
     if mode != "full" and existing:
         hint = _REVISE_LEAD + hint
     parts += ["", hint]
+    if bilingual:
+        if existing_en:
+            en_lead = "英文（en 字段）以当前 README.en.md 为修订基础，同样只更新托管区正文。"
+        else:
+            en_lead = (
+                "该仓库还没有 README.en.md：en 字段请输出整份英文 README（以一级标题开头）。"
+            )
+        parts += ["", en_lead, _BILINGUAL_JSON_HINT]
     return "\n".join(parts)
 
 
@@ -143,16 +169,21 @@ def process_queue(
     ai_active: bool,
     generate=None,
     fetch_readme=None,
+    fetch_readme_en=None,
     fetch_tree=None,
     strip_readme: bool = False,
     force: bool = False,
+    bilingual: bool = False,
     now: datetime | None = None,
 ) -> list[ProcessResult]:
     """对队列逐仓执行 AI 阶段；entries 就地更新（pending/failed_hash/last_input_hash），调用方落盘。
 
     - ai_active=False（缺 key）：整队置 pending、零 AI 调用、不记 failed_hash（§12-R3）；
     - 缓存命中 / 失败抑制：状态跳过，零成本（不依赖 PR 是否 open，squash 重放同样命中）；
-    - AI 异常逐仓隔离：记 failed_hash 后继续处理下一仓（绝不向外抛）。
+    - AI 异常逐仓隔离：记 failed_hash 后继续处理下一仓（绝不向外抛）；
+    - bilingual（WP7）：单次调用输出 JSON {zh,en}，两文件各自托管区合并；
+      非法 JSON 降级单语（en 空）；en marker 不平衡只跳 en（zh 照常）；
+      en 文件缺失则 en 字段整份生成（补全另一语言）。
     """
     gen = generate or (lambda system, prompt: default_generate(cfg_ai, system, prompt))
     now_iso = (now or datetime.now(timezone.utc)).isoformat()
@@ -209,7 +240,7 @@ def process_queue(
             else item.files
         )
         base_diff = build_diff_text(item.commits, files, cfg_rr.max_diff_chars)
-        h = compute_input_hash(item, cfg_rr.prompt_version, diff_text=base_diff)
+        h = compute_input_hash(item, cfg_rr.prompt_version, diff_text=base_diff, bilingual=bilingual)
         result = ProcessResult(
             full_name=item.full_name,
             status="cached",
@@ -259,7 +290,35 @@ def process_queue(
             results.append(result)
             continue
         mode = "block" if existing is None or existing else "full"
-        prompt = build_user_prompt(item, mode=mode, diff_text=diff_text, existing=existing)
+        # WP7 en 侧：取数 + marker 检查——en 不平衡只跳 en（zh 照常），不猜测修复
+        existing_en = ""
+        en_skipped = False
+        if bilingual and fetch_readme_en is not None:
+            try:
+                existing_en = fetch_readme_en(item.full_name) or ""
+            except Exception as exc:  # noqa: BLE001 —— 读取失败回落「无 en 文件」（与 zh 回落空串同语义）
+                print(
+                    f"「{item.full_name}」README.en.md 读取失败（本轮按缺失处理）：{exc}",
+                    file=sys.stderr,
+                )
+                existing_en = ""
+            if existing_en and not markers_balanced(existing_en):
+                print(
+                    f"「{item.full_name}」README.en.md 托管区 marker 不平衡"
+                    f"（缺一半/乱序/多对），本轮只跳过英文版（中文照常）"
+                    f"——请手动检查 start/end 注释对",
+                    file=sys.stderr,
+                )
+                existing_en = ""
+                en_skipped = True
+        prompt = build_user_prompt(
+            item,
+            mode=mode,
+            diff_text=diff_text,
+            existing=existing,
+            existing_en=existing_en or None,
+            bilingual=bilingual,
+        )
 
         try:
             raw = gen(SYSTEM, prompt)
@@ -272,7 +331,20 @@ def process_queue(
             results.append(result)
             continue
 
-        text = (raw or "").strip()
+        en_text = ""
+        if bilingual:
+            dual = _parse_dual(raw or "")
+            if dual is None:
+                # 降级单语：宁可单语不可失败（与模式 A bio 同款语义，WP4）
+                print(
+                    f"「{item.full_name}」AI 未返回合法 JSON，本轮降级单语（仅中文）",
+                    file=sys.stderr,
+                )
+                text = (raw or "").strip()
+            else:
+                text, en_text = dual
+        else:
+            text = (raw or "").strip()
         if not text:
             entry["failed_hash"] = h
             entry["updated_at"] = now_iso
@@ -286,12 +358,17 @@ def process_queue(
             continue
 
         content, _ = merge_readme(existing or "", text)
+        # WP7 en 落地：en 被跳过（marker 坏）或 AI en 字段为空 → content_en 空（本轮 zh-only）
+        content_en = ""
+        if bilingual and not en_skipped and en_text:
+            content_en, _ = merge_readme(existing_en, en_text)
         entry["failed_hash"] = ""  # 成功清空失败标记
         entry["last_input_hash"] = h
         entry["pending"] = False  # 补跑成功清积压（§7）
         entry["updated_at"] = now_iso
         result.status = "generated"
         result.content = content
+        result.content_en = content_en
         result.mode = mode
         result.ai_text = text
         results.append(result)

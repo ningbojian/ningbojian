@@ -91,3 +91,22 @@ def test_get_repo_readme_missing_returns_empty_string():
     session = FakeSession([FakeResponse(status=404, text="not found")])
     client = GitHubClient(token=None, session=session)
     assert client.get_repo_readme("alice/no-readme") == ""
+
+
+def test_get_repo_readme_en_path_uses_contents_api():
+    """WP7：path="README.en.md" 走 /contents/{path}（en 文件不存在该专用端点）。"""
+    text = "# Title\nEnglish intro"
+    b64 = base64.b64encode(text.encode("utf-8")).decode()
+    session = FakeSession([FakeResponse(json_data={"content": b64, "encoding": "base64"})])
+    client = GitHubClient(token=None, session=session)
+    assert client.get_repo_readme("alice/cool-tool", path="README.en.md") == text
+    assert session.requests[0]["url"] == (
+        "https://api.github.com/repos/alice/cool-tool/contents/README.en.md"
+    )
+    # 带 ref 同样拼接
+    session2 = FakeSession([FakeResponse(json_data={"content": b64, "encoding": "base64"})])
+    client2 = GitHubClient(token=None, session=session2)
+    client2.get_repo_readme("alice/cool-tool", ref="readme-auto/update", path="README.en.md")
+    assert session2.requests[0]["url"] == (
+        "https://api.github.com/repos/alice/cool-tool/contents/README.en.md?ref=readme-auto/update"
+    )

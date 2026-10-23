@@ -37,15 +37,23 @@ def build_pr_title(full_name: str) -> str:
     return f"docs({short}): README 自动更新（待审核）"
 
 
-def build_pr_body(*, commits: list[dict], base_sha: str, head_sha: str) -> str:
+def build_pr_body(
+    *, commits: list[dict], base_sha: str, head_sha: str, bilingual: bool = False
+) -> str:
     """PR body：三结局首行警示 + marker 说明 + base..head 短 SHA 列表（GP04）。
 
     marker 字样（profile-agent:readme）允许出现在 PR body——只禁止进 AI prompt。
+    bilingual（WP7）：说明两个文件在同一 PR 里审核合并。
     """
     base8, head8 = base_sha[:8], head_sha[:8]
     sha_lines = "\n".join(
         f"- `{c.get('sha', '')[:8]}` {str(c.get('message', '')).strip().splitlines()[0] if c.get('message') else ''}".rstrip()
         for c in commits
+    )
+    dual_line = (
+        "本次同步更新 `README.md`（中文）与 `README.en.md`（英文）两个文件，同一 PR 审核合并。\n"
+        if bilingual
+        else ""
     )
     return (
         ">三结局：**合并本 PR = 采用这批文案**；**关闭本 PR = 拒绝这批文案**"
@@ -53,6 +61,7 @@ def build_pr_body(*, commits: list[dict], base_sha: str, head_sha: str) -> str:
         "\n"
         "改动仅限 README 中由两行 HTML 注释标记包裹的托管区"
         "（标记 `profile-agent:readme` 在渲染页不可见，请勿手删）。\n"
+        f"{dual_line}"
         f"覆盖提交范围：`{base8}..{head8}`\n"
         "\n"
         "涉及提交：\n"
@@ -190,22 +199,27 @@ def get_pr_state(client: GitHubClient, full_name: str, number: int) -> str:
     return "unknown"
 
 
-def push_readme(
-    client: GitHubClient, full_name: str, content: str, head_sha: str, *, branch: str = PR_BRANCH
+def push_files(
+    client: GitHubClient,
+    full_name: str,
+    files: dict[str, str],
+    head_sha: str,
+    *,
+    branch: str = PR_BRANCH,
 ) -> str:
-    """blob→tree→commit→ref 四连；返回新 commit SHA。
+    """多文件版 blob→tree→commit→ref 四连（WP7）；返回新 commit SHA。
 
+    files：路径 → 内容；全部 blob 先建、单 tree 单 commit 落地（两文件同船）。
     ref 不存在则创建，存在则 force-push（每仓恒一条分支，GP02）。
-    base_tree/parents 都落在目标仓默认分支 HEAD（head_sha）上。
     """
     repo = f"{API}/repos/{full_name}"
-    blob, _ = client._post(f"{repo}/git/blobs", {"content": content, "encoding": "utf-8"})
+    tree_entries: list[dict] = []
+    for path, content in files.items():
+        blob, _ = client._post(f"{repo}/git/blobs", {"content": content, "encoding": "utf-8"})
+        tree_entries.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
     tree, _ = client._post(
         f"{repo}/git/trees",
-        {
-            "base_tree": head_sha,
-            "tree": [{"path": "README.md", "mode": "100644", "type": "blob", "sha": blob["sha"]}],
-        },
+        {"base_tree": head_sha, "tree": tree_entries},
     )
     commit, _ = client._post(
         f"{repo}/git/commits",
@@ -225,6 +239,13 @@ def push_readme(
     return commit["sha"]
 
 
+def push_readme(
+    client: GitHubClient, full_name: str, content: str, head_sha: str, *, branch: str = PR_BRANCH
+) -> str:
+    """单文件推送（委托 push_files，向后兼容）；返回新 commit SHA。"""
+    return push_files(client, full_name, {"README.md": content}, head_sha, branch=branch)
+
+
 def open_or_refresh_pr(
     client: GitHubClient,
     *,
@@ -235,11 +256,21 @@ def open_or_refresh_pr(
     body: str,
     branch: str = PR_BRANCH,
     base: str = BASE_BRANCH,
+    files: dict[str, str] | None = None,
 ) -> PrResult:
-    """推送内容并开/刷同一条 PR；永不调用合并或关闭接口（GP16）。"""
+    """推送内容并开/刷同一条 PR；永不调用合并或关闭接口（GP16）。
+
+    files（WP7）：显式指定多文件（路径→内容）；缺省回落 content 单文件。
+    """
     repo = f"{API}/repos/{full_name}"
     existing = get_open_pr(client, full_name, branch, base=base)
-    push_readme(client, full_name, content, head_sha, branch=branch)
+    push_files(
+        client,
+        full_name,
+        files if files is not None else {"README.md": content},
+        head_sha,
+        branch=branch,
+    )
     if existing:
         number = existing["number"]
         client._patch(f"{repo}/pulls/{number}", {"body": body})
@@ -296,15 +327,25 @@ def push_results(
     for r in results:
         if r.status != "generated":
             continue
+        bilingual = bool(r.content_en)  # WP7：en 内容非空才推双文件（zh-only 回落单文件）
+        files = {"README.md": r.content or ""}
+        if bilingual:
+            files["README.en.md"] = r.content_en
         res = open_or_refresh_pr(
             client,
             full_name=r.full_name,
             content=r.content or "",
             head_sha=r.head_sha,
             title=build_pr_title(r.full_name),
-            body=build_pr_body(commits=r.commits, base_sha=r.base_sha, head_sha=r.head_sha),
+            body=build_pr_body(
+                commits=r.commits,
+                base_sha=r.base_sha,
+                head_sha=r.head_sha,
+                bilingual=bilingual,
+            ),
             branch=branch,
             base=(bases or {}).get(r.full_name, BASE_BRANCH),
+            files=files,
         )
         if entries is not None:
             entry = entries.setdefault(
@@ -319,5 +360,7 @@ def push_results(
                 },
             )
             entry["block_hash"] = content_block_hash(r.content or "")
+            if bilingual:
+                entry["block_hash_en"] = content_block_hash(r.content_en)
         pushed.append(res)
     return pushed

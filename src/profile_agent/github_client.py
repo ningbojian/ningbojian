@@ -6,6 +6,7 @@ import base64
 import re
 import time
 from typing import Callable
+from urllib.parse import quote
 
 import requests
 
@@ -122,12 +123,19 @@ class GitHubClient:
             url = match.group(1) if match else None
         return repos
 
-    def get_repo_readme(self, full_name: str, ref: str | None = None) -> str:
+    def get_repo_readme(
+        self, full_name: str, ref: str | None = None, *, path: str = "README.md"
+    ) -> str:
         """读取仓库 README 文本；无 README 或读取失败时返回空串（不报错）。
 
         ref 指定分支/提交（§5.6 规则 2：open PR 仓从 readme-auto 分支读，防回退旧文）。
+        path 指定文件（WP7：README.en.md 走 /contents/{path}，无 /readme 等价端点）。
         """
-        url = f"{API}/repos/{full_name}/readme" + (f"?ref={ref}" if ref else "")
+        if path == "README.md":
+            url = f"{API}/repos/{full_name}/readme"
+        else:
+            url = f"{API}/repos/{full_name}/contents/{quote(path, safe='')}"
+        url += f"?ref={ref}" if ref else ""
         try:
             data, _ = self._get(url, allow_404=True)
         except GitHubError:

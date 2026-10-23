@@ -4,6 +4,8 @@
 §5.1 失败抑制（failed_hash/last_input_hash/pending）。
 """
 
+import json
+
 import pytest
 
 from profile_agent.config import AIConfig, RepoReadmesConfig
@@ -74,7 +76,8 @@ class Recorder:
 
 
 def _process(queue, entries, rec=None, *, ai_active=True, force=False, cfg_rr=None,
-             cfg_ai=None, fetch_readme=None, fetch_tree=None, strip_readme=False):
+             cfg_ai=None, fetch_readme=None, fetch_tree=None, strip_readme=False,
+             fetch_readme_en=None, bilingual=False):
     return process_queue(
         queue,
         entries,
@@ -86,6 +89,8 @@ def _process(queue, entries, rec=None, *, ai_active=True, force=False, cfg_rr=No
         fetch_tree=fetch_tree,
         strip_readme=strip_readme,
         force=force,
+        fetch_readme_en=fetch_readme_en,
+        bilingual=bilingual,
     )
 
 
@@ -182,6 +187,22 @@ def test_strip_readme_hunks_removes_self_references():
     assert "def add(a, b)" in prompt
     assert "profile-agent:readme" not in prompt  # marker 字样不回流
     assert "旧托管区文案" not in prompt  # 机器人旧文案不回流
+
+
+def test_strip_readme_hunks_strips_en():
+    """WP7：剔除同时覆盖 README.md 与 README.en.md（合并推进后双文件都不自我指涉）。"""
+    files = [
+        {"filename": "README.md", "patch": f"@@ -1 +1 @@\n+{START}\n+旧中文文案\n+{END}"},
+        {"filename": "README.en.md", "patch": f"@@ -1 +1 @@\n+{START}\n+Old EN copy\n+{END}"},
+        {"filename": "src/core.py", "patch": "@@ -1 +1 @@\n+def add(a, b)"},
+    ]
+    item = _item(files=files)
+    rec = Recorder()
+    _process([item], {"alice/cool-tool": _entry()}, rec, strip_readme=True)
+    prompt = rec.calls[0][1]
+    assert "def add(a, b)" in prompt
+    assert "旧中文文案" not in prompt
+    assert "Old EN copy" not in prompt  # en 自身 hunk 同样剔除
 
 
 def test_existing_readme_embedded_as_revision_base():
@@ -433,3 +454,128 @@ def test_marker_imbalance_skips_before_ai_without_recording_hash(capsys):
     assert [r.status for r in results] == ["skipped"]
     assert entries["alice/cool-tool"]["last_input_hash"] == ""  # ② 不记哈希
     assert "marker 不平衡" in capsys.readouterr().err  # ③ 中文警告
+
+
+# ---- WP7 模式 B 双语（README.md + README.en.md 同 PR）----
+
+ZH_EXISTING = (
+    "# 标题\n手写前言。\n" + START + "\n旧中文正文\n" + END + "\n手写尾注。\n"
+)
+EN_EXISTING = (
+    "# Title\nPreface EN.\n" + START + "\nOld EN body\n" + END + "\nTail EN.\n"
+)
+DUAL_JSON = json.dumps(
+    {"zh": "新中文托管区正文", "en": "New EN managed block"}, ensure_ascii=False
+)
+
+
+def test_process_queue_bilingual_json_dual_content():
+    """WP7：单次调用返回 JSON {zh,en} → 两文件各自托管区替换、区间外保留。"""
+    rec = Recorder(text=DUAL_JSON)
+    results = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )
+    r = results[0]
+    assert r.status == "generated"
+    assert "新中文托管区正文" in r.content and "旧中文正文" not in r.content
+    assert r.content.startswith("# 标题\n手写前言。\n") and r.content.endswith("手写尾注。\n")
+    assert "New EN managed block" in r.content_en and "Old EN body" not in r.content_en
+    assert r.content_en.startswith("# Title\nPreface EN.\n")
+    assert r.content_en.endswith("Tail EN.\n")
+    # prompt 要求 JSON 契约并嵌入两份现有 README
+    prompt = rec.calls[0][1]
+    assert '"zh"' in prompt and '"en"' in prompt
+    assert "旧中文正文" in prompt and "Old EN body" in prompt
+
+
+def test_bilingual_json_parse_failure_degrades_zh_only():
+    """AI 未返回合法 JSON → 降级单语：zh 照常、en 空（宁可单语不可失败）。"""
+    rec = Recorder(text="不是 JSON 的普通中文正文")
+    results = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )
+    r = results[0]
+    assert r.status == "generated"
+    assert "不是 JSON 的普通中文正文" in r.content
+    assert r.content_en == ""
+
+
+def test_en_marker_imbalance_skips_en_only(capsys):
+    """en 托管区 marker 不平衡 → 只跳 en（zh 照常生成），不整仓跳过、中文警告。"""
+    rec = Recorder(text=DUAL_JSON)
+    broken_en = "# Title\n" + START + "\n缺 end\n"
+    results = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: broken_en,
+        bilingual=True,
+    )
+    r = results[0]
+    assert r.status == "generated"
+    assert "新中文托管区正文" in r.content  # zh 照常
+    assert r.content_en == ""  # en 整体跳过（不平衡不猜测修复）
+    assert len(rec.calls) == 1  # 仍调一次 AI（zh 照常），en 字段弃用
+    err = capsys.readouterr().err
+    assert "README.en.md" in err and "marker 不平衡" in err
+
+
+def test_existing_en_readme_embedded_as_revision_base():
+    """现有 README.en.md 全文嵌入 prompt 作英文修订基础（与 zh 同款修订式）。"""
+    rec = Recorder(text=DUAL_JSON)
+    _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )
+    prompt = rec.calls[0][1]
+    assert "当前 README.en.md 全文" in prompt
+    assert "Old EN body" in prompt
+
+
+def test_en_missing_generates_full_en_file():
+    """仓库只有中文 README → en 字段整份生成 README.en.md（用户问的场景：补全另一语言）。"""
+    rec = Recorder(text=DUAL_JSON)
+    results = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: "",
+        bilingual=True,
+    )
+    r = results[0]
+    assert r.content_en == "New EN managed block"  # 整份（不强加 marker）
+    assert START not in r.content_en
+
+
+def test_input_hash_changes_when_bilingual_flips():
+    """bilingual 入输入哈希：翻转即视为新输入（一次性迁移重生成，下一次真实提交生效）。"""
+    item = _item()
+    diff = build_diff_text(item.commits, item.files, RepoReadmesConfig().max_diff_chars)
+    zh_only = compute_input_hash(item, 1, diff_text=diff, bilingual=False)
+    dual = compute_input_hash(item, 1, diff_text=diff, bilingual=True)
+    assert zh_only != dual
+
+
+def test_bilingual_false_never_calls_fetch_readme_en():
+    """护栏：bilingual=False 行为与旧版字节一致——不读 en、en 内容为空。"""
+    rec = Recorder()
+
+    def _boom(fn, **kw):
+        raise AssertionError("单语模式不得读取 README.en.md")
+
+    results = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=_boom,
+        bilingual=False,
+    )
+    r = results[0]
+    assert r.status == "generated"
+    assert r.content_en == ""
+    assert '"en"' not in rec.calls[0][1]  # 单语 prompt 无 JSON 契约

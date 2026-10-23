@@ -27,6 +27,9 @@ from .models import Repo
 # 截断处的显式标记（裁定 R-T1：上限约束正文，标记允许超出少量字符）
 TRUNCATED_MARK = "\n…（diff 超过上限已截断，仅保留最近提交的部分）…"
 
+# 自身 README 文件（WP7）：入队判定与 hunk 剔除都排除——防自触发循环对双文件同权生效
+SELF_FILES = frozenset({"README.md", "README.en.md"})
+
 
 class CompareGone(Exception):
     """compare 返回 404/409（基线 SHA 已不在仓库历史里，通常因 rebase 重写）。"""
@@ -176,7 +179,7 @@ def compute_queue(
             # 是否入队由「README 之外的文件」决定，不看 commits——合并后基线已推进到
             # PR head（§12-R10），下轮 compare 必呈「merge commit + 0 文件」形态，
             # 按 commits 判会把 bot 自己的合并提交当成工作（空洞 AI 调用 + 垃圾 PR）
-            code_files = [f for f in files if str(f.get("filename") or "") != "README.md"]
+            code_files = [f for f in files if str(f.get("filename") or "") not in SELF_FILES]
             if not commits or not code_files:
                 # 无提交，或提交未触及 README 之外的文件（compare 空 / 仅 README 自身 /
                 # 空文件列表的 merge commit）→ 只推进基线（防自触发循环）
