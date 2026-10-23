@@ -19,8 +19,10 @@ def test_minimal_config_uses_defaults(tmp_path):
     assert cfg.github.username == "alice"
     assert cfg.schedule.enabled is True
     assert cfg.repos.exclude_forks is True
+    assert cfg.repos.exclude == []
     assert cfg.featured.count == 0  # 默认展示全部仓库
     assert cfg.featured.recency_days == 0  # 默认不限推送时间
+    assert cfg.featured.pin == []  # 默认无置顶
     assert cfg.projects.featured_only is False  # 默认全部仓库参与介绍生成
     assert cfg.readme.template == "templates/profile.md.j2"
     assert cfg.ai.enabled is True
@@ -59,6 +61,7 @@ repos:
 featured:
   count: 3
   sort_by: "stars"
+  pin: ["bob/old-repo", "bob/app"]
 readme:
   cards:
     theme: "github_light"
@@ -74,10 +77,20 @@ ai:
     assert cfg.repos.exclude == ["bob/bob"]
     assert cfg.featured.count == 3
     assert cfg.featured.sort_by == "stars"
+    assert cfg.featured.pin == ["bob/old-repo", "bob/app"]  # 置顶名单：解析、保序
     assert cfg.readme.cards.theme == "github_light"
     assert cfg.readme.cards.show == ["stats"]
     assert cfg.ai.model == "claude-haiku-5-5"
     assert cfg.ai.prompt_version == 2
+
+
+def test_featured_pin_must_be_list(tmp_path):
+    """置顶名单必须是列表——写成字符串直接中文报错（仿 include/exclude 校验先例）。"""
+    path = _write(
+        tmp_path, 'github:\n  username: "alice"\nfeatured:\n  pin: "cool-tool"\n'
+    )
+    with pytest.raises(ConfigError, match="featured.pin 必须是列表"):
+        load_config(path)
 
 
 def test_invalid_sort_by_raises(tmp_path):

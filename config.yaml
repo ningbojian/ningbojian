@@ -20,6 +20,7 @@ featured:
   sort_by: "score" # score | stars | updated
   score_stars_weight: 1.0
   score_recency_weight: 0.5
+  pin: [] # 置顶展示的仓库（full_name 或裸名），按此顺序进「📌 置顶项目」板块，如 ["you/cool-tool"]
 
 readme:
   enabled: true # false = 不更新个人主页 overview（可只更新项目介绍）

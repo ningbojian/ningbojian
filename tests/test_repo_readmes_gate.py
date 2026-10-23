@@ -8,6 +8,8 @@ import datetime as dt
 import json
 from pathlib import Path
 
+from fake_github import FakeResponse
+
 from profile_agent.cli import run
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -251,32 +253,10 @@ def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys
     assert counters == after_first  # ② bio 不再生成、项目介绍零调用
 
 
-def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path, capsys, monkeypatch):
-    """2026-10-23 勾选=人工授权：门全关（数据无变化、无 b_force）但清单有 - [x] →
-    门必须开（merge_requested），开局即代为合并、同轮推进基线。
-
-    钩子①原本在门早退之后——cron 轮里用户勾了也永不生效（设计验证实测缺口）；
-    attempted 集合保证同一条勾选每轮至多一次 PUT（钩子①' 复读同 body 不再重复合并）。
-    """
-    from fake_github import FakeHttp, FakeResponse
-
-    from profile_agent.github_client import GitHubClient
-
-    _freeze_time(monkeypatch)
-    cfg = _write_config(tmp_path)
-    # 第一轮：建立真实指纹与三仓基线（fixture 离线，无 b_client → 无清单通道）
-    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0
-    assert _snapshot(tmp_path)["repo_readmes"]["alice/cool-tool"]["sha"] == "head0001"
-
-    # 第二轮：数据完全无变化、不勾 b_force——唯一变量是清单里的一条 - [x]
-    http = FakeHttp()
-    ticked = (
-        "## 🔔 README 更新待合并清单（更新于 2026-10-22 18:30，北京时间）\n"
-        "@alice\n"
-        "- [x] alice/cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
-        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
-    )
-    http.add(  # 钩子① 开局预取：搜索命中被勾选的清单
+def _checkbox_round_routes(http, issue_body):
+    """两轮「勾选合并」场景共用路由：清单搜索 + 按号复读 + merge PUT +
+    逐仓合并检测/open 扫描（sticky）+ 清单关闭。"""
+    http.add(
         "GET",
         "https://api.github.com/repos/alice/alice/issues?state=open&per_page=100",
         FakeResponse(
@@ -284,17 +264,17 @@ def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path
                 "number": 5,
                 "title": "🔔 README 更新待合并清单（待合并 PR）",
                 "html_url": "https://github.com/alice/alice/issues/5",
-                "body": ticked,
+                "body": issue_body,
             }]
         ),
     )
-    http.add(  # 钩子①' 扫描前按号复读：body 仍是勾选态（attempted 挡下第二次 PUT）
+    http.add(
         "GET",
         "https://api.github.com/repos/alice/alice/issues/5",
         FakeResponse(
             json_data={"number": 5,
                        "html_url": "https://github.com/alice/alice/issues/5",
-                       "body": ticked}
+                       "body": issue_body}
         ),
         sticky=True,
     )
@@ -328,6 +308,34 @@ def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path
         "https://api.github.com/repos/alice/alice/issues/5",
         FakeResponse(json_data={"number": 5}),
     )
+
+
+def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path, capsys, monkeypatch):
+    """2026-10-23 勾选=人工授权：门全关（数据无变化、无 b_force）但清单有 - [x] →
+    门必须开（merge_requested），开局即代为合并、同轮推进基线。
+
+    钩子①原本在门早退之后——cron 轮里用户勾了也永不生效（设计验证实测缺口）；
+    attempted 集合保证同一条勾选每轮至多一次 PUT（钩子①' 复读同 body 不再重复合并）。
+    """
+    from fake_github import FakeHttp, FakeResponse
+
+    from profile_agent.github_client import GitHubClient
+
+    _freeze_time(monkeypatch)
+    cfg = _write_config(tmp_path)
+    # 第一轮：建立真实指纹与三仓基线（fixture 离线，无 b_client → 无清单通道）
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0
+    assert _snapshot(tmp_path)["repo_readmes"]["alice/cool-tool"]["sha"] == "head0001"
+
+    # 第二轮：数据完全无变化、不勾 b_force——唯一变量是清单里的一条 - [x]
+    http = FakeHttp()
+    ticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-22 18:30，北京时间）\n"
+        "@alice\n"
+        "- [x] alice/cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
+        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
+    )
+    _checkbox_round_routes(http, ticked)
     fetchers = FakeFetchers(
         # 快进合并建模：cool-tool 的 PR head == 合并后默认分支 HEAD（merged11）
         heads={**_heads_all(), "alice/cool-tool": "merged11"},
@@ -352,6 +360,55 @@ def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path
         r for r in http.writes() if r["method"] == "PATCH" and r["json"].get("state") == "closed"
     ]
     assert closes and "/pull/7" not in closes[0]["json"]["body"]  # ⑤ 清单重建无幻影勾选
+
+
+def test_merge_all_master_ticked_opens_gate_and_merges(tmp_path, capsys, monkeypatch):
+    """Q1（2026-10-23「一键全选」）：清单只勾「全部合并」总开关、逐条全是 [ ]——
+    门必须开（merge_requested 认总开关），开局即合并总开关授权的条目。
+
+    总开关无 PR 链接，逐条口径 parse_checked_prs 恒为空——若门或收割仍走逐条口径，
+    本用例会因「无变化，跳过更新」早退而失败（一键全选成空头支票）。
+    """
+    from fake_github import FakeHttp
+
+    from profile_agent.checklist import build_checklist_body
+    from profile_agent.github_client import GitHubClient
+
+    _freeze_time(monkeypatch)
+    cfg = _write_config(tmp_path)
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0
+
+    body = build_checklist_body(
+        [{
+            "full_name": "alice/cool-tool",
+            "html_url": "https://github.com/alice/cool-tool/pull/7",
+            "branch": "readme-auto/update",
+        }],
+        username="alice",
+        updated_at="2026-10-22 18:30",
+    )
+    master_ticked = body.replace("- [ ] 全部合并", "- [x] 全部合并")
+    assert master_ticked != body  # 总开关确实勾上了
+    assert master_ticked.count("- [x]") == 1  # 逐条一条都没勾（全靠总开关授权）
+
+    http = FakeHttp()
+    _checkbox_round_routes(http, master_ticked)
+    fetchers = FakeFetchers(heads={**_heads_all(), "alice/cool-tool": "merged11"})
+    capsys.readouterr()
+    assert (
+        _run(
+            cfg,
+            fetchers,
+            b_client=GitHubClient("p-pat", session=http),
+            issue_client=GitHubClient("g-tok", session=http),
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "无变化，跳过更新" not in out  # ① 总开关开门
+    assert "已按清单勾选合并（开局）" in out  # ② 开局即合并
+    puts = [r for r in http.writes() if r["method"] == "PUT"]
+    assert len(puts) == 1  # attempted：总开关也至多一次 PUT
 
 
 def test_q22_b_force_with_enabled_false_keeps_gate_closed(tmp_path, capsys):

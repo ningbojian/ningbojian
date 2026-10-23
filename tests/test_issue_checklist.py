@@ -12,6 +12,7 @@ from profile_agent.checklist import (
     append_final_state,
     build_checklist_body,
     parse_checked_prs,
+    parse_merge_targets,
     update_checklist,
 )
 from profile_agent.github_client import API, GitHubClient, GitHubError
@@ -176,7 +177,7 @@ def test_body_items_single_line_markdown_links_no_bare_urls():
     改成 [PR](url) 写法后可见文本短、链接干净、每仓一行。
     """
     body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
-    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]")]
+    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]") and "[PR](" in ln]
     assert len(entries) == 2  # 每仓恰好一行
     assert entries[0] == (
         "- [ ] shiyuan：[PR](https://github.com/ningbojian/shiyuan/pull/7)"
@@ -214,6 +215,32 @@ def test_parse_checked_prs_ignores_unticked_and_malformed():
         "（[新版 README 预览](https://github.com/ningbojian/shiyuan/blob/readme-auto/update/README.md)）\n"
     )
     assert parse_checked_prs(malformed) == [("ningbojian/shiyuan", 7)]  # 仅完好的勾选行生效
+
+
+def test_merge_targets_master_ticked_authorizes_all_entries():
+    """Q1（一键全选）：总开关勾上 = 全部条目授权，即使逐条全是 [ ]；
+    逐条口径 parse_checked_prs 不把总开关算作条目（保持原语义）。"""
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    ticked = body.replace("- [ ] 全部合并", "- [x] 全部合并")
+    assert parse_merge_targets(ticked) == [
+        ("ningbojian/shiyuan", 7),
+        ("ningbojian/profile-readme-agent", 43),
+    ]
+    assert parse_checked_prs(ticked) == []  # 逐条口径：一条都没勾
+    # 总开关勾选时逐条另有勾选 → 并集仍是全部（全选语义覆盖逐条）
+    both = ticked.replace("- [ ] shiyuan：", "- [x] shiyuan：")
+    assert parse_merge_targets(both) == [
+        ("ningbojian/shiyuan", 7),
+        ("ningbojian/profile-readme-agent", 43),
+    ]
+
+
+def test_merge_targets_default_follows_individual_ticks():
+    """总开关未勾：合并目标与逐条勾选完全一致（未勾=空、个别勾=个别）。"""
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    assert parse_merge_targets(body) == []
+    one = body.replace("- [ ] shiyuan：", "- [x] shiyuan：")
+    assert parse_merge_targets(one) == [("ningbojian/shiyuan", 7)]
 
 
 def test_body_detail_line_renders_stats_and_commit_titles():
@@ -268,7 +295,7 @@ def test_body_without_stats_keeps_single_line_entries():
     """明细缺失（GET 失败/旧数据）→ 不渲染细节行，条目保持单行——宁缺勿错。"""
     body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
     assert "↳" not in body
-    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]")]
+    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]") and "[PR](" in ln]
     assert len(entries) == 2
 
 
@@ -279,6 +306,30 @@ def test_body_explains_checkbox_batch_merge_semantics():
     assert "勾选方框" in body
     assert "自动合并" in body
     assert "多选" in body  # 批量语义可见（回答「能否批量 merge」：能）
+
+
+def test_body_merge_all_master_line_above_entries():
+    """Q1（2026-10-23 用户问「能不能一键全选」）：GitHub 无原生全选按钮——清单头部
+    提供一条「全部合并」总开关：勾上 = 一键授权下方全部条目；隐藏 token <!-- merge-all -->
+    供解析锚定（用户改措辞也不丢语义），且总开关绝不含 PR 链接（不被当成普通条目）。"""
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    lines = body.splitlines()
+    master = [ln for ln in lines if ln.startswith("- [ ] 全部合并")]
+    assert len(master) == 1  # ① 恰一条总开关
+    assert "<!-- merge-all -->" in master[0]  # ② 解析锚点
+    assert "[PR](" not in master[0]  # ③ 不是条目
+    first_entry = next(i for i, ln in enumerate(lines) if ln.startswith("- [ ] shiyuan："))
+    assert lines.index(master[0]) < first_entry  # ④ 总开关在条目之前（一眼可见）
+    # 无条目（全部结清的关闭体）不渲染总开关——死控件只会误导
+    assert "全部合并" not in build_checklist_body([], username="alice", updated_at="t")
+
+
+def test_body_copy_says_manual_close_cancels_auth():
+    """Q2（2026-10-23 追问「是不是必须等下一轮才能 Close」）：文案讲清顺序——
+    勾选后无需手动关、全部处理完自动关、提前手动关会让勾选失效（任务只读 open 清单）。"""
+    body = build_checklist_body([PR7], username="alice", updated_at="t")
+    assert "提前手动关会让勾选失效" in body
+    assert "自动关闭" in body
 
 
 def test_body_mergeable_state_warning_renders_even_without_stats():

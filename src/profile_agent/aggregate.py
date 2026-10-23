@@ -76,13 +76,37 @@ def compute_totals(user: dict, repos: list[Repo]) -> Totals:
     )
 
 
+def resolve_pins(repos: list[Repo], pin: list[str]) -> list[Repo]:
+    """pin 名单 → 置顶仓库列表：按名单顺序、full_name 或裸名精确匹配（大小写敏感，
+    与 repos.exclude 一致）、重复取首现、未知条目静默忽略。
+
+    不做任何过滤——repos 入参应已是 normalize 之后的集合（private/fork/黑名单等
+    硬过滤在那一步生效，pin 看不到也拉不回）。
+    """
+    pinned: list[Repo] = []
+    seen: set[str] = set()
+    for want in pin:
+        hit = next(
+            (
+                r
+                for r in repos
+                if (r.full_name == want or r.name == want) and r.full_name not in seen
+            ),
+            None,
+        )
+        if hit is not None:
+            seen.add(hit.full_name)
+            pinned.append(hit)
+    return pinned
+
+
 def select_featured(
     repos: list[Repo], cfg: FeaturedConfig, *, now: datetime | None = None
 ) -> list[Repo]:
-    """挑选上主页展示的项目列表：min_stars / recency 过滤后按 sort_by 排序。
+    """挑选上主页展示的项目列表：置顶（pin）排最前，其余 min_stars/recency 过滤后按 sort_by 排序。
 
-    count 是「截断上限」：>0 取前 count 个；0 = 不限量（过滤后全部上主页）。
-    想要「真·全部」：count: 0 且 recency_days: 0（min_stars 保持 0）。
+    count 是「截断上限」（整个列表的唯一硬上限，置顶也占名额）：>0 取前 count 个；
+    0 = 不限量。想要「真·全部」：count: 0 且 recency_days: 0（min_stars 保持 0）。
     """
     now = now or datetime.now(timezone.utc)
 
@@ -115,7 +139,14 @@ def select_featured(
     else:  # score
         candidates.sort(key=lambda r: (-score(r), r.full_name))
 
-    return candidates if cfg.count <= 0 else candidates[: cfg.count]
+    # 置顶（featured.pin）：resolve_pins 按 pin 顺序点名，豁免 min_stars/recency 启发式
+    # （显式点名 > 启发式过滤），但不越过 normalize 硬过滤；置顶占 count 名额
+    # （count 是唯一硬上限）。
+    pinned = resolve_pins(repos, cfg.pin)
+    seen = {r.full_name for r in pinned}
+    rest = [r for r in candidates if r.full_name not in seen]
+    merged = pinned + rest
+    return merged if cfg.count <= 0 else merged[: cfg.count]
 
 
 def stats_fingerprint(totals: Totals, repos: list[Repo], featured: list[Repo] | None = None) -> str:

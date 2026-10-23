@@ -41,6 +41,7 @@ class FeaturedConfig:
     sort_by: str = "score"
     score_stars_weight: float = 1.0
     score_recency_weight: float = 0.5
+    pin: list[str] = field(default_factory=list)  # 置顶展示的仓库（full_name 或裸名），按此顺序排最前
 
 
 @dataclass
@@ -186,6 +187,9 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
     sort_by = str(feat.get("sort_by") or "score")
     if sort_by not in VALID_SORT_BY:
         raise ConfigError(f"featured.sort_by 只能是 {VALID_SORT_BY} 之一，收到：{sort_by}")
+    pin = feat.get("pin") or []
+    if not isinstance(pin, list):
+        raise ConfigError("featured.pin 必须是列表")
     cfg.featured = FeaturedConfig(
         count=int(feat.get("count", 0)),
         min_stars=int(feat.get("min_stars", 0)),
@@ -193,6 +197,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         sort_by=sort_by,
         score_stars_weight=float(feat.get("score_stars_weight", 1.0)),
         score_recency_weight=float(feat.get("score_recency_weight", 0.5)),
+        pin=[str(x) for x in pin],
     )
 
     readme = _section(data, "readme")

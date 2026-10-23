@@ -48,6 +48,7 @@ class TemplateContext:
     blog: str
     totals: Totals
     featured: list[Repo]
+    pinned: list[Repo] = field(default_factory=list)  # 置顶仓库（featured.pin 命中且未被 count 截断）
     bio_text: str = ""
     cards_theme: str = "github_dark"
     cards_show: list[str] = field(default_factory=lambda: ["stats", "top_langs", "streak"])

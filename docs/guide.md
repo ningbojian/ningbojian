@@ -5,8 +5,8 @@
 ## 它做什么
 
 1. **拉数据**：通过 GitHub API 获取你的公开仓库（star、语言、最近 push 等）
-2. **项目列表**：全部公开仓库按 star 与活跃度排序展示在主页（默认全部；想只展示一部分在 `featured` 里配）
-3. **生成统计**：中文统计表格 + github-readme-stats 可视化卡片
+2. **项目列表**：公开仓库按 star 与活跃度排序，以对齐表格展示在主页（默认全部；想只展示一部分在 `featured` 里配，`featured.pin` 可把指定仓库置顶成 ⭐「📌 置顶项目」卡片）
+3. **生成统计**：低饱和统计/技术标签徽章 + github-readme-stats 可视化卡片
 4. **AI 简介**：把仓库数据交给 Claude，生成 100–150 字中文简介
 5. **增量更新**：数据没变化就不调 AI、不改文件、不产生提交
 6. **各仓库 README 自动更新（可选，默认关闭）**：某个仓库有代码提交时，AI 顺手把它的 README 也更新了——开 PR 给你审，主页 Overview 会在同一轮吸收最新可用内容（详见下文「各仓库 README 自动更新」）
@@ -218,6 +218,8 @@ featured:
   sort_by: "score"         # score | stars | updated
   score_stars_weight: 1.0
   score_recency_weight: 0.5
+  pin: []                  # 置顶仓库（full_name 或裸名），按此顺序进「📌 置顶项目」板块，
+                           # 豁免 min_stars/recency 过滤但不越过黑名单/fork 过滤，如 ["you/cool-tool"]
 readme:
   enabled: true            # false = 不更新 overview
   path: "README.md"

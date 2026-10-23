@@ -40,7 +40,7 @@ def test_dry_run_prints_readme_and_writes_nothing(tmp_path, capsys):
     code = _run(cfg, dry_run=True)
     assert code == 0
     out = capsys.readouterr().out
-    assert "仓库统计" in out and "我的项目" in out
+    assert "统计信息" in out and "仓库列表" in out
     assert not (tmp_path / "README.md").exists()
     assert not (tmp_path / "data" / "snapshot.json").exists()
     # --dry-run 承诺「只打印不写文件」——项目介绍目录同样不得落盘（M4 走查回归）
@@ -52,7 +52,8 @@ def test_full_run_writes_readme_and_snapshot(tmp_path):
     assert _run(cfg) == 0
     readme = tmp_path / "README.md"
     snap = tmp_path / "data" / "snapshot.json"
-    assert readme.exists() and "仓库统计" in readme.read_text(encoding="utf-8")
+    assert readme.exists() and "统计信息" in readme.read_text(encoding="utf-8")
+    assert "📌" not in readme.read_text(encoding="utf-8")  # 未配置 pin 不出置顶板块
     data = json.loads(snap.read_text(encoding="utf-8"))
     assert data["username"] == "alice"
     assert data["stats_fingerprint"].startswith("sha256:")
@@ -69,6 +70,22 @@ def test_second_run_is_noop_when_unchanged(tmp_path):
     # 无变化：文件时间戳不变（未重写）
     assert readme.stat().st_mtime_ns == readme_mtime
     assert snap.stat().st_mtime_ns == snap_mtime
+
+
+def test_featured_pin_renders_pinned_section(tmp_path):
+    """featured.pin 端到端（2026-10-23 置顶需求 + README 视觉改版）：置顶仓库渲染
+    成 📌 置顶卡片，📦 仓库列表不重复它，板块顺序置顶在前。"""
+    cfg = _write_config(tmp_path)
+    with cfg.open("a", encoding="utf-8") as fh:
+        fh.write('featured:\n  pin: ["alice/old-thing"]\n')
+    assert _run(cfg) == 0
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "## 📌 置顶项目" in readme
+    assert "⭐ **[old-thing](https://github.com/alice/old-thing)**｜" in readme
+    assert "> 很久没动的项目" in readme  # 置顶卡片一句话摘要
+    assert readme.index("## 📌 置顶项目") < readme.index("## 📦 仓库列表")
+    assert "| [old-thing](" not in readme  # 列表不重复置顶仓库
+    assert "| [cool-tool](" in readme  # 其余仓库仍在表格
 
 
 def test_force_regenerates_even_when_unchanged(tmp_path):
@@ -489,7 +506,8 @@ snapshot:
     fx = _empty_desc_fixture(tmp_path)
     assert run(cfg_path, fixture=fx) == 0
     assert calls == []
-    assert "（暂无描述）" in (tmp_path / "README.md").read_text(encoding="utf-8")
+    # 无补位 → 表格 — 占位（「暂无描述」废话已废弃）
+    assert "| — |" in (tmp_path / "README.md").read_text(encoding="utf-8")
 
 
 def test_only_repos_targets_named_repo_even_outside_featured(tmp_path):

@@ -17,6 +17,7 @@ from .aggregate import (
     compute_totals,
     normalize_repos,
     render_fingerprint,
+    resolve_pins,
     select_featured,
     stats_fingerprint,
 )
@@ -26,7 +27,7 @@ from .checklist import (
     append_final_state,
     find_checklist_issue,
     get_issue,
-    parse_checked_prs,
+    parse_merge_targets,
     update_checklist,
 )
 from .config import Config, ConfigError, load_config
@@ -279,6 +280,11 @@ def run(
     repos = normalize_repos(raw_repos, cfg.repos)
     totals = compute_totals(user, repos)
     featured = select_featured(repos, cfg.featured)
+    # 置顶板块：pin 命中且仍在精选名单内（count 截断语义由 select_featured 统一负责），按 pin 顺序
+    featured_names = {r.full_name for r in featured}
+    pinned = [
+        r for r in resolve_pins(repos, cfg.featured.pin) if r.full_name in featured_names
+    ]
     fingerprint = stats_fingerprint(totals, repos, featured)
     template_bytes = template_path.read_bytes() if template_path.exists() else b""
     cfg_hash = render_fingerprint(cfg, template_bytes, user)
@@ -330,7 +336,7 @@ def run(
     # dict=确认命中（清单步免搜索），None=确认无清单（直接创建）
     issue_cached: object = UNSET
     checklist_closed = False
-    merge_requested = False  # 门条件之一：清单里存在 - [x]（无论合并成败，用户在要求动作）
+    merge_requested = False  # 门条件之一：清单里存在勾选或「全部合并」总开关（无论合并成败，用户在要求动作）
     attempted: set[tuple[str, int]] = set()  # 同轮每条勾选至多一次 PUT（防重复与误报）
 
     # PAT 解析（Option A）：注入参数优先；生产路径从 WORKFLOW_PAT 构造（fixture 离线不读环境）
@@ -367,7 +373,7 @@ def run(
         if not isinstance(src, dict) or b_client_eff is None:
             return []
         merged_refs: list[tuple[str, int]] = []
-        for _cf, _cn in parse_checked_prs(str(src.get("body") or "")):
+        for _cf, _cn in parse_merge_targets(str(src.get("body") or "")):
             if (_cf, _cn) in attempted:
                 continue
             attempted.add((_cf, _cn))
@@ -393,7 +399,8 @@ def run(
         except Exception as exc:  # noqa: BLE001 —— 预取失败退化为清单步现场搜索
             print(f"清单预取失败（勾选合并跳过，清单步会重查）：{exc}", file=sys.stderr)
         if isinstance(issue_cached, dict):
-            merge_requested = bool(parse_checked_prs(str(issue_cached.get("body") or "")))
+            # 「全部合并」总开关与逐条勾选同为授权（parse_merge_targets 并集口径）
+            merge_requested = bool(parse_merge_targets(str(issue_cached.get("body") or "")))
         _merge_from_issue(issue_cached, "开局")
 
     # 增量门（2026-10-23 设计验证修订）：b_force（对话框承诺「全量重跑开 PR」，Q21）与
@@ -844,6 +851,7 @@ def run(
             blog=user.get("blog") or "",
             totals=totals,
             featured=featured,
+            pinned=pinned,
             bio_text=bio_text,
             cards_theme=cfg.readme.cards.theme,
             cards_show=cfg.readme.cards.show,

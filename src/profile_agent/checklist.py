@@ -16,11 +16,25 @@ from .repo_readmes_pr import PR_BRANCH
 
 CHECKLIST_TITLE = "🔔 README 更新待合并清单"
 
-# 勾选条目：- [x] 开头 + 规范 [PR](https://github.com/{owner}/{repo}/pull/{n}) 链接；
-# 仓库全名只能从 URL 取（可见文本只有短名）。半截链接/坏行不匹配 → 宁漏勿错。
-_CHECKED_RE = re.compile(
-    r"^- \[[xX]\] .*?\[PR\]\(https://github\.com/([^/\s)]+)/([^/\s)]+)/pull/(\d+)\)"
+# 条目行（任意勾选态）：- [ ]/- [x] 开头 + 规范 [PR](https://github.com/{owner}/{repo}/pull/{n})
+# 链接；仓库全名只能从 URL 取（可见文本只有短名）。半截链接/坏行不匹配 → 宁漏勿错。
+# 「全部合并」总开关行不含 PR 链接，绝不落进本正则（不会被当成条目）。
+_ENTRY_RE = re.compile(
+    r"^- \[([ xX])\] .*?\[PR\]\(https://github\.com/([^/\s)]+)/([^/\s)]+)/pull/(\d+)\)"
 )
+
+# 「全部合并」总开关锚点：隐藏 token（用户改措辞不丢语义），见 build_checklist_body
+_MERGE_ALL_RE = re.compile(r"^- \[[xX]\] .*?<!--\s*merge-all\s*-->")
+
+
+def _parse_entries(body: str) -> list[tuple[str, int, bool]]:
+    """条目行解析 → [(仓库全名, PR 号, 是否勾选)]；坏行不匹配——宁漏勿错。"""
+    out: list[tuple[str, int, bool]] = []
+    for line in (body or "").splitlines():
+        m = _ENTRY_RE.match(line.strip())
+        if m:
+            out.append((f"{m.group(2)}/{m.group(3)}", int(m.group(4)), m.group(1) in "xX"))
+    return out
 
 
 def parse_checked_prs(body: str) -> list[tuple[str, int]]:
@@ -29,12 +43,20 @@ def parse_checked_prs(body: str) -> list[tuple[str, int]]:
     勾选动作即用户的人工合并授权（设计 §5.5 修订）；未勾选、格式损坏的行
     一律忽略——宁漏勿错，漏了让用户重勾，错了会合错东西。
     """
-    out: list[tuple[str, int]] = []
-    for line in (body or "").splitlines():
-        m = _CHECKED_RE.match(line.strip())
-        if m:
-            out.append((f"{m.group(1)}/{m.group(2)}", int(m.group(3))))
-    return out
+    return [(cf, cn) for cf, cn, ticked in _parse_entries(body) if ticked]
+
+
+def parse_merge_targets(body: str) -> list[tuple[str, int]]:
+    """本轮应合并的目标条目（2026-10-23 Q1「一键全选」：勾选=合并授权的并集口径）。
+
+    「全部合并」总开关被勾 → 清单里全部条目（无论逐条勾选态）；否则仅逐条勾选的条目。
+    总开关无 PR 链接、不是条目本身；个别不想合并就别勾总开关、逐条勾。
+    """
+    entries = _parse_entries(body)
+    merge_all = any(_MERGE_ALL_RE.match(line.strip()) for line in (body or "").splitlines())
+    if merge_all:
+        return [(cf, cn) for cf, cn, _ in entries]
+    return [(cf, cn) for cf, cn, ticked in entries if ticked]
 
 
 def find_checklist_issue(client: GitHubClient, owner_repo: str) -> dict | None:
@@ -72,16 +94,27 @@ def build_checklist_body(
     branch: str = PR_BRANCH,
     tail: str = "",
 ) -> str:
-    """清单 body：时间戳标题 + @你 + 逐条 PR（含预览链接 + 明细行/状态徽章）+ 勾选说明 + 三结局文案。
+    """清单 body：时间戳标题 + @你 + 「全部合并」总开关 + 逐条 PR（预览链接 + 明细行/
+    状态徽章）+ 勾选说明（含勿手动关警示）+ 三结局文案。
 
     open_prs 元素：{"full_name", "html_url", "branch"?}；W3 明细字段（可缺省，
     缺省即不渲染对应片段）："changed_files"/"additions"/"deletions"/"commits"/
     "commit_titles"/"mergeable_state"（dirty/blocked/draft → 明细行打头的 ⚠️ 徽章）。
+    总开关行（2026-10-23 Q1）带隐藏 token <!-- merge-all --> 供 parse_merge_targets
+    锚定；无条目（关闭体）不渲染总开关。
     """
     lines = [
         f"## {CHECKLIST_TITLE}（更新于 {updated_at}，北京时间）",
         f"@{username}",
     ]
+    if open_prs:
+        # 「全部合并」总开关（Q1 2026-10-23「能不能一键全选」）：GitHub 无原生全选按钮，
+        # 勾这行 = 一键授权下面全部条目；隐藏 token 供 parse_merge_targets 锚定
+        # （用户改措辞也不丢语义），且不含 PR 链接——绝不被当成普通条目
+        lines.append(
+            "- [ ] 全部合并：勾这里 = 一次授权下面全部条目；要挑着来就逐条勾"
+            "<!-- merge-all -->"
+        )
     for pr in open_prs:
         full = str(pr.get("full_name") or "")
         short = full.split("/", 1)[-1]
@@ -129,7 +162,8 @@ def build_checklist_body(
     lines += [
         "",
         "💡 勾选方框 = 授权自动合并：把想采用的条目打上勾（可多选、批量），"
-        "任务下次运行（含定时）会自动合并它们，无需逐个手点。",
+        "任务下次运行（含定时）会自动合并它们，无需逐个手点。"
+        "勾选后无需手动关本清单——全部处理完会自动关闭，提前手动关会让勾选失效。",
         "",
         "三种处理方式的效果：",
         "- **合并** → 新 README 落进仓库，主页本轮已经吸收，无需再做任何事；",
