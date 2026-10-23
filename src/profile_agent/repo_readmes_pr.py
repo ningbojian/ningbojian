@@ -3,7 +3,8 @@
 - 全走 GitHub REST API，无本地 git；
 - 每仓恒为一条 open PR：blob→tree→commit→ref（新建或 force-push）→PR 创建或刷新；
 - 合并检测把基线推进到 PR head SHA 而非 merge commit（§12-R10）；
-- 永不调用合并/关闭接口——合并永远由人执行（GP16）；
+- 合并仅限清单勾选授权的 merge_pr（2026-10-23 §5.5 修订：勾选 = 人工授权，
+  运行时代为合并）；推送/检测流仍永不合并（GP16），关闭接口永不调用；
 - 抑制只拦 cached（AI 输入哈希命中）：推送层不查 PR 状态（GP05）。
 """
 
@@ -11,10 +12,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 from dataclasses import dataclass
 from typing import Callable
 
-from profile_agent.github_client import API, GitHubClient
+from profile_agent.github_client import API, GitHubClient, GitHubError
 from profile_agent.readme_block import END, START
 from profile_agent.repo_readmes_ai import ProcessResult
 
@@ -61,6 +63,35 @@ def build_pr_body(*, commits: list[dict], base_sha: str, head_sha: str) -> str:
     )
 
 
+# build_pr_body 的「涉及提交」列表行：- `sha8` 标题（标题取每条 message 首行）
+_COMMIT_LINE_RE = re.compile(r"^- `[0-9a-f]+`\s*(.*)$")
+
+
+def parse_commit_titles(body: str) -> list[str]:
+    """从 PR body 的「涉及提交」段提取各提交标题（与 build_pr_body 对偶，W3）。
+
+    清单明细行的标题零额外取数——直接复用 body 里已有的列表；marker 之前/之后的
+    散文段不掺入，非列表行即段落结束（宁缺勿错）。
+    """
+    out: list[str] = []
+    seen_marker = False
+    for line in (body or "").splitlines():
+        s = line.strip()
+        if not seen_marker:
+            if s == "涉及提交：":
+                seen_marker = True
+            continue
+        if not s:
+            continue  # 空行跳过（无提交时 marker 后直接接散文段前的空行）
+        m = _COMMIT_LINE_RE.match(s)
+        if not m:
+            break  # 段落结束
+        title = m.group(1).strip()
+        if title:
+            out.append(title)
+    return out
+
+
 def _owner(full_name: str) -> str:
     return full_name.split("/", 1)[0]
 
@@ -77,6 +108,16 @@ def get_open_pr(client: GitHubClient, full_name: str, branch: str, *, base: str 
     return prs[0] if prs else None
 
 
+def get_pr_detail(client: GitHubClient, full_name: str, number: int) -> dict | None:
+    """单条 PR 明细（W3 清单详情行）：增删行/文件数/提交数 + body（含涉及提交）。
+
+    list 接口实测不带 additions/deletions/changed_files/commits——逐 PR 单 GET 才有，
+    每仓每轮至多 1 次；异常向上抛，由 cli 隔离成「该条清单省略细节」。
+    """
+    data, _ = client._get(f"{API}/repos/{full_name}/pulls/{number}")
+    return data if isinstance(data, dict) else None
+
+
 def find_latest_merged_pr(
     client: GitHubClient, full_name: str, branch: str, *, base: str = BASE_BRANCH
 ) -> dict | None:
@@ -86,7 +127,9 @@ def find_latest_merged_pr(
         f"&base={base}&sort=updated&direction=desc"
     )
     prs = data if isinstance(data, list) else []
-    if prs and prs[0].get("merged"):
+    # 真实 LIST API（Pull Request Simple）只有 merged_at（null/ISO），无 merged 布尔；
+    # 测试假件常用 merged=True——两族形状都认（2026-10-23 生产缺口回归）
+    if prs and (prs[0].get("merged_at") or prs[0].get("merged")):
         return prs[0]
     return None
 
@@ -106,6 +149,21 @@ def advance_baseline_from_merged_pr(
         return False
     entry["sha"] = head_sha
     return True
+
+
+def merge_pr(client: GitHubClient, full_name: str, number: int) -> tuple[bool, str]:
+    """合并一条被勾选授权的 PR；返回 (是否成功, 失败原因)（2026-10-23 §5.5 修订）。
+
+    勾选动作即用户的人工合并授权，这里只是代为执行；不传 merge_method——
+    走仓库配置的默认合并方式（squash-only 仓库也不会被改成 merge）。
+    失败（405 不可合并/404 已删/限流…）只转成可读原因返回、绝不向外抛，
+    调用方逐仓隔离——单仓失败不阻断批量合并与整轮任务。
+    """
+    try:
+        client._request("PUT", f"{API}/repos/{full_name}/pulls/{number}/merge")
+        return True, ""
+    except GitHubError as exc:
+        return False, str(exc)
 
 
 def push_readme(

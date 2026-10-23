@@ -9,19 +9,59 @@
 
 from __future__ import annotations
 
+import re
+
 from .github_client import API, GitHubClient
 from .repo_readmes_pr import PR_BRANCH
 
 CHECKLIST_TITLE = "🔔 README 更新待合并清单"
 
+# 勾选条目：- [x] 开头 + 规范 [PR](https://github.com/{owner}/{repo}/pull/{n}) 链接；
+# 仓库全名只能从 URL 取（可见文本只有短名）。半截链接/坏行不匹配 → 宁漏勿错。
+_CHECKED_RE = re.compile(
+    r"^- \[[xX]\] .*?\[PR\]\(https://github\.com/([^/\s)]+)/([^/\s)]+)/pull/(\d+)\)"
+)
 
-def _find_checklist_issue(client: GitHubClient, owner_repo: str) -> dict | None:
-    """找本仓唯一的清单 issue（open 态、标题前缀匹配）；无则 None。"""
+
+def parse_checked_prs(body: str) -> list[tuple[str, int]]:
+    """从清单 body 提取用户勾选的条目 → [(仓库全名, PR 号)]（2026-10-23 勾选=合并授权）。
+
+    勾选动作即用户的人工合并授权（设计 §5.5 修订）；未勾选、格式损坏的行
+    一律忽略——宁漏勿错，漏了让用户重勾，错了会合错东西。
+    """
+    out: list[tuple[str, int]] = []
+    for line in (body or "").splitlines():
+        m = _CHECKED_RE.match(line.strip())
+        if m:
+            out.append((f"{m.group(1)}/{m.group(2)}", int(m.group(3))))
+    return out
+
+
+def find_checklist_issue(client: GitHubClient, owner_repo: str) -> dict | None:
+    """找本仓唯一的清单 issue（open 态、标题前缀匹配）；无则 None。
+
+    公开给 cli：开局预取（2026-10-23 勾选合并钩子①）与清单步共用同一次读取。
+    """
     data, _ = client._get(f"{API}/repos/{owner_repo}/issues?state=open&per_page=100")
     for it in data if isinstance(data, list) else []:
         if str(it.get("title") or "").startswith(CHECKLIST_TITLE):
             return it
     return None
+
+
+# 未预取/预取失败哨兵：update_checklist 的 existing 缺省值
+# （≠ None——None 表示「确认无既有清单」，直接走创建）
+UNSET = object()
+
+
+def get_issue(client: GitHubClient, owner_repo: str, number: int) -> dict | None:
+    """按号直读清单 issue 最新 body；不存在/不可读 → None（钩子② 每 tick 用）。
+
+    等待期间勾选可能刚被用户改过，按号重读拿的是实时 body；已关闭也照读
+    （GitHub 对 closed issue 的 GET 同样 200，读到清空后的正文即自然无勾选）。
+    """
+    data, _ = client._get(f"{API}/repos/{owner_repo}/issues/{number}", allow_404=True)
+    return data if isinstance(data, dict) else None
 
 
 def build_checklist_body(
@@ -32,9 +72,11 @@ def build_checklist_body(
     branch: str = PR_BRANCH,
     tail: str = "",
 ) -> str:
-    """清单 body：时间戳标题 + @你 + 逐条 PR（含预览链接）+ 三结局文案（§5.5 草案）。
+    """清单 body：时间戳标题 + @你 + 逐条 PR（含预览链接 + 明细行/状态徽章）+ 勾选说明 + 三结局文案。
 
-    open_prs 元素：{"full_name", "html_url", "branch"?}。
+    open_prs 元素：{"full_name", "html_url", "branch"?}；W3 明细字段（可缺省，
+    缺省即不渲染对应片段）："changed_files"/"additions"/"deletions"/"commits"/
+    "commit_titles"/"mergeable_state"（dirty/blocked/draft → 明细行打头的 ⚠️ 徽章）。
     """
     lines = [
         f"## {CHECKLIST_TITLE}（更新于 {updated_at}，北京时间）",
@@ -51,7 +93,43 @@ def build_checklist_body(
             f"- [ ] {short}：[PR]({pr.get('html_url', '')})"
             f"（[新版 README 预览]({preview})）"
         )
+        # W3 明细行（2026-10-23 用户反馈「每个 pr 的细节太少」）：2 格缩进紧跟条目
+        # （渲染并入同一列表项）；标题取前 2 条、超 20 字截断——宁短勿长
+        bits: list[str] = []
+        # ⚠️ 可合并状态徽章打头（有冲突的 PR 勾选合并必 405——合并前先看到，省一轮失败）
+        _state = str(pr.get("mergeable_state") or "")
+        if _state == "dirty":
+            bits.append("⚠️ 有冲突（需先解决）")
+        elif _state == "blocked":
+            bits.append("⚠️ 被分支保护规则阻挡")
+        elif _state == "draft":
+            bits.append("⚠️ 草稿态（无法合并）")
+        if isinstance(pr.get("changed_files"), int):
+            bits.append(f"{pr['changed_files']} 个文件")
+        if isinstance(pr.get("additions"), int) and isinstance(pr.get("deletions"), int):
+            bits.append(f"+{pr['additions']}/-{pr['deletions']} 行")
+        n = pr.get("commits")
+        if isinstance(n, int) and n > 0:
+            titles = [
+                str(t).strip()
+                for t in (pr.get("commit_titles") or [])
+                if isinstance(t, str) and str(t).strip()
+            ]
+            if titles:
+                shown = [
+                    (t[:20] + "…") if len(t) > 20 else t for t in titles[:2]
+                ]
+                bits.append(
+                    f"{n} 次提交：{'、'.join(shown)}{' 等' if len(titles) > 2 else ''}"
+                )
+            else:
+                bits.append(f"{n} 次提交")
+        if bits:
+            lines.append("  ↳ " + " · ".join(bits))
     lines += [
+        "",
+        "💡 勾选方框 = 授权自动合并：把想采用的条目打上勾（可多选、批量），"
+        "任务下次运行（含定时）会自动合并它们，无需逐个手点。",
         "",
         "三种处理方式的效果：",
         "- **合并** → 新 README 落进仓库，主页本轮已经吸收，无需再做任何事；",
@@ -74,14 +152,19 @@ def update_checklist(
     updated_at: str,
     branch: str = PR_BRANCH,
     tail: str = "",
+    existing=UNSET,
 ) -> dict | None:
     """创建/刷新唯一清单 issue；全部结清时自动关闭；无 open PR 且无既有 issue → 不开。
 
     tail 附加在 body 末尾（等待首行、⏰ 终态行等，§4-3/§4-5）。
+    existing：调用方开局预取的清单 issue（2026-10-23 钩子①同一次读取的缓存，
+    省一次搜索）；不传（UNSET，含预取失败）则现场搜索；显式传 None 表示
+    确认无既有清单（直接走创建）。
     返回 {"number", "html_url", "body"} 或 None。异常向上抛（cli 隔离，IW26）。
     """
     repo = f"{API}/repos/{owner_repo}"
-    existing = _find_checklist_issue(client, owner_repo)
+    if existing is UNSET:
+        existing = find_checklist_issue(client, owner_repo)
     if not open_prs:
         if existing:
             # 关闭同时清掉已结清条目（OR04：body 不再含已处理 PR 链接）

@@ -132,3 +132,20 @@ def test_cancel_during_wait_propagates():
     else:  # pragma: no cover
         raise AssertionError("取消未传播")
     assert calls["n"] == 2
+
+
+def test_on_tick_runs_before_each_poll_for_checkbox_merges():
+    """2026-10-23 勾选合并钩子②：每轮轮询前执行 on_tick——等待期间新勾选的 PR
+    在同一轮就被轮询看到合并结果（否则要多等一个 POLL_SECONDS）。"""
+    http = FakeHttp()
+    _pulls(http, 42, FakeResponse(json_data={"state": "open", "merged": False}),
+                   FakeResponse(json_data={"merged": True, "state": "closed"}))
+    clock = FakeClock()
+    ticks: list[int] = []
+    result = wait_for_merges(
+        GitHubClient("p-pat", session=http),
+        [("alice/alice", 42)], minutes=30, now_fn=clock.now, sleep_fn=clock.sleep,
+        on_tick=lambda: ticks.append(len(clock.sleeps)),
+    )
+    assert result == "cleared"
+    assert ticks == [1, 2]  # 两次轮询前各触发一次（先 tick 后 poll）

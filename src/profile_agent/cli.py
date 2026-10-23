@@ -21,7 +21,14 @@ from .aggregate import (
     stats_fingerprint,
 )
 from .bio import BioError, _is_fresh, generate_bio
-from .checklist import append_final_state, update_checklist
+from .checklist import (
+    UNSET,
+    append_final_state,
+    find_checklist_issue,
+    get_issue,
+    parse_checked_prs,
+    update_checklist,
+)
 from .config import Config, ConfigError, load_config
 from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
@@ -29,7 +36,14 @@ from .projects import intro_filename, intro_input_hash, update_project_intros
 from .render import render_readme, write_if_changed
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
-from .repo_readmes_pr import advance_baseline_from_merged_pr, get_open_pr, push_results
+from .repo_readmes_pr import (
+    advance_baseline_from_merged_pr,
+    get_open_pr,
+    get_pr_detail,
+    merge_pr,
+    parse_commit_titles,
+    push_results,
+)
 from .short_intro import generate_short_intro, short_intro_input_hash
 from .snapshot import load_snapshot, save_snapshot
 from .wait_merges import wait_first_line, wait_for_merges
@@ -305,9 +319,92 @@ def run(
     b_pending = prev is not None and any(
         bool(e.get("pending")) for e in prev.repo_readmes.values()
     )
+
+    # ---- 模式 B 前置（2026-10-23 设计验证修订）：PAT/清单通道/开局勾选收割先于增量门 ----
+    # 勾选（- [x]）是用户的人工授权动作：无条件收割，门早退不得让它永不生效；
+    # 门再由 merge_requested/b_force 决定是否放行整轮 B
+    owner_repo = f"{cfg.github.username}/{cfg.github.username}"
+    issue: dict | None = None
+    issue_eff = None
+    # 开局预取的清单 issue（2026-10-23 钩子①）：UNSET=未预取/预取失败（清单步现场搜索），
+    # dict=确认命中（清单步免搜索），None=确认无清单（直接创建）
+    issue_cached: object = UNSET
+    checklist_closed = False
+    merge_requested = False  # 门条件之一：清单里存在 - [x]（无论合并成败，用户在要求动作）
+    attempted: set[tuple[str, int]] = set()  # 同轮每条勾选至多一次 PUT（防重复与误报）
+
+    # PAT 解析（Option A）：注入参数优先；生产路径从 WORKFLOW_PAT 构造（fixture 离线不读环境）
+    b_client_eff = b_client
+    if b_client_eff is None and fixture is None:
+        _pat = os.environ.get("WORKFLOW_PAT") or None
+        if _pat:
+            b_client_eff = GitHubClient(_pat)
+    if b_force and not cfg.repo_readmes.enabled:
+        _conflict = (
+            "已勾选 repo_readmes 但 config.yaml 中 repo_readmes.enabled=false，本次未运行模式 B"
+        )
+        print(_conflict)
+        _append_summary(f"- ⚠️ {_conflict}")
+
+    # 清单通道提前解析（2026-10-23 钩子①）：开局预取清单、读勾选需要它
+    # （IW27 权限分离保持：清单读写走 GITHUB_TOKEN/issue_client，合并走 PAT）
+    if cfg.repo_readmes.enabled and b_client_eff is not None and not dry_run:
+        if issue_client is not None:
+            issue_eff = issue_client
+        else:
+            _tok = os.environ.get(cfg.github.token_env) or None
+            if _tok:
+                issue_eff = GitHubClient(_tok)
+
+    def _merge_from_issue(src, where: str) -> list[tuple[str, int]]:
+        """按清单勾选（- [x]）逐条代为合并（2026-10-23 §5.5 修订：勾选=人工授权）。
+
+        返回成功合并的 (full_name, number) 列表（钩子①' 用它推进基线）；单条失败只
+        记录不中断（修复后重新勾选、下轮重试）；同轮已试过的条目直接跳过（attempted：
+        防重复 PUT 与「成功后再报失败」）；src 非 dict（None=无清单、UNSET=预取失败
+        未命中）直接跳过——UNSET 是 truthy 哨兵，不能只判 falsy。
+        """
+        if not isinstance(src, dict) or b_client_eff is None:
+            return []
+        merged_refs: list[tuple[str, int]] = []
+        for _cf, _cn in parse_checked_prs(str(src.get("body") or "")):
+            if (_cf, _cn) in attempted:
+                continue
+            attempted.add((_cf, _cn))
+            _ok, _why = merge_pr(b_client_eff, _cf, _cn)
+            if _ok:
+                merged_refs.append((_cf, _cn))
+                _line = f"「{_cf}」PR #{_cn} 已按清单勾选合并（{where}）"
+                print(_line)
+                _append_summary(f"- ✅ {_line}")
+            else:
+                _line = (
+                    f"「{_cf}」PR #{_cn} 勾选合并失败（{where}；修复后重新勾选，下轮重试）：{_why}"
+                )
+                print(_line, file=sys.stderr)
+                _append_summary(f"- ⚠️ {_line}")
+        return merged_refs
+
+    # 钩子①（2026-10-23 勾选合并）：预取清单 → 按勾选代为合并。无条件先于增量门——
+    # 门若先早退，cron 轮里的勾选将永不生效（设计验证实测缺口）
+    if b_client_eff is not None and not dry_run and issue_eff is not None:
+        try:
+            issue_cached = find_checklist_issue(issue_eff, owner_repo)
+        except Exception as exc:  # noqa: BLE001 —— 预取失败退化为清单步现场搜索
+            print(f"清单预取失败（勾选合并跳过，清单步会重查）：{exc}", file=sys.stderr)
+        if isinstance(issue_cached, dict):
+            merge_requested = bool(parse_checked_prs(str(issue_cached.get("body") or "")))
+        _merge_from_issue(issue_cached, "开局")
+
+    # 增量门（2026-10-23 设计验证修订）：b_force（对话框承诺「全量重跑开 PR」，Q21）与
+    # 清单勾选（merge_requested，用户在要求动作）都必须开门；enabled=false 时勾选只警告
+    # 不运行（Q22）→ b_gate 含 enabled 判定，冲突警告已在上方输出
+    b_gate = b_force and cfg.repo_readmes.enabled
     if (
         not force
         and not named_repos  # 点名即重跑：不走整体增量门
+        and not b_gate
+        and not merge_requested
         and prev is not None
         and prev.stats_fingerprint == fingerprint
         and prev.stats_config_hash == cfg_hash
@@ -330,23 +427,6 @@ def run(
     b_merged: set[str] = set()
     open_prs: list[dict] = []
     b_readme_sources: dict[str, str] = {}  # §5.6：full_name → 内存/API 真源/分支/旧文
-    issue: dict | None = None
-    issue_eff = None
-    checklist_closed = False
-    owner_repo = f"{cfg.github.username}/{cfg.github.username}"
-
-    # PAT 解析（Option A）：注入参数优先；生产路径从 WORKFLOW_PAT 构造（fixture 离线不读环境）
-    b_client_eff = b_client
-    if b_client_eff is None and fixture is None:
-        _pat = os.environ.get("WORKFLOW_PAT") or None
-        if _pat:
-            b_client_eff = GitHubClient(_pat)
-    if b_force and not cfg.repo_readmes.enabled:
-        _conflict = (
-            "已勾选 repo_readmes 但 config.yaml 中 repo_readmes.enabled=false，本次未运行模式 B"
-        )
-        print(_conflict)
-        _append_summary(f"- ⚠️ {_conflict}")
     fetchers = readme_fetchers
     if fetchers is None and b_client_eff is not None and cfg.repo_readmes.enabled:
         fetchers = _fetchers_from_client(b_client_eff)
@@ -445,6 +525,36 @@ def run(
                 "### 模式 B 逐仓进度\n" + "\n".join(b_progress + b_errors)
             )
 
+    # 钩子①'（2026-10-23 设计验证修订）：扫描前再收割一次——AI/推送阶段（可达数分钟）期间
+    # 新勾选若不先收割会被清单重建抹掉；合并成功即同轮推进该仓基线（attempted 挡重复 PUT）
+    if b_client_eff is not None and not dry_run and issue_eff is not None:
+        try:
+            if isinstance(issue_cached, dict):
+                cur_issue = get_issue(issue_eff, owner_repo, int(issue_cached["number"]))
+            elif issue_cached is None:
+                cur_issue = None  # 开局确认无既有清单：本轮新建的不可能有用户勾选
+            else:
+                cur_issue = find_checklist_issue(issue_eff, owner_repo)  # 预取失败退化重查
+            for _cf, _cn in _merge_from_issue(cur_issue, "推送后"):
+                _merged_entry = repo_readmes_state.get(_cf)
+                if _merged_entry and _merged_entry.get("sha"):
+                    try:
+                        if advance_baseline_from_merged_pr(
+                            b_client_eff,
+                            _merged_entry,
+                            _cf,
+                            cfg.repo_readmes.pr_branch,
+                            base=default_bases.get(_cf, "main"),
+                        ):
+                            b_merged.add(_cf)
+                    except Exception as exc:  # noqa: BLE001 —— 逐仓隔离：推进失败不拖死扫描
+                        print(
+                            f"「{_cf}」合并后基线推进失败（不影响清单重建）：{exc}",
+                            file=sys.stderr,
+                        )
+        except Exception as exc:  # noqa: BLE001 —— 收割失败不拖死扫描与清单
+            print(f"扫描前清单收割失败（忽略，清单重建照旧）：{exc}", file=sys.stderr)
+
     # open-PR 扫描（清单/等待的输入）；§5.6 新鲜度预填延后到等待之后——
     # 等待中被结清的 PR 不得再用分支内容（OR04 回退旧文防线）
     if b_client_eff is not None and cfg.repo_readmes.enabled and not dry_run:
@@ -456,14 +566,32 @@ def run(
                 base=default_bases.get(_fn, "main"),
             )
             if pr:
-                open_prs.append(
-                    {
-                        "full_name": _fn,
-                        "html_url": pr.get("html_url", ""),
-                        "number": pr.get("number"),
-                        "branch": cfg.repo_readmes.pr_branch,
-                    }
-                )
+                pr_info = {
+                    "full_name": _fn,
+                    "html_url": pr.get("html_url", ""),
+                    "number": pr.get("number"),
+                    "branch": cfg.repo_readmes.pr_branch,
+                }
+                # W3 清单明细（2026-10-23）：list 接口不带统计——逐 PR 单 GET；
+                # 失败降级为无细节条目（清单省略该行，不拖死扫描）
+                try:
+                    det = get_pr_detail(b_client_eff, _fn, int(pr["number"]))
+                except Exception as exc:  # noqa: BLE001 —— 明细失败不影响清单主行
+                    print(
+                        f"「{_fn}」PR 明细获取失败（清单该条省略细节）：{exc}",
+                        file=sys.stderr,
+                    )
+                    det = None
+                if isinstance(det, dict):
+                    for _k in ("additions", "deletions", "changed_files", "commits"):
+                        if isinstance(det.get(_k), int):
+                            pr_info[_k] = det[_k]
+                    if isinstance(det.get("mergeable_state"), str):
+                        pr_info["mergeable_state"] = det["mergeable_state"]
+                    pr_info["commit_titles"] = parse_commit_titles(
+                        str(det.get("body") or "")
+                    )
+                open_prs.append(pr_info)
 
     # 「模式 B 状态」行（§8①）：七种静默场景各有可读原因，日志 + Summary 同源；每轮必有（OR11②）
     if b_crash:
@@ -483,13 +611,8 @@ def run(
     _append_summary(f"- {status_line}")
 
     # 3.6 清单/通知 + 等待（§4-2/§4-3）：有 open PR 才动 issue；等待仅勾选且非空时执行
+    # （issue_eff 已在开局解析；issue_cached 为钩子①的预取——省一次搜索，条件同款）
     if cfg.repo_readmes.enabled and b_client_eff is not None and not dry_run:
-        if issue_client is not None:
-            issue_eff = issue_client
-        else:
-            _tok = os.environ.get(cfg.github.token_env) or None
-            if _tok:
-                issue_eff = GitHubClient(_tok)
         wait_hint = ""
         if merge_wait_minutes > 0 and open_prs:
             _until = (
@@ -506,6 +629,7 @@ def run(
                     updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
                     branch=cfg.repo_readmes.pr_branch,
                     tail=wait_hint,
+                    existing=issue_cached,
                 )
             except Exception as exc:  # noqa: BLE001 —— 清单失败任务不失败（IW26）
                 print(f"清单 issue 更新失败（不影响本轮任务）：{exc}", file=sys.stderr)
@@ -554,10 +678,23 @@ def run(
                             username=cfg.github.username,
                             updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
                             branch=cfg.repo_readmes.pr_branch,
+                            existing=issue,
                         )
                     except Exception as exc:  # noqa: BLE001 —— 刷新失败忽略，不拖死等待
                         print(f"清单刷新失败（忽略）：{exc}", file=sys.stderr)
                 print(f"::notice::等待合并：还剩 {len(pending)} 条待处理")
+
+            def _tick_merge() -> None:
+                # 钩子②（2026-10-23）：等待期间新勾选 → 立即代为合并，本轮轮询即见结果；
+                # 每 tick 按号直读清单（勾选是用户在等待期间改的；按号 GET 不消耗
+                # 搜索路由的测试配额/限流预算），异常自隔离不拖死等待
+                if issue is None or issue_eff is None:
+                    return
+                try:
+                    cur = get_issue(issue_eff, owner_repo, int(issue["number"]))
+                    _merge_from_issue(cur, "等待中")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"等待中勾选合并失败（忽略，下个 tick 重试）：{exc}", file=sys.stderr)
 
             try:
                 wait_result = wait_for_merges(
@@ -567,6 +704,7 @@ def run(
                     now_fn=now_fn or time.monotonic,
                     sleep_fn=sleep_fn or time.sleep,
                     on_change=_on_change,
+                    on_tick=_tick_merge,
                 )
             except KeyboardInterrupt:
                 raise  # 取消语义：B 产物已落盘，不回滚（IW24 前半）
@@ -590,6 +728,7 @@ def run(
                             updated_at=datetime.now(_BEIJING).strftime("%Y-%m-%d %H:%M"),
                             branch=cfg.repo_readmes.pr_branch,
                             tail=timeout_tail,
+                            existing=issue,
                         )
                     except Exception as exc:  # noqa: BLE001 —— 终态行失败忽略
                         print(f"清单更新失败（忽略）：{exc}", file=sys.stderr)

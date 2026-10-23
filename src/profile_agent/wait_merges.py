@@ -31,12 +31,15 @@ def wait_for_merges(
     now_fn: Callable[[], float],
     sleep_fn: Callable[[int], None],
     on_change: Callable[[list[tuple[str, int]]], None] | None = None,
+    on_tick: Callable[[], None] | None = None,
 ) -> str:
     """等待清单内 PR 全部结清或超时；返回 "cleared" | "timeout"。
 
     pr_refs 为 (仓库全名, PR 号)——清单里的 PR 可能来自不同仓库，轮询打各自仓库
     （OR04/OR15 端到端按仓路由）。on_change(pending) 在每次状态变化后调用（cli 用它
-    刷新 issue body + 打 ::notice::）。取消（如进程被杀）以异常形式向外传播——
+    刷新 issue body + 打 ::notice::）。on_tick 每轮轮询前调用（2026-10-23 勾选合并
+    钩子②：cli 在此读清单勾选并代为合并，本轮轮询即能看到结果；tick 回调自身
+    异常由 cli 内部隔离，不从这里传播）。取消（如进程被杀）以异常形式向外传播——
     B 产物已落盘，不回滚（IW24 前半）。
     """
     if minutes <= 0 or not pr_refs:
@@ -47,6 +50,8 @@ def wait_for_merges(
         if now_fn() >= deadline:
             return "timeout"
         sleep_fn(POLL_SECONDS)
+        if on_tick is not None:
+            on_tick()
         changed = False
         for ref in sorted(pending):
             data, _ = client._get(f"{API}/repos/{ref[0]}/pulls/{ref[1]}")

@@ -11,6 +11,7 @@ from profile_agent.checklist import (
     CHECKLIST_TITLE,
     append_final_state,
     build_checklist_body,
+    parse_checked_prs,
     update_checklist,
 )
 from profile_agent.github_client import API, GitHubClient, GitHubError
@@ -187,3 +188,113 @@ def test_body_items_single_line_markdown_links_no_bare_urls():
     )
     # 条目里绝不出现「：https://」形式的裸链接体——它就是 404 与两行问题的根源
     assert all("：https://" not in ln for ln in entries)
+
+
+def test_parse_checked_prs_extracts_ticked_entries():
+    """2026-10-23 勾选=合并授权：解析 [x] 条目得（仓库全名, PR 号）。
+
+    仓库全名从条目里的 PR 链接 URL 提取（可见文本只有短名，URL 才含 owner/repo）。
+    """
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    ticked = body.replace("- [ ] shiyuan：", "- [x] shiyuan：")
+    assert parse_checked_prs(ticked) == [("ningbojian/shiyuan", 7)]
+    # 大写 [X] 同样算勾选（GitHub 手输大小写不敏感）
+    ticked_upper = body.replace("- [ ] profile-readme-agent：", "- [X] profile-readme-agent：")
+    assert parse_checked_prs(ticked_upper) == [("ningbojian/profile-readme-agent", 43)]
+
+
+def test_parse_checked_prs_ignores_unticked_and_malformed():
+    """未勾选与被手改坏的行不产生合并授权——解析必须防御，宁漏勿错。"""
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    assert parse_checked_prs(body) == []  # 全部未勾 → 零授权
+    malformed = (
+        "- [x] 没有链接的坏行\n"
+        "- [x] 半截链接：[PR](https://github.com/ningbojian/shiyuan/pull/\n"
+        "- [x] shiyuan：[PR](https://github.com/ningbojian/shiyuan/pull/7)"
+        "（[新版 README 预览](https://github.com/ningbojian/shiyuan/blob/readme-auto/update/README.md)）\n"
+    )
+    assert parse_checked_prs(malformed) == [("ningbojian/shiyuan", 7)]  # 仅完好的勾选行生效
+
+
+def test_body_detail_line_renders_stats_and_commit_titles():
+    """W3（2026-10-23）：每条 PR 下附一行细节——文件数、增删行、提交数+标题。
+
+    细节行缩进 2 格紧跟条目行（并入同一列表项、不新增可见层级）；
+    提交标题取前 2 条、超出以「等」收尾——用户反馈「每个 pr 的细节太少」的直接回应。
+    """
+    pr = dict(
+        PR7,
+        changed_files=2,
+        additions=34,
+        deletions=11,
+        commits=3,
+        commit_titles=["修复拼写错误", "更新项目列表", "补充说明"],
+    )
+    body = build_checklist_body([pr], username="alice", updated_at="t")
+    expected = "  ↳ 2 个文件 · +34/-11 行 · 3 次提交：修复拼写错误、更新项目列表 等"
+    lines = body.splitlines()
+    entry_idx = next(i for i, ln in enumerate(lines) if ln.startswith("- [ ] shiyuan："))
+    assert lines[entry_idx + 1] == expected  # 紧跟条目、2 格缩进
+
+
+def test_body_detail_line_single_title_truncated_and_count_only():
+    """W3 细节行边界：恰 1 条标题不带「等」；超长标题 20 字截断防清单被撑长。"""
+    pr = dict(
+        PR43,
+        changed_files=1,
+        additions=5,
+        deletions=0,
+        commits=1,
+        commit_titles=["fix: typo"],
+    )
+    body = build_checklist_body([pr], username="alice", updated_at="t")
+    assert "  ↳ 1 个文件 · +5/-0 行 · 1 次提交：fix: typo\n" in body
+
+    long_title = "这是一个特别特别长的提交标题需要被截断处理以免清单过长"
+    long_pr = dict(
+        PR7, changed_files=1, additions=1, deletions=0, commits=1,
+        commit_titles=[long_title],
+    )
+    body_long = build_checklist_body([long_pr], username="alice", updated_at="t")
+    assert f"1 次提交：{long_title[:20]}…" in body_long  # 20 字截断 + 省略号
+
+    # 有统计无标题（body 缺失/旧格式）→ 只出计数，不编造标题
+    count_only = dict(PR7, changed_files=1, additions=2, deletions=1, commits=2)
+    body_count = build_checklist_body([count_only], username="alice", updated_at="t")
+    assert "  ↳ 1 个文件 · +2/-1 行 · 2 次提交\n" in body_count
+
+
+def test_body_without_stats_keeps_single_line_entries():
+    """明细缺失（GET 失败/旧数据）→ 不渲染细节行，条目保持单行——宁缺勿错。"""
+    body = build_checklist_body([PR7, PR43], username="alice", updated_at="t")
+    assert "↳" not in body
+    entries = [ln for ln in body.splitlines() if ln.startswith("- [ ]")]
+    assert len(entries) == 2
+
+
+def test_body_explains_checkbox_batch_merge_semantics():
+    """W2（2026-10-23 用户问「checkbox 是有什么作用，能批量 merge 吗」）：清单里
+    必须写明——勾选 = 授权任务自动合并，可多选批量；否则新人看不懂该不该勾。"""
+    body = build_checklist_body([PR7], username="alice", updated_at="t")
+    assert "勾选方框" in body
+    assert "自动合并" in body
+    assert "多选" in body  # 批量语义可见（回答「能否批量 merge」：能）
+
+
+def test_body_mergeable_state_warning_renders_even_without_stats():
+    """⚠️ 可合并状态徽章：dirty/blocked/draft 在明细行打头；无统计时也照渲染。
+
+    有冲突的 PR 勾选合并必然 405 失败——徽章让用户合并前先看到，省一轮失败。
+    """
+    dirty = dict(PR7, mergeable_state="dirty")
+    body = build_checklist_body([dirty], username="alice", updated_at="t")
+    assert "  ↳ ⚠️ 有冲突" in body  # 无统计字段也有明细行（警告即细节）
+
+    blocked = dict(PR43, mergeable_state="blocked", changed_files=1,
+                   additions=2, deletions=0, commits=1)
+    body_b = build_checklist_body([blocked], username="alice", updated_at="t")
+    assert "  ↳ ⚠️ 被分支保护规则阻挡 · 1 个文件" in body_b  # 警告打头、统计随后
+
+    # clean/draft-无/缺失 → 不打旗（不噪音）
+    clean = dict(PR7, mergeable_state="clean")
+    assert "⚠️" not in build_checklist_body([clean], username="alice", updated_at="t")

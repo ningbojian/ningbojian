@@ -13,23 +13,20 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: >-
-          强制重生成 A+B：忽略增量门，重新生成主页 overview，并把全部公开仓库的
-          README 全量重跑（逐仓 AI 生成 → 开 PR → 主页同轮吸收）。只想强制模式 B 就勾 repo_readmes。
+        # 单行短文案即对话框可见 label；去 A+/模式 B 内部黑话，新人一眼可辨（2026-10-23）
+        description: "跳过『有变化才更新』：主页 overview 立即重写，全部公开仓库 README 全量重跑开 PR"
         type: boolean
         default: false
       repo_readmes:
-        description: "只强制模式 B：全部公开仓库的 README 全量重跑（AI 生成 → 开 PR → 主页吸收），不影响主页 overview"
+        description: "只强制各仓库 README：全部公开仓库全量重跑开 PR，不影响主页 overview"
         type: boolean
         default: false
       wait_for_merges:
-        description: "暂停，等我合并 PR（可选；不勾则直接继续，PR 事后随时可合，最多等 30 分钟）"
+        description: "开 PR 后暂停等你合并（最多 30 分钟）；不勾也行，PR 事后随时可合，照常更新"
         type: boolean
         default: false
       schedule_interval:
-        description: >-
-          定时运行间隔：选天数后，本轮结束时自动把定时改为「每 N 天一次」（按今天起算）；
-          选「不修改」则只跑本轮、不改周期。
+        description: "改定时任务每隔几天自动跑一次，本轮结束后生效；选『不修改』则不改周期"
         type: choice
         default: 不修改（保持当前周期）
         options:
@@ -42,7 +39,7 @@ on:
           - 每 6 天
           - 每 7 天
       update_readme:
-        description: "更新个人主页 overview"
+        description: "更新个人主页 overview（默认勾选）；不勾则本轮不更新主页（『立即重写』也不生效），其余照常"
         type: boolean
         default: true
 

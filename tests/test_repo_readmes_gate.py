@@ -1,4 +1,8 @@
-"""模式 B 与增量门的交互测试（测试计划 Q09、Q17-Q20，离线 fixture + 注入 fetcher）。"""
+"""模式 B 与增量门的交互测试（测试计划 Q09、Q17-Q21，离线 fixture + 注入 fetcher）。
+
+Q21 落在本文件而非测试计划原写的 test_repo_readmes_cli.py——门测试已随
+演进集中到本文件（Q09 同款先例），保持同一套 fixture 夹具。
+"""
 
 import datetime as dt
 import json
@@ -56,7 +60,7 @@ def _heads_all(sha="head0001"):
     return {fn: sha for fn in PARTICIPANTS}
 
 
-def _write_config(tmp_path: Path, *, rr_enabled: bool = True) -> Path:
+def _write_config(tmp_path: Path, *, rr_enabled: bool = True, extra: str = "") -> Path:
     cfg = tmp_path / "config.yaml"
     p = lambda x: x.as_posix()  # noqa: E731
     rr = "true" if rr_enabled else "false"
@@ -71,6 +75,7 @@ readme:
   template: "{p(TEMPLATE)}"
 repo_readmes:
   enabled: {rr}
+{extra}
 snapshot:
   path: "{p(tmp_path / 'data' / 'snapshot.json')}"
 """,
@@ -188,6 +193,181 @@ def test_unrelated_change_opens_gate_but_untouched_repo_zero_cost(tmp_path, caps
     assert "无变化，跳过更新" not in out  # 门已打开
     assert fetchers.head_calls == PARTICIPANTS  # B 跑过
     assert fetchers.compare_calls == []  # 但未动仓库零成本
+
+
+def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys, monkeypatch):
+    """Q21（与 Q09 成对）：数据无变化 + 勾选 repo_readmes → 门不早退、B 被强制执行。
+
+    A 侧不被牵连：README mtime 不变（不碰 A 的门）、bio 不再生成、项目介绍零调用。
+    对话框文案承诺「全量重跑开 PR」——勾选必须参与开门，否则最该干活的场景
+    （数据无变化时手动强制）直接被「无变化，跳过更新」早退吞掉（设计验证实测）。
+    """
+    import profile_agent.cli as cli_mod
+
+    counters = {"bio_gen": 0, "intro": 0}
+
+    def fake_bio(payload, cfg, *, input_hash, prev_hash, prev_text, prev_generated_at):
+        if prev_text and input_hash == prev_hash:
+            return prev_text, False  # 新鲜复用（与真 generate_bio 的内部跳过同语义）
+        counters["bio_gen"] += 1
+        return "测试简介，用于主页展示的中文简介文本。", True
+
+    def fake_intro(*args, **kwargs):
+        counters["intro"] += 1
+        return {}
+
+    monkeypatch.setattr(cli_mod, "generate_bio", fake_bio)
+    monkeypatch.setattr(cli_mod, "update_project_intros", fake_intro)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")  # ai_active 开（key 只进夹具不调 API）
+
+    cfg = _write_config(
+        tmp_path,
+        extra="projects:\n  enabled: false\nai:\n  fill_empty_descriptions: false\n",
+    )
+    fake_readme_ai = lambda system, prompt: "新托管内容X"  # noqa: E731
+
+    # 第一轮：建立指纹、基线与新鲜简介
+    assert (
+        _run(cfg, FakeFetchers(heads=_heads_all()), no_ai=False,
+             readme_generate=fake_readme_ai) == 0
+    )
+    assert counters["bio_gen"] == 1  # 首轮真生成（run2 的 0 才有对比意义）
+    readme_mtime = (tmp_path / "README.md").stat().st_mtime_ns
+    after_first = dict(counters)
+    capsys.readouterr()
+
+    # 第二轮：数据完全无变化（heads 与基线相同），仅勾选 repo_readmes
+    fetchers = FakeFetchers(heads=_heads_all())
+    assert (
+        _run(cfg, fetchers, no_ai=False, b_force=True,
+             readme_generate=fake_readme_ai) == 0
+    )
+    out = capsys.readouterr().out
+    assert "无变化，跳过更新" not in out  # ① 勾选开门（早退=勾选成空头支票）
+    assert "入队 3 仓" in out  # B 被强制执行（与 Q09 同款可观测：全量合成入队）
+    assert fetchers.head_calls == PARTICIPANTS  # B 确实取了各仓 HEAD
+    assert fetchers.compare_calls == []  # 强制走合成路径，零 compare
+    assert (tmp_path / "README.md").stat().st_mtime_ns == readme_mtime  # ③ 不碰 A 的门
+    assert counters == after_first  # ② bio 不再生成、项目介绍零调用
+
+
+def test_ticked_checkbox_opens_gate_and_merges_even_without_data_change(tmp_path, capsys, monkeypatch):
+    """2026-10-23 勾选=人工授权：门全关（数据无变化、无 b_force）但清单有 - [x] →
+    门必须开（merge_requested），开局即代为合并、同轮推进基线。
+
+    钩子①原本在门早退之后——cron 轮里用户勾了也永不生效（设计验证实测缺口）；
+    attempted 集合保证同一条勾选每轮至多一次 PUT（钩子①' 复读同 body 不再重复合并）。
+    """
+    from fake_github import FakeHttp, FakeResponse
+
+    from profile_agent.github_client import GitHubClient
+
+    _freeze_time(monkeypatch)
+    cfg = _write_config(tmp_path)
+    # 第一轮：建立真实指纹与三仓基线（fixture 离线，无 b_client → 无清单通道）
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0
+    assert _snapshot(tmp_path)["repo_readmes"]["alice/cool-tool"]["sha"] == "head0001"
+
+    # 第二轮：数据完全无变化、不勾 b_force——唯一变量是清单里的一条 - [x]
+    http = FakeHttp()
+    ticked = (
+        "## 🔔 README 更新待合并清单（更新于 2026-10-22 18:30，北京时间）\n"
+        "@alice\n"
+        "- [x] alice/cool-tool：[PR](https://github.com/alice/cool-tool/pull/7)"
+        "（[新版 README 预览](https://github.com/alice/cool-tool/blob/readme-auto/update/README.md)）\n"
+    )
+    http.add(  # 钩子① 开局预取：搜索命中被勾选的清单
+        "GET",
+        "https://api.github.com/repos/alice/alice/issues?state=open&per_page=100",
+        FakeResponse(
+            json_data=[{
+                "number": 5,
+                "title": "🔔 README 更新待合并清单（待合并 PR）",
+                "html_url": "https://github.com/alice/alice/issues/5",
+                "body": ticked,
+            }]
+        ),
+    )
+    http.add(  # 钩子①' 扫描前按号复读：body 仍是勾选态（attempted 挡下第二次 PUT）
+        "GET",
+        "https://api.github.com/repos/alice/alice/issues/5",
+        FakeResponse(
+            json_data={"number": 5,
+                       "html_url": "https://github.com/alice/alice/issues/5",
+                       "body": ticked}
+        ),
+        sticky=True,
+    )
+    http.add(
+        "PUT",
+        "https://api.github.com/repos/alice/cool-tool/pulls/7/merge",
+        FakeResponse(json_data={"merged": True, "sha": "f" * 40, "message": "merged"}),
+    )
+    for fn in PARTICIPANTS:  # 合并检测：cool-tool 已合并 → 基线推进；其余无记录
+        body = (
+            [{"number": 7, "merged": True, "head": {"sha": "merged11"}}]
+            if fn == "alice/cool-tool"
+            else []
+        )
+        owner = fn.split("/")[0]
+        http.add(
+            "GET",
+            f"https://api.github.com/repos/{fn}/pulls?state=all&head={owner}:readme-auto/update"
+            "&base=main&sort=updated&direction=desc",
+            FakeResponse(json_data=body),
+            sticky=True,
+        )
+        http.add(  # 扫描：PR 已合并 → open 列表为空
+            "GET",
+            f"https://api.github.com/repos/{fn}/pulls?state=open&head={owner}:readme-auto/update&base=main",
+            FakeResponse(json_data=[]),
+            sticky=True,
+        )
+    http.add(  # 清单重建：无 open PR → 关闭 issue
+        "PATCH",
+        "https://api.github.com/repos/alice/alice/issues/5",
+        FakeResponse(json_data={"number": 5}),
+    )
+    fetchers = FakeFetchers(
+        # 快进合并建模：cool-tool 的 PR head == 合并后默认分支 HEAD（merged11）
+        heads={**_heads_all(), "alice/cool-tool": "merged11"},
+    )  # advance 后 base==head → 零 compare，基线停在 merged11
+    capsys.readouterr()
+    assert (
+        _run(
+            cfg,
+            fetchers,
+            b_client=GitHubClient("p-pat", session=http),
+            issue_client=GitHubClient("g-tok", session=http),
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "无变化，跳过更新" not in out  # ① 勾选开门（早退 = 勾选永不生效）
+    assert "已按清单勾选合并（开局）" in out  # ② 开局即代为合并
+    puts = [r for r in http.writes() if r["method"] == "PUT"]
+    assert len(puts) == 1  # ③ attempted：同一勾选每轮至多一次 PUT
+    assert _snapshot(tmp_path)["repo_readmes"]["alice/cool-tool"]["sha"] == "merged11"  # ④ 同轮基线推进
+    closes = [
+        r for r in http.writes() if r["method"] == "PATCH" and r["json"].get("state") == "closed"
+    ]
+    assert closes and "/pull/7" not in closes[0]["json"]["body"]  # ⑤ 清单重建无幻影勾选
+
+
+def test_q22_b_force_with_enabled_false_keeps_gate_closed(tmp_path, capsys):
+    """Q22：enabled=false 时勾选 repo_readmes 只警告不运行——门不开（b_gate 含 enabled 判定），
+    A 侧与纯 A 轮一致（早退不动 README）。"""
+    cfg = _write_config(tmp_path, rr_enabled=False)
+    assert _run(cfg, FakeFetchers(heads=_heads_all())) == 0  # 纯 A 轮建立指纹
+    readme_mtime = (tmp_path / "README.md").stat().st_mtime_ns
+    fetchers = FakeFetchers()  # 门若开、B 若跑，任何 fetcher 调用都会 AssertionError
+    capsys.readouterr()
+    assert _run(cfg, fetchers, b_force=True) == 0
+    out = capsys.readouterr().out
+    assert "已勾选 repo_readmes" in out and "enabled=false" in out  # 冲突警告照发（IW09 同文案）
+    assert "无变化，跳过更新" in out  # 门不开：与纯 A 轮一致（开 A 门会重写 README）
+    assert fetchers.head_calls == [] and fetchers.compare_calls == []
+    assert (tmp_path / "README.md").stat().st_mtime_ns == readme_mtime
 
 
 # ---- 生产事故回归（逐仓隔离 + 状态行诚实，不得用「无事可做」掩盖失败）----

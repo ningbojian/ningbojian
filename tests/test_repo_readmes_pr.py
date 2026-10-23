@@ -1,8 +1,9 @@
-"""repo_readmes_pr.py 测试（测试计划 GP01-GP17，git-data 推送与 PR 流，全离线）。
+"""repo_readmes_pr.py 测试（测试计划 GP01-GP19，git-data 推送与 PR 流，全离线）。
 
 设计 §5.5：blob→tree→commit→ref→PR 全 API、同仓单条 open PR（force-push 刷新）、
 标题带短名、body 三结局警示 + marker 说明 + commit 范围、合并检测推进到 head SHA（§12-R10）、
-永不调用合并/关闭接口（合并永远由人执行）。
+推送/检测流永不调用合并/关闭接口（GP16 安全边界）；合并仅限清单勾选授权的 merge_pr
+（2026-10-23 §5.5 修订：勾选 = 人工授权，运行时代为合并）。
 """
 
 from fake_github import FakeHttp, FakeResponse
@@ -15,7 +16,10 @@ from profile_agent.repo_readmes_pr import (
     advance_baseline_from_merged_pr,
     build_pr_body,
     build_pr_title,
+    get_pr_detail,
+    merge_pr,
     open_or_refresh_pr,
+    parse_commit_titles,
     push_results,
     read_branch_block_hash,
 )
@@ -437,3 +441,109 @@ def test_merged_pr_detection_respects_default_branch_base():
         _client(http), entry, FULL, "readme-auto/update", base="master"
     )
     assert entry["sha"] == "newsha1"
+
+
+def test_merged_pr_detection_reads_merged_at_field():
+    """真实 LIST API（Pull Request Simple 形状）不带 merged 布尔字段——检测必须认 merged_at。
+
+    生产缺口回归：`merged` 只有测试假件才有 → 真实环境合并检测永不触发、基线永不推进。
+    """
+    http = FakeHttp()
+    http.add(
+        "GET",
+        f"{REPO_URL}/pulls?state=all&head=alice:readme-auto/update&base=main&sort=updated&direction=desc",
+        FakeResponse(json_data=[{
+            "number": 42,
+            "merged_at": "2026-10-23T08:00:00Z",  # Simple 形状：无 merged 键
+            "merge_commit_sha": "MMM0000",
+            "head": {"sha": "HHH1111"},
+        }]),
+        sticky=True,
+    )
+    entry = _entry("abc1234")
+    assert advance_baseline_from_merged_pr(_client(http), entry, FULL, PR_BRANCH) is True
+    assert entry["sha"] == "HHH1111"
+
+
+# ---- 勾选授权的批量合并（2026-10-23 §5.5 修订：勾选 = 人工授权，运行时代为合并）----
+
+
+def test_merge_pr_puts_merge_endpoint_without_method_override():
+    """勾选授权合并：PUT /pulls/{n}/merge，不传 merge_method（走仓库默认合并方式）。"""
+    http = FakeHttp()
+    http.add(
+        "PUT", f"{REPO_URL}/pulls/42/merge",
+        FakeResponse(json_data={"merged": True, "sha": "a" * 40,
+                                "message": "Pull Request successfully merged"}),
+    )
+    ok, why = merge_pr(_client(http), FULL, 42)
+    assert ok is True and why == ""  # 成功：无失败原因
+    w = http.writes()[0]
+    assert w["method"] == "PUT"
+    assert w["url"] == f"{REPO_URL}/pulls/42/merge"
+    # 不显式指定合并方式 → GitHub 用仓库配置的默认方式（squash-only 仓库也不会被我们改成 merge）
+    assert not (w["json"] or {}).get("merge_method")
+
+
+def test_merge_pr_failure_returns_reason_instead_of_raising():
+    """405 不可合并（冲突/已关）→ (False, 可读原因)，绝不向外抛——调用方逐仓隔离。"""
+    http = FakeHttp()
+    http.add("PUT", f"{REPO_URL}/pulls/42/merge",
+             FakeResponse(status=405, text="Pull Request is not mergeable"))
+    ok, why = merge_pr(_client(http), FULL, 42)
+    assert ok is False
+    assert "405" in why  # 原因带状态码，Summary/日志可诊断
+
+
+def test_merge_pr_404_also_isolated_with_reason():
+    """PR 已不存在（404）同样只返回失败原因不抛——批量合并整体不因单点中断。"""
+    http = FakeHttp()
+    http.add("PUT", f"{REPO_URL}/pulls/42/merge",
+             FakeResponse(status=404, text="not found"))
+    ok, why = merge_pr(_client(http), FULL, 42)
+    assert ok is False and why
+
+
+# ---- W3 清单明细（2026-10-23 用户反馈「issue 里每个 pr 的细节太少」）----
+
+
+def test_get_pr_detail_single_get_returns_stats_and_body():
+    """W3：list 接口不带增删统计——逐 PR 单 GET /pulls/{n} 取明细（每仓每轮恰一次）。"""
+    http = FakeHttp()
+    http.add(
+        "GET",
+        f"{REPO_URL}/pulls/7",
+        FakeResponse(
+            json_data={
+                "number": 7,
+                "additions": 34,
+                "deletions": 11,
+                "changed_files": 2,
+                "commits": 3,
+                "body": "三结局警示\n\n涉及提交：\n- `abcdef12` 修复拼写错误\n",
+            }
+        ),
+    )
+    det = get_pr_detail(_client(http), FULL, 7)
+    assert det["additions"] == 34 and det["deletions"] == 11
+    assert det["changed_files"] == 2 and det["commits"] == 3
+    assert [r["method"] for r in http.requests] == ["GET"]  # 恰一次，无副作用
+    assert http.requests[0]["url"] == f"{REPO_URL}/pulls/7"
+
+
+def test_parse_commit_titles_round_trips_build_pr_body():
+    """W3：与 build_pr_body 对偶——「涉及提交」列表零额外取数还原标题（取每条首行）。"""
+    body = build_pr_body(
+        commits=[
+            {"sha": "abcdef1234", "message": "fix: 修复拼写错误\n\n详细说明正文"},
+            {"sha": "0123456789", "message": "feat: 更新项目列表"},
+        ],
+        base_sha="base1234567",
+        head_sha="def4567890",
+    )
+    assert parse_commit_titles(body) == ["fix: 修复拼写错误", "feat: 更新项目列表"]
+    # 无提交（sha_lines 为空）→ 空列表，不误读 marker 之后的散文段
+    empty = build_pr_body(commits=[], base_sha="base1234567", head_sha="def4567890")
+    assert parse_commit_titles(empty) == []
+    # marker 之前的内容不掺入
+    assert parse_commit_titles("三结局警示\n覆盖提交范围：`a..b`\n涉及提交：\n") == []

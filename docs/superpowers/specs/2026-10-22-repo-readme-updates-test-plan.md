@@ -51,16 +51,15 @@
 |---|---|---|---|
 | `tests/test_repo_readmes_queue.py` | 队列计算（五分支/范围过滤） | Q01–Q13、Q26 | M1 |
 | `tests/test_config.py`（扩展） | repo_readmes 配置段 | Q14–Q16 | M1 |
-| `tests/test_repo_readmes_gate.py` | 增量门交互 | Q09、Q17–Q20 | M1 |
-| `tests/test_repo_readmes_cli.py` | 勾选语义 | Q21–Q25 | M3 |
+| `tests/test_repo_readmes_gate.py` | 增量门交互 | Q09、Q17–Q22（Q21/Q22 门语义演进后落本文件，见 Q21 条备注） | M1/M3 |
 | `tests/test_repo_readmes_marker.py` | marker 读写 | MK01–MK22 | M1 |
 | `tests/test_snapshot.py`（扩展） | schema 兼容 | SB01–SB04 | M1 |
 | `tests/test_repo_readmes_baseline.py` | 基线生命周期 | SB05–SB23 | M1/M2/M3 |
 | `tests/test_repo_readmes_ai.py` | 输入构造/AI/抑制 | AP01–AP23 | M2 |
-| `tests/test_repo_readmes_pr.py` | git-data 推送与 PR 流 | GP01–GP18 | M3 |
-| `tests/test_issue_checklist.py` | 清单 issue/通知 | IW01–IW16、IW25–IW29 | M3 |
+| `tests/test_repo_readmes_pr.py` | git-data 推送与 PR 流 | GP01–GP19 | M3 |
+| `tests/test_issue_checklist.py` | 清单 issue/通知 | IW01–IW16、IW25–IW29（+2026-10-23 无编号：勾选授权文案、⚠️ 徽章、明细行） | M3 |
 | `tests/test_wait_merges.py` | 等待合并步 | IW17–IW24 | M3 |
-| `tests/test_repo_readmes_orchestration.py` | 编排/同轮新鲜度 | OR01–OR20 | M1/M3 |
+| `tests/test_repo_readmes_orchestration.py` | 编排/同轮新鲜度/勾选合并编排 | OR01–OR20、OR30–OR33（含 IW09/IW25/IW27–IW29；Q23–Q25 无独立标签，语义由此类文件承载） | M1/M3 |
 
 ## 3. 用例统计
 
@@ -70,7 +69,7 @@
 | marker（MK） | 9 | 6 | 7 | 22 |
 | snapshot 与基线（SB） | 12 | 8 | 1 | 23 |
 | AI 输入与抑制（AP） | 12 | 8 | 1 | 23 |
-| git-data 与 PR（GP） | 8 | 9 | 1 | 18 |
+| git-data 与 PR（GP） | 9 | 9 | 1 | 19（GP19 新增） |
 | 清单与等待（IW） | 13 | 12 | 4 | 29（含新增 IW29） |
 | 编排（OR） | 9 | 8 | 3 | 20 |
 | 合计 | 76 | 62 | 18 | **161** |
@@ -164,7 +163,9 @@
 - 前置：另一仓库 stats 变化使指纹改变；目标仓库基线..HEAD 无新提交
 - 断言：① 门已打开（非「无变化」早退）；② 目标仓 AI 计数 0 且不在队列；③ 基线不变
 
-**Q21 · 勾选 repo_readmes 只强制 B 不碰 A 的门** `M3` `P0` — 依据 §6、§12-R2、§8 — 文件 `test_repo_readmes_cli.py`
+**Q21 · 勾选 repo_readmes 只强制 B 不碰 A 的门** `M3` `P0` — 依据 §6、§12-R2、§8 — 文件 `tests/test_repo_readmes_gate.py`（原定 test_repo_readmes_cli.py 未建——门语义测试随演进集中到 gate 文件，见该文件头备注）
+> 修订（2026-10-23）：勾选生效不再依赖数据变化——`b_force/清单勾选` 经 `b_gate`/`merge_requested`
+> 直接开门（§7），Q22 补 enabled=false 时门保持关闭。
 - 前置：数据无变化、enabled=true、存在首见仓；run 传入 repo_readmes 勾选标志（非全局 force）
 - 断言：① snapshot 出现首见基线（B 被强制）；② 假 generate_bio/generate_project_intro 调用数均 0；③ README mtime 不变；④ 与 Q09 成对
 
@@ -459,12 +460,16 @@
 
 **GP15 · config 自定义 pr_branch 生效于 ref 与 PR head** `M3` `P1` — 依据 §6/§5.5 — 断言 refs/heads/docs/readme-auto 与 PR head==自定义名、base 仍 main
 
-**GP16 · 全流程永不调用合并或关闭接口** `M3` `P1` — 依据 §5.5（合并永远由人执行的安全边界）
-- 断言：① 无 POST /pulls/{n}/merge；② 无 DELETE /pulls/{n}；③ 写请求仅 git-data 五连与 PR 创建/编辑
+**GP16 · 推送/检测流永不调用合并或关闭接口** `M3` `P1` — 依据 §5.5（安全边界：AI 产出必经人审——唯一例外是清单勾选授权的 `merge_pr`，见 2026-10-23 §5.5 修订与 GP19）
+- 断言：① 无 POST /pulls/{n}/merge（push_results/open_or_refresh_pr 流内）；② 无 DELETE /pulls/{n}；③ 写请求仅 git-data 五连与 PR 创建/编辑
 
 **GP17 · mode=full 时 blob 载荷是整份生成内容** `M3` `P1` — 依据 §5.2/§4 — 断言 blob content==AI 整份输出、404 不致失败（与 GP01 block 对照）
 
 **GP18 ·（并入 OR20，不单独实现——进度行去重裁定见 §6）** `M3` `P2`
+
+**GP19 ·（2026-10-23 新增）勾选授权的批量合并 merge_pr** `M3` `P0` — 依据 §5.5 修订（勾选=人工授权，运行时代为合并）
+- 断言：① PUT /pulls/{n}/merge 且不传 merge_method（走仓库默认合并方式，squash-only 仓库不被改成 merge）；② 失败（405 不可合并/404/限流）只返回可读原因不外抛、逐仓隔离；③ 已合并识别兼容真实 LIST 形状（`merged_at`，无 `merged` 布尔——2026-10-23 生产缺口回归）
+- 编排侧：三个收割点（钩子① 开局 / ①′ 扫描前 / ② 等待 tick）与 attempted 防重由 OR30–OR32、Q21 修订覆盖
 
 ### 4.6 清单 issue 与等待（IW）— `tests/test_issue_checklist.py` / `tests/test_wait_merges.py`
 
