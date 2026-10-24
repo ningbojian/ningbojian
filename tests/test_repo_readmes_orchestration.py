@@ -76,6 +76,10 @@ class FakeAClient:
     def list_repos(self, username):
         return [dict(r) for r in self._repos]
 
+    def get_pinned_repos(self, username):
+        """A-WP3 有意扩展：原生 Pinned 读取，返回 None = 读取失败 → cli 走回退阶梯。"""
+        return None
+
     def get_repo_readme(self, full_name, ref=None):
         self.readme_calls.append((full_name, ref))
         return self.readmes.get((full_name, ref) if ref else full_name, "")

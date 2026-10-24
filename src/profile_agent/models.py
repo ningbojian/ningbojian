@@ -87,7 +87,7 @@ class Snapshot:
     # 模式 B（repo_readmes）逐仓状态：full_name → {sha, block_hash, mode,
     # failed_hash, last_input_hash, pending, updated_at}（设计 §5.1，schema 3）
     repo_readmes: dict[str, dict] = field(default_factory=dict)
-    # 最近一次生效置顶（A-WP2：原样续存旧面板结果；A-WP3 起为原生 Pinned 解析或回退结果）
+    # 最近一次生效置顶（原生 Pinned 解析结果；读取失败时为回退结果，schema 4）
     pins: list[str] = field(default_factory=list)
     # 上次渲染输出（非合并写入）——生成区三路合并的 base，zh/en 各自独立（schema 4）
     readme_last: str = ""

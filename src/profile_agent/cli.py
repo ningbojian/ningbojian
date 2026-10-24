@@ -294,27 +294,47 @@ def run(
     readme_active = cfg.readme.enabled and not skip_readme
     projects_active = cfg.projects.enabled and not skip_projects
 
-    # A-WP2：面板已下线——prev 提前加载，effective_pin 过渡为「沿用上次生效置顶
-    # （旧面板解析结果）→ config 种子」；A-WP3 接上原生 Pinned 后升级为三段阶梯
+    # A-WP2：面板已下线——prev 提前加载（A-WP3：native 失败时的回退来源）
     snap_path = root / cfg.snapshot.path
     prev = load_snapshot(snap_path)
-    effective_pin = list(prev.pins) if prev and prev.pins else list(cfg.featured.pin)
 
     # 1. 取数
     gh_client: GitHubClient | None = None
+    native_pins: list[str] | None = None  # A-WP3：原生 Pinned（None=读取失败/不可用）
     try:
         if fixture is not None:
             user, raw_repos = _load_fixture(fixture, cfg.github.username)
+            # fixture 语义：pinned.json 存在=读取成功（官方置顶序，[]=成功清空）；
+            # 缺文件=读取失败（None）→ 回退阶梯。默认 fixtures 无此文件 → 存量测试零影响
+            pinned_file = fixture / "pinned.json"
+            if pinned_file.exists():
+                native_pins = json.loads(pinned_file.read_text(encoding="utf-8"))
         else:
             token = os.environ.get(cfg.github.token_env) or None
             gh_client = GitHubClient(token)
             user = gh_client.get_user(cfg.github.username)
             raw_repos = gh_client.list_repos(cfg.github.username)
+            native_pins = gh_client.get_pinned_repos(cfg.github.username)
+            # 仅「token 在场但返回 None」警告（无 token 是既定本地行为，静默走回退）
+            if token and native_pins is None:
+                print(
+                    "警告：读取 GitHub 原生 Pinned 失败（GraphQL 网络/权限异常），本轮沿用上次置顶",
+                    file=sys.stderr,
+                )
     except (GitHubError, OSError) as exc:
         print(f"获取数据失败：{exc}", file=sys.stderr)
         return 3
 
-    # 2. 聚合（A-WP2：精选/置顶统一用 effective_pin（续存的旧面板结果，A-WP3 起为原生解析））
+    # A-WP3 三段阶梯：原生成功（含 []：清空就是没置顶，config 不介入）一律信任；
+    # 读取失败沿用快照 pins 防闪断（指纹不变→noop）；无快照首跑回退 config 种子
+    if native_pins is not None:
+        effective_pin = list(native_pins)
+    elif prev and prev.pins:
+        effective_pin = list(prev.pins)
+    else:
+        effective_pin = list(cfg.featured.pin)
+
+    # 2. 聚合（精选/置顶统一用 effective_pin：原生 Pinned 解析或回退结果，A-WP3 三段阶梯）
     repos = normalize_repos(raw_repos, cfg.repos)
     totals = compute_totals(user, repos)
     featured_cfg = dataclasses.replace(cfg.featured, pin=effective_pin)
@@ -1073,7 +1093,7 @@ def run(
         # WP5：三路合并 base 存「本轮渲染」而非合并写入（防下轮把手改误当已拥有而抹掉）
         readme_last=readme_last_new,
         readme_last_en=readme_last_en_new,
-        # 最近一次生效置顶名单（A-WP2：续存旧面板结果；A-WP3 起为原生解析/回退）
+        # 最近一次生效置顶名单（原生 Pinned 解析或回退结果；读取失败时作下轮回退来源）
         pins=list(effective_pin),
         totals={
             "public_repos": totals.public_repos,
