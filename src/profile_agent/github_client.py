@@ -123,6 +123,37 @@ class GitHubClient:
             url = match.group(1) if match else None
         return repos
 
+    def get_pinned_repos(self, username: str) -> list[str] | None:
+        """读取用户个人主页原生 Pinned 仓库（GraphQL，官方顺序，最多 6 个）。
+
+        返回 nameWithOwner 列表；用户清空置顶时返回 []（成功语义）。
+        失败一律返回 None（无 token / 网络异常 / GraphQL 语义错误），绝不抛错——
+        调用方据此回退快照或配置，避免置顶闪断。REST 无此接口，仅 GraphQL 提供。
+        """
+        if "Authorization" not in self._headers:
+            return None  # GraphQL 必须认证，匿名直接放弃（零网络开销）
+        query = (
+            "query($login: String!) { user(login: $login) { "
+            "pinnedItems(first: 6, types: REPOSITORY) { "
+            "nodes { ... on Repository { nameWithOwner } } } } }"
+        )
+        try:
+            data, _ = self._request(
+                "POST",
+                f"{API}/graphql",
+                {"query": query, "variables": {"login": username}},
+                ok_status=(200,),
+            )
+        except GitHubError:
+            return None
+        if not isinstance(data, dict) or data.get("errors"):
+            return None
+        user = (data.get("data") or {}).get("user")
+        if not isinstance(user, dict):
+            return None
+        nodes = ((user.get("pinnedItems") or {}).get("nodes")) or []
+        return [n["nameWithOwner"] for n in nodes if isinstance(n, dict) and n.get("nameWithOwner")]
+
     def get_repo_readme(
         self, full_name: str, ref: str | None = None, *, path: str = "README.md"
     ) -> str:
