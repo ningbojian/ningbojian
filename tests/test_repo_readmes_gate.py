@@ -200,7 +200,7 @@ def test_unrelated_change_opens_gate_but_untouched_repo_zero_cost(tmp_path, caps
 def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys, monkeypatch):
     """Q21（与 Q09 成对）：数据无变化 + 勾选 repo_readmes → 门不早退、B 被强制执行。
 
-    A 侧不被牵连：README mtime 不变（不碰 A 的门）、bio 不再生成、项目介绍零调用。
+    A 侧不被牵连：README mtime 不变（不碰 A 的门）、bio 不再生成。
     对话框文案承诺「全量重跑开 PR」——勾选必须参与开门，否则最该干活的场景
     （数据无变化时手动强制）直接被「无变化，跳过更新」早退吞掉（设计验证实测）。
     """

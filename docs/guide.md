@@ -21,9 +21,7 @@
    > 用户名不用填：工具会自动读取仓库所有者作为用户名。
 2. **配 AI key（可选）**：仓库 → Settings → Secrets and variables → Actions → New secret，名称 `ANTHROPIC_API_KEY`，值是你的 Claude API key。不配也能用（AI 内容降级为数据版）。
 3. **配模式 B 令牌（要用「各仓库 README 自动更新」必配，2 分钟）**：生成一个 classic PAT（勾 `repo` + `workflow` 两项），存成 secret `WORKFLOW_PAT`——没有它模式 B 无法推送分支/开 PR，其余功能不受影响。详细步骤与常见坑见下文「配置 WORKFLOW_PAT」。
-4. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后：
-   - **overview 更新**直接出现在 README；
-   - **项目介绍 / 简历素材**（AI 生成内容，默认关闭）开启后会以 **Pull Request** 形式出现——在 PR 的 Diff 里审核、可直接编辑，点 **Merge** 才把文件放进 `docs/projects/`（你的简历素材库，**不会逐个链接到主页**，主页保持干净）；不想要就点 **Close**（同一内容之后不会重复打扰你）。
+4. **手动跑一次**：Actions 页面 → Update Profile README → Run workflow。完成后 **overview 更新**直接出现在 README。
 
 之后默认每 3 天定时自动更新（北京时间约 10:23 唤醒检查），也可随时手动触发。所有可选项都在 `config.yaml` 里，网页上点 Edit 就能改。
 
@@ -102,46 +100,11 @@ ai:
 
 > GitHub 的 cron 按 UTC 计，且高峰期可能有几分钟延迟；避开整点（如 23 分）更稳定。`*/N` 之类的写法在 GitHub cron 里语义与直觉不同（每月 1 号重置），想每 N 天一次请用上面的间隔门，别用 `*/N`。
 
-## 灵活开关：只更新其中一部分
+## 运行明细与描述补位
 
-overview 和项目介绍（简历素材）互相独立，三种玩法：
+**每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（主页描述补位：已是最新/已生成补位文案/生成失败）。
 
-| 想要的效果 | 配置（config.yaml） | 或手动触发时 |
-| --- | --- | --- |
-| overview + 项目介绍都更新 | `projects.enabled: true` | 同左（对话框没有项目介绍开关，已隐式跟随 config） |
-| 只更新 overview（默认） | `projects.enabled: false` | 默认 |
-| 只更新项目介绍 | `readme.enabled: false` | 取消勾选 update_readme |
-
-**选择给哪些仓库生成介绍**（多选，也可以都不选）：
-
-```yaml
-projects:
-  include: ["cool-tool"]   # 只给这些仓库生成（仓库名）
-  exclude: ["old-thing"]   # 这些仓库永远跳过
-```
-
-在网页上编辑 `config.yaml` 保存即可，下次运行生效。
-
-> 项目介绍功能当前默认关闭（`projects.enabled: false`）——上面的 include/exclude 与「AI 内容审核流」一节在你重新开启后生效。
-
-**每次运行都有逐仓库明细**：运行完成后打开该次运行页面，Summary 里有一张表，逐仓库列出这次做了什么（项目介绍：跳过/已重新生成/数据版；主页描述补位：复用/新生成/失败）。
-
-**主页「暂无描述」自动补位**：项目列表里 description 为空的仓库，会用它自己 README 的内容生成一句 ≤80 字的中文短描述顶上（不再显示「暂无描述」）。不想要这个行为：`ai.fill_empty_descriptions: false`。profile 仓库自身（`用户名/用户名`）始终除外——它的 README 是工具自己的输出，若也补位会自引用导致每轮重生成、反复开 PR烧额度。
-
-介绍内容以**各仓库的 README 为主要事实来源**（只有真正要生成/更新某个仓库的介绍时才会去拉它的 README，无变化不调用）；仓库没有 README 时退回只用 GitHub 上的描述等事实信息。
-
-## AI 内容审核流（Pull Request）
-
-你没有直接审核窗口的问题不存在——**所有 AI 写的项目介绍都必须经过你的 PR 审核才会公开**：
-
-- **PR 里只有 `docs/projects/` 一个目录**：README、统计、快照的常规更新都直接进 main，PR 开多久都不会和它们冲突，放心挂着慢慢审。
-- 万一 PR 页显示 conflict（通常是 main 上有人手工改了同一批介绍文件），**重新运行一次工作流即可**——分支会基于最新 main 重建。
-
-1. 运行发现介绍有变化（新仓库、数据变了、prompt 升级）→ 自动开一个 PR「AI 项目介绍更新（待审核）」
-2. 你在 PR 的 **Files changed** 里看 Diff，不满意可以直接在网页上编辑文件
-3. 点 **Merge** → 文件进入 `docs/projects/`（简历素材库，不占用主页）；点 **Close** → 不发布，且**同一批内容之后不会重复开 PR**打扰你（想强制重新生成：改 `config.yaml` 里 `ai.prompt_version` 为 2 再手动触发 force）
-
-纯统计/overview 的机械更新不走 PR、直接生效，不打断你。想关掉审核流直接提交：`projects.review_via_pr: false`（不建议）。
+**主页「暂无描述」自动补位**：项目列表里 description 为空的仓库，会用它自己 README 的内容生成一句 ≤80 字的中文短描述顶上（不再显示「暂无描述」）。不想要这个行为：`ai.fill_empty_descriptions: false`。profile 仓库自身（`用户名/用户名`）始终除外——它的 README 是工具自己的输出，若也补位会自引用导致每轮重生成、反复开 PR 烧额度。
 
 ## 配置 WORKFLOW_PAT（模式 B / 改 workflow 文件必配）
 
@@ -188,7 +151,7 @@ GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 无权修改 `.g
 - 每轮有 open PR 时，本仓库会出现/刷新一个 issue：**「🔔 README 更新待合并清单」**——逐条 PR 链接、新版 README 预览链接、三种处理方式说明，@你 且指派给你（自开的 PR 不会通知自己，这里特意用 @mention 制造通知）。
 - 每条 PR 下有一行明细（改了几个文件、增删多少行、提交了什么；有冲突或被分支保护挡住会打 ⚠️ 徽章提醒）。**条目方框可以勾：勾选 = 授权自动合并**——把想采用的条目打上勾（可多选、批量），任务下次运行（定时到点，或在 GitHub 网页保存 README 触发）会自动合并它们，不用逐个手点；某条合并失败会给出原因（如暂有冲突），勾选会在清单刷新时清除，修复后重新勾选即可。
 - 状态变化只原地改这个 issue 的 body，**永远不发评论**（不轰炸通知）；PR 全部处理完自动关闭（关闭本身就是「可以收工」的信号）。
-- 本轮确实更新了 Overview（主 README 有新内容）时，收尾会在 issue 里追加「本轮 Overview 已进入 main」终态行；Overview 没变化则不加。项目介绍的 PR 由随后的工作流步骤创建，issue 里不写它的链接（CLI 运行时它还不存在）。
+- 本轮确实更新了 Overview（主 README 有新内容）时，收尾会在 issue 里追加「本轮 Overview 已进入 main」终态行；Overview 没变化则不加。
 - **请勿关闭本仓库的 Issues**——它是模式 B 的通知通道；关了还有 Step Summary 快照兜底，但收不到 @提醒。
 
 ### 主页为什么永远是新鲜的（不用等你合并）
@@ -299,13 +262,6 @@ ai:
   max_age_days: 14         # 简介最长复用天数
   prompt_version: 1        # 改了 prompt 后 +1 可强制重新生成
   fill_empty_descriptions: true  # 项目列表里 description 为空时，用其 README 生成短描述补位
-projects:
-  enabled: false           # true = 生成项目介绍/简历素材（默认关闭，开启前先配好 AI key）
-  dir: "docs/projects"
-  featured_only: false     # true = 只给精选列表生成；false = 全部仓库都生成介绍
-  include: []              # 多选白名单，非空时只生成这些仓库
-  exclude: []              # 黑名单
-  review_via_pr: true      # AI 内容走 PR 审核（推荐）
 repo_readmes:
   enabled: false           # true = 各仓库 README 托管区自动更新（需 WORKFLOW_PAT；默认关闭）
   include: []              # 空 = 全部仓库；灰度建议先放 1 个，如 ["shiyuan"]

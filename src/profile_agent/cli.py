@@ -1,4 +1,4 @@
-"""命令行入口与编排：拉数据 → 聚合 → 增量判断 → AI 简介/项目介绍 → 渲染 → 写入。"""
+"""命令行入口与编排：拉数据 → 聚合 → 增量判断 → AI 简介 → 渲染 → 写入。"""
 
 from __future__ import annotations
 
@@ -299,7 +299,7 @@ def run(
     template_bytes = template_path.read_bytes() if template_path.exists() else b""
     cfg_hash = render_fingerprint(cfg, template_bytes, user)
 
-    # 3. 增量门：数据、配置/模板/资料、README 存在、简介新鲜、项目介绍齐备 全部无变化才跳过
+    # 3. 增量门：数据、配置/模板/资料、README 存在、简介新鲜 全部无变化才跳过
     # A-WP2 迁移门：盘上残留旧版置顶面板/指针 → 开门一次性摘除（0 AI；自终止）。
     # （prev 已在上方 effective_pin 处加载；zh/en 盘上内容在此读取，渲染段复用不再二读）
     disk_zh = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
