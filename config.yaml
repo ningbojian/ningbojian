@@ -20,7 +20,7 @@ featured:
   sort_by: "score" # score | stars | updated
   score_stars_weight: 1.0
   score_recency_weight: 0.5
-  pin: [] # 首渲染种子（full_name 或裸名，如 ["you/cool-tool"]）：首次渲染按此顺序进「📌 置顶项目」；此后以 README 底部勾选面板为准（改这里不再生效）
+  pin: [] # 兜底种子（full_name 或裸名，如 ["you/cool-tool"]）：仅当无法读取原生 Pinned（本地无 token、GraphQL 失败且无快照）时生效；正常跟随 GitHub 主页 Customize your pins 的顺序
 
 readme:
   enabled: true # false = 不更新个人主页 overview（可只更新项目介绍）
