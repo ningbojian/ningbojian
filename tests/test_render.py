@@ -346,3 +346,10 @@ def test_render_visitors_badge_absent_by_default():
 def test_render_visitors_badge_when_enabled():
     out = render_readme(dataclasses.replace(_ctx(), visitors_badge=True), TEMPLATE)
     assert "komarev.com/ghpvc/?username=alice" in out
+
+
+def test_header_b_has_no_panel_mention():
+    """A-WP2 有意变更：置顶面板彻底移除，zh 头注释换新文案且全文不再有「面板」。"""
+    out = render_readme(_ctx(), TEMPLATE)
+    assert "可编辑区：custom 标记之间的内容，永远保留。" in out
+    assert "面板" not in out  # 渲染输出任何位置都不再出现「面板」字样

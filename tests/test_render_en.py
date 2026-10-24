@@ -55,3 +55,21 @@ def test_render_zh_labels_keep_exact_existing_wording():
     assert "| 仓库 | 简介 | Stars | 语言 |" in out
     assert "公开仓库" in out and "总 Star" in out
     assert "本页面由 profile-agent 自动生成" in out
+
+
+def test_header_b_has_no_panel_mention():
+    """A-WP2 有意变更：en 头注释不再提 pin panel（新文案锁字）。"""
+    out = render_readme(_ctx(), TEMPLATE, lang="en")
+    assert (
+        "Editable areas — content between the custom markers — are always preserved."
+        in out
+    )
+    assert "pin panel" not in out
+
+
+def test_en_output_has_no_pin_pointer():
+    """A-WP2：即使 ctx 侧带旧面板文本，en 文件也不再渲染指回中文面板的指针行。"""
+    ctx = _ctx()
+    ctx.pin_panel = "<details>旧面板</details> 模拟升级前残留的面板上下文"
+    out = render_readme(ctx, TEMPLATE, lang="en")
+    assert "Pin configuration lives" not in out

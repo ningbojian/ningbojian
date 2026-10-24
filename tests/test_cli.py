@@ -53,7 +53,7 @@ def test_full_run_writes_readme_and_snapshot(tmp_path):
     readme = tmp_path / "README.md"
     snap = tmp_path / "data" / "snapshot.json"
     assert readme.exists() and "统计信息" in readme.read_text(encoding="utf-8")
-    # 有意变更（WP6）：置顶板块标题级断言——面板标题也含 📌（面板常驻，未配置 pin 时全部未勾）
+    # 有意变更（WP6→A-WP2）：旧注释锁「面板常驻」——面板已彻底移除，未配置 pin 时不再出现任何 📌
     assert "## 📌" not in readme.read_text(encoding="utf-8")  # 未配置 pin 不出置顶板块
     data = json.loads(snap.read_text(encoding="utf-8"))
     assert data["username"] == "alice"
@@ -87,6 +87,89 @@ def test_featured_pin_renders_pinned_section(tmp_path):
     assert readme.index("## 📌 置顶项目") < readme.index("## 📦 仓库列表")
     assert "| [old-thing](" not in readme  # 列表不重复置顶仓库
     assert "| [cool-tool](" in readme  # 其余仓库仍在表格
+
+
+# ---- A-WP2 一次性迁移：旧版置顶面板摘除 ----
+
+# 旧版面板块（WP6 渲染形态：zh README 底部 <details> 折叠区 + pin-config 锚点）
+_LEGACY_PANEL = (
+    "<details>\n<summary><b>📌 置顶配置面板（网页直接勾选）</b></summary>\n\n"
+    "<!-- pin-config:start -->\n- [x] alice/old-thing\n<!-- pin-config:end -->\n</details>\n\n"
+)
+
+
+def _simulate_legacy_run(tmp_path: Path, panel: str = _LEGACY_PANEL, extra: str = "") -> None:
+    """把基线产物改写成「旧版最后一轮」形态：README/快照 base 都带面板、pins=旧勾选。"""
+    readme = tmp_path / "README.md"
+    snap = tmp_path / "data" / "snapshot.json"
+    old_text = readme.read_text(encoding="utf-8").replace(
+        "<!-- profile-agent:custom:start -->", panel + extra + "<!-- profile-agent:custom:start -->"
+    )
+    readme.write_text(old_text, encoding="utf-8")
+    data = json.loads(snap.read_text(encoding="utf-8"))
+    data["pins"] = ["alice/old-thing"]
+    data["readme_last"] = old_text  # base = 旧版渲染输出（含面板）——真实升级形态
+    snap.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def test_legacy_panel_stripped_once_then_noop(tmp_path, capsys):
+    """A-WP2：盘上残留旧版面板 → 迁移轮整块摘除 + 中文警告；旧勾选沿用为置顶；下轮 noop。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    _simulate_legacy_run(tmp_path)
+    assert _run(cfg) == 0
+    out = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "pin-config" not in out  # 锚点随面板整块消失
+    assert "置顶配置面板" not in out
+    err = capsys.readouterr().err
+    assert "警告：检测到旧版置顶面板/指针（一次性迁移），本轮已清除" in err
+    assert "## 📌 置顶项目" in out  # prev.pins 过渡：旧面板勾选沿用为置顶
+    # 迁移自终止：下一轮无残留、指纹一致 → noop（mtime 不变）
+    mtime = (tmp_path / "README.md").stat().st_mtime_ns
+    assert _run(cfg) == 0
+    assert (tmp_path / "README.md").stat().st_mtime_ns == mtime
+
+
+def test_legacy_en_pointer_stripped(tmp_path):
+    """A-WP2：en 文件残留旧指针文案 → 迁移轮同样摘除（zh/en 标记独立检测）。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    en = tmp_path / "README.en.md"
+    snap = tmp_path / "data" / "snapshot.json"
+    pointer = (
+        "> ⚙️ Pin configuration lives in the pin panel at the bottom of the Chinese README "
+        "(tick, then Commit — it takes effect within seconds).\n"
+    )
+    old_en = en.read_text(encoding="utf-8").replace(
+        "<!-- profile-agent:custom:start -->", pointer + "<!-- profile-agent:custom:start -->"
+    )
+    en.write_text(old_en, encoding="utf-8")
+    # base 同步含指针（真实升级形态：旧版 en 渲染输出即带指针）
+    data = json.loads(snap.read_text(encoding="utf-8"))
+    data["readme_last_en"] = old_en
+    snap.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    assert _run(cfg) == 0
+    out = en.read_text(encoding="utf-8")
+    assert "Pin configuration lives" not in out
+    assert "pin panel" not in out
+
+
+def test_user_edited_panel_lines_still_removed_by_migration(tmp_path):
+    """A-WP2：用户手改过面板行也整块摘除（编辑与 ours 删除区间相撞被拦）；custom 手改保留。"""
+    cfg = _write_config(tmp_path)
+    assert _run(cfg) == 0
+    # 基线+旧面板作为 base；盘上=用户又勾了一个仓库（手改面板行）
+    _simulate_legacy_run(tmp_path)
+    readme = tmp_path / "README.md"
+    theirs = readme.read_text(encoding="utf-8").replace(
+        "- [x] alice/old-thing", "- [x] alice/old-thing\n- [x] alice/cool-tool"
+    )
+    readme.write_text(theirs, encoding="utf-8")
+    assert _run(cfg) == 0
+    out = readme.read_text(encoding="utf-8")
+    assert "pin-config" not in out and "置顶配置面板" not in out
+    # 沿用 base 里的旧勾选（手改的新增勾选随面板一并丢弃，不产生半摘状态）
+    assert "⭐ **[old-thing](https://github.com/alice/old-thing)**｜" in out
 
 
 def test_force_regenerates_even_when_unchanged(tmp_path):

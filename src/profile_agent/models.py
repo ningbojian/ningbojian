@@ -57,13 +57,12 @@ class TemplateContext:
     short_intros: dict[str, str] = field(default_factory=dict)  # full_name → AI 补位文案
     visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章
     key_env: str = "ANTHROPIC_API_KEY"  # 用户实际配置的 AI key secret 名（简介缺失提示用）
-    # ---- 双语/面板/保留（2026-10-23 WP3-WP6）----
+    # ---- 双语/保留（2026-10-23 WP3-WP6；A-WP2 起置顶面板整体下线）----
     bio_text_en: str = ""  # 英文简介（en 文件用；空 → 英文占位注释）
     short_intros_en: dict[str, str] = field(default_factory=dict)  # 英文补位文案
     switch_zh_href: str = "./README.md"  # 顶部切换行互链（双文件互切）
     switch_en_href: str = "./README.en.md"
     custom_text: str = ""  # custom 标记区内容（WP5：逐文件独立提取、永久保留）
-    pin_panel: str = ""  # 置顶勾选面板 HTML（WP6：zh 文件底部托管区）
 
 
 @dataclass
@@ -88,7 +87,7 @@ class Snapshot:
     # 模式 B（repo_readmes）逐仓状态：full_name → {sha, block_hash, mode,
     # failed_hash, last_input_hash, pending, updated_at}（设计 §5.1，schema 3）
     repo_readmes: dict[str, dict] = field(default_factory=dict)
-    # 最近一次渲染的生效置顶名单（README 勾选面板解析结果，schema 4）
+    # 最近一次生效置顶（A-WP2：原样续存旧面板结果；A-WP3 起为原生 Pinned 解析或回退结果）
     pins: list[str] = field(default_factory=list)
     # 上次渲染输出（非合并写入）——生成区三路合并的 base，zh/en 各自独立（schema 4）
     readme_last: str = ""

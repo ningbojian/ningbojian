@@ -35,7 +35,6 @@ from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
 from .preserve import extract_custom, merge_readme_3way
-from .pin_panel import panel_candidates, parse_pin_panel, render_pin_panel
 from .render import render_readme, write_if_changed
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
@@ -54,6 +53,15 @@ from .wait_merges import wait_first_line, wait_for_merges
 
 # README 展示时间统一按北京时间（UTC+8）标注
 _BEIJING = timezone(timedelta(hours=8))
+
+# A-WP2 一次性迁移标记：盘上 README 残留旧版置顶面板/指针文案 → 强制开门摘除。
+# 模板指纹变化本就会开门一次；此条件兜底客制模板 fork 等指纹未变的场景。
+# 自终止：迁移后盘上无标记 → 下轮为假 → noop（0 AI）
+LEGACY_MARKERS_ZH = ("<!-- pin-config:start -->", "页面底部的置顶配置面板")
+LEGACY_MARKERS_EN = (
+    "Pin configuration lives in the pin panel",
+    "the pin panel at the bottom",
+)
 
 
 def _load_fixture(fixture: Path, username: str) -> tuple[dict, list[dict]]:
@@ -286,16 +294,11 @@ def run(
     readme_active = cfg.readme.enabled and not skip_readme
     projects_active = cfg.projects.enabled and not skip_projects
 
-    # WP6：README 内置置顶勾选面板——先于聚合解析（勾选即置顶；面板是置顶的唯一 UI，
-    # config 的 featured.pin 仅首跑种子）。锚点缺失/坏 → None 回落种子，由门的
-    # panel_missing 条件负责重建。
-    panel_text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
-    parsed_pins = (
-        parse_pin_panel(panel_text, warn=lambda m: print(f"警告：{m}", file=sys.stderr))
-        if panel_text
-        else None
-    )
-    effective_pin = list(parsed_pins) if parsed_pins is not None else list(cfg.featured.pin)
+    # A-WP2：面板已下线——prev 提前加载，effective_pin 过渡为「沿用上次生效置顶
+    # （旧面板解析结果）→ config 种子」；A-WP3 接上原生 Pinned 后升级为三段阶梯
+    snap_path = root / cfg.snapshot.path
+    prev = load_snapshot(snap_path)
+    effective_pin = list(prev.pins) if prev and prev.pins else list(cfg.featured.pin)
 
     # 1. 取数
     gh_client: GitHubClient | None = None
@@ -311,7 +314,7 @@ def run(
         print(f"获取数据失败：{exc}", file=sys.stderr)
         return 3
 
-    # 2. 聚合（WP6：精选/置顶统一用面板解析出的 effective_pin，config pin 仅种子）
+    # 2. 聚合（A-WP2：精选/置顶统一用 effective_pin（续存的旧面板结果，A-WP3 起为原生解析））
     repos = normalize_repos(raw_repos, cfg.repos)
     totals = compute_totals(user, repos)
     featured_cfg = dataclasses.replace(cfg.featured, pin=effective_pin)
@@ -326,16 +329,20 @@ def run(
     cfg_hash = render_fingerprint(cfg, template_bytes, user)
 
     # 3. 增量门：数据、配置/模板/资料、README 存在、简介新鲜、项目介绍齐备 全部无变化才跳过
-    snap_path = root / cfg.snapshot.path
-    prev = load_snapshot(snap_path)
-    # WP6 门条件：面板勾选变化 或 面板缺失（锚点被删/旧版升级首跑）→ 开门重建
-    # （只渲染+写入，0 AI——数据与配置指纹未变）
-    pins_changed = (
-        parsed_pins is not None and prev is not None and parsed_pins != list(prev.pins)
+    # A-WP2 迁移门：盘上残留旧版置顶面板/指针 → 开门一次性摘除（0 AI；自终止）。
+    # （prev 已在上方 effective_pin 处加载；zh/en 盘上内容在此读取，渲染段复用不再二读）
+    disk_zh = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    disk_en = (
+        en_readme_path.read_text(encoding="utf-8")
+        if cfg.readme.bilingual and en_readme_path.exists()
+        else ""
     )
-    panel_missing = readme_active and readme_path.exists() and parsed_pins is None
-    if panel_missing:
-        print("警告：置顶面板缺失（锚点被删或旧版 README），本轮已重建", file=sys.stderr)
+    legacy_residue = readme_active and (
+        any(m in disk_zh for m in LEGACY_MARKERS_ZH)
+        or any(m in disk_en for m in LEGACY_MARKERS_EN)
+    )
+    if legacy_residue:
+        print("警告：检测到旧版置顶面板/指针（一次性迁移），本轮已清除", file=sys.stderr)
     proj_targets = _project_targets(repos, featured, cfg) if projects_active else []
     ai_active = bool(
         not no_ai and cfg.ai.enabled and os.environ.get(cfg.ai.key_env_name)
@@ -493,9 +500,8 @@ def run(
         and (not readme_active or readme_path.exists())
         # 双语开时 en 文件被手删也视为「缺失」开门重建（WP3）
         and (not (readme_active and cfg.readme.bilingual) or en_readme_path.exists())
-        # WP6：面板勾选变化/面板缺失都要开门（仅渲染+写入，0 AI）
-        and not pins_changed
-        and not panel_missing
+        # A-WP2：旧面板残留（一次性迁移）开门（仅渲染+写入，0 AI）
+        and not legacy_residue
         and bio_fresh
         and (not projects_active or _projects_clean(proj_targets, cfg, prev, root, ai_active=ai_active))
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
@@ -972,16 +978,11 @@ def run(
     readme_last_new = prev.readme_last if prev else ""
     readme_last_en_new = prev.readme_last_en if prev else ""
     if readme_active:
-        # 盘上内容 + custom 区提取（zh/en 逐文件独立，en 只从 en 文件提取）
-        disk_zh = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+        # 盘上内容已在增量门前读取（A-WP2 迁移门复用）；custom 区逐文件独立提取
         custom_zh, mode_zh = extract_custom(disk_zh)
         _report_custom_mode(mode_zh, "README.md")
-        disk_en = ""
         custom_en = ""
         if cfg.readme.bilingual:
-            disk_en = (
-                en_readme_path.read_text(encoding="utf-8") if en_readme_path.exists() else ""
-            )
             custom_en, mode_en = extract_custom(disk_en)
             _report_custom_mode(mode_en, "README.en.md")
         ctx = TemplateContext(
@@ -1003,16 +1004,6 @@ def run(
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
             custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
-            # WP6：置顶勾选面板（仅 zh 文件；en 文件渲染一行指回中文 README）。
-            # 行序 = 有效置顶序 + 其余候选序（不再二次排序，保证解析→渲染→再解析恒等）
-            pin_panel=(
-                render_pin_panel(
-                    panel_candidates(repos, effective_pin, featured),
-                    count_cap=cfg.featured.count,
-                )
-                if repos
-                else ""
-            ),
         )
         content = render_readme(ctx, template_path)
         # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取
@@ -1082,7 +1073,7 @@ def run(
         # WP5：三路合并 base 存「本轮渲染」而非合并写入（防下轮把手改误当已拥有而抹掉）
         readme_last=readme_last_new,
         readme_last_en=readme_last_en_new,
-        # WP6：最近一次渲染的生效置顶名单（面板解析结果；下轮与面板勾选比对）
+        # 最近一次生效置顶名单（A-WP2：续存旧面板结果；A-WP3 起为原生解析/回退）
         pins=list(effective_pin),
         totals={
             "public_repos": totals.public_repos,
