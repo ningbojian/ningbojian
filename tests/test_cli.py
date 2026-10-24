@@ -825,3 +825,166 @@ snapshot:
     snap_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     assert run(cfg_path, fixture=fx) == 0
     assert calls == ["alice/mystery", "alice/mystery"]
+
+
+# ============================ A-WP-B：英文版仓库描述自动英译 ============================
+
+
+def _desc_translation_env(monkeypatch, translate_fake=None):
+    """AI 环境 + bio 挡板 + 可注入的 translate_descriptions fake；返回调用批次记录。"""
+    import profile_agent.cli as cli_mod
+
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    _block_project_ai(monkeypatch)  # 不挡则项目介绍真连 anthropic SDK（无代理直连挂起）
+    calls = []
+
+    def default_fake(items, cfg_ai, **kwargs):
+        calls.append(list(items))
+        return {fn: "A cool tool." for fn, _ in items}, ""
+
+    monkeypatch.setattr(cli_mod, "translate_descriptions", translate_fake or default_fake)
+    return calls
+
+
+def _copy_fixture(tmp_path):
+    """拷贝基线 fixture 到临时目录（可改 repos.json 后当 fixture 用）。"""
+    fx = tmp_path / "fixture"
+    fx.mkdir(exist_ok=True)
+    for name in ("user.json", "repos.json"):
+        (fx / name).write_text(
+            (FIXTURES / name).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    return fx
+
+
+def test_en_repo_descriptions_translated_and_cached(tmp_path, monkeypatch):
+    """A-WP-B：含中文描述的仓库 en 出英译、zh 逐字原文；缓存落盘 desc_en + desc_en_src。"""
+    cfg = _write_config(tmp_path)
+    calls = _desc_translation_env(monkeypatch)
+    assert run(cfg, fixture=FIXTURES) == 0
+    zh = (tmp_path / "README.md").read_text(encoding="utf-8")
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "| [cool-tool](https://github.com/alice/cool-tool) | A cool tool. |" in en
+    assert "一个很酷的工具" in zh  # zh 逐字原文（display_descs 恒空）
+    assert "一个很酷的工具" not in en  # 英译命中后中文不再进 en
+    assert calls and ("alice/cool-tool", "一个很酷的工具") in calls[0]
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = next(r for r in data["repos"] if r["full_name"] == "alice/cool-tool")
+    assert entry["desc_en"] == "A cool tool."
+    assert entry["desc_en_src"] == "一个很酷的工具"
+
+
+def test_translation_cached_on_force_rerun_zero_ai(tmp_path, monkeypatch):
+    """A-WP-B：描述没变时 force 重渲染 0 次翻译调用（缓存仍喂 en 渲染）。"""
+    cfg = _write_config(tmp_path)
+    calls = _desc_translation_env(monkeypatch)
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(calls) == 1
+    assert run(cfg, fixture=FIXTURES, force=True) == 0
+    assert len(calls) == 1  # 缓存新鲜（desc_en_src == description）→ 不重调
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "A cool tool." in en
+
+
+def test_translation_ai_failure_falls_back_to_original(tmp_path, monkeypatch):
+    """A-WP-B：翻译失败 → en 回落中文原文、退出码 0、不写缓存（下轮开门重试）。"""
+    def fail(items, cfg_ai, **kwargs):
+        return {}, "仓库描述英译失败（沿用原文）：api down"
+
+    cfg = _write_config(tmp_path)
+    _desc_translation_env(monkeypatch, fail)
+    assert run(cfg, fixture=FIXTURES) == 0
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "一个很酷的工具" in en  # 回落原文
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = next(r for r in data["repos"] if r["full_name"] == "alice/cool-tool")
+    assert "desc_en" not in entry  # 失败不写缓存
+
+
+def test_no_translation_when_bilingual_false(tmp_path, monkeypatch):
+    """A-WP-B：单语模式（bilingual: false）不发起翻译、不产 en 文件。"""
+    as_posix = lambda p: p.as_posix()  # noqa: E731
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+  bilingual: false
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    calls = _desc_translation_env(monkeypatch)
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert calls == []  # 单语模式零翻译
+    assert not (tmp_path / "README.en.md").exists()
+
+
+def test_ascii_description_not_translated(tmp_path, monkeypatch):
+    """A-WP-B：不含中文的描述（纯 ASCII）不进翻译请求（零回归裁定）。"""
+    cfg = _write_config(tmp_path)
+    fx = _copy_fixture(tmp_path)
+    repos = json.loads((fx / "repos.json").read_text(encoding="utf-8"))
+    for r in repos:
+        if r["full_name"] == "alice/cool-tool":
+            r["description"] = "A cool CLI tool"
+    (fx / "repos.json").write_text(json.dumps(repos, ensure_ascii=False), encoding="utf-8")
+    calls = _desc_translation_env(monkeypatch)
+    assert run(cfg, fixture=fx) == 0
+    requested = [fn for batch in calls for fn, _ in batch]
+    assert "alice/cool-tool" not in requested  # 纯 ASCII 不译
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "A cool CLI tool" in en  # 照搬原文
+
+
+def test_description_change_triggers_retranslate(tmp_path, monkeypatch):
+    """A-WP-B：描述原文变化（desc_en_src 失效）→ 本轮开门重译并覆盖缓存。"""
+    import profile_agent.cli as cli_mod
+
+    cfg = _write_config(tmp_path)
+    fx = _copy_fixture(tmp_path)
+    calls = []
+
+    def fake(items, cfg_ai, **kwargs):
+        calls.append(list(items))
+        return {fn: f"T:{desc}" for fn, desc in items}, ""
+
+    monkeypatch.setattr(cli_mod, "translate_descriptions", fake)
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    _block_project_ai(monkeypatch)  # 同 _desc_translation_env：防项目介绍真连网
+    assert run(cfg, fixture=fx) == 0
+    assert len(calls) == 1
+    assert "T:一个很酷的工具" in (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    # 改 fixture 里 cool-tool 的描述 → 指纹开门 + 缓存失效 → 重译
+    repos = json.loads((fx / "repos.json").read_text(encoding="utf-8"))
+    for r in repos:
+        if r["full_name"] == "alice/cool-tool":
+            r["description"] = "一个很酷的新工具"
+    (fx / "repos.json").write_text(json.dumps(repos, ensure_ascii=False), encoding="utf-8")
+    assert run(cfg, fixture=fx) == 0
+    assert len(calls) == 2
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "T:一个很酷的新工具" in en
+    assert "T:一个很酷的工具" not in en  # 旧译文被覆盖
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = next(r for r in data["repos"] if r["full_name"] == "alice/cool-tool")
+    assert entry["desc_en_src"] == "一个很酷的新工具"
+
+
+def test_no_translation_without_ai_key(tmp_path, monkeypatch):
+    """A-WP-B：缺 AI key（降级运行）→ 不翻译，en 回落中文原文（预期降级）。"""
+    cfg = _write_config(tmp_path)
+    calls = _desc_translation_env(monkeypatch)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert run(cfg, fixture=FIXTURES, no_ai=True) == 0
+    assert calls == []
+    en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    assert "一个很酷的工具" in en

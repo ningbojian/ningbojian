@@ -216,3 +216,15 @@ def test_upgrade_first_run_base_fallback_one_time_stomp(tmp_path):
     out = readme.read_text(encoding="utf-8")
     assert "你好，我是 Alice Zhang" in out  # 该轮以新渲染为准
     assert "手改的" not in out
+
+
+def test_merge_3way_desc_translation_lands_and_conflict_favors_ours():
+    """A-WP-B：译文更新 theirs==base → 取 ours（英译落盘）；手改同撞 ours → ours（数据为真）。"""
+    zh_line = "| cool-tool | 一个很酷的工具 |\n"
+    en_line = "| cool-tool | A cool tool |\n"
+    base = BASE + zh_line
+    # theirs 未动、ours 换成英译 → 英译落地
+    assert merge_readme_3way(base, base, BASE + en_line) == BASE + en_line
+    # 用户手改了同一行、ours 也改了（英译更新）→ ours 覆盖手改
+    theirs = BASE + "| cool-tool | 用户手改 |\n"
+    assert merge_readme_3way(base, theirs, BASE + en_line) == BASE + en_line

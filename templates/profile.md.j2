@@ -48,9 +48,9 @@
 
 {% for repo in pinned %}
 ⭐ **[{{ repo.name }}]({{ repo.html_url }})**｜{{ [lang_badge(repo.language), stars_badge(repo.full_name), forks_badge(repo.full_name), push_badge(repo.pushed_at)] | reject("equalto", "") | join(" ") }}
-{% if repo.description or short_intros.get(repo.full_name, "") %}
+{% set desc = display_descs.get(repo.full_name) or repo.description or short_intros.get(repo.full_name, "") %}{% if desc %}
 
-> {{ repo.description or short_intros.get(repo.full_name, "") }}
+> {{ desc }}
 {% endif %}
 {% if repo.topics %}
 
@@ -70,7 +70,7 @@
 
 | {{ L.th_repo }} | {{ L.th_desc }} | Stars | {{ L.th_lang }} |
 | --- | --- | --- | --- |
-{% for repo in ns.rest %}| [{{ repo.name }}]({{ repo.html_url }}) | {{ (repo.description or short_intros.get(repo.full_name, "") or "—").replace("|", " \\| ").replace("\n", " ") }} | {{ repo.stars }} | {{ lang_badge(repo.language) }} |
+{% for repo in ns.rest %}| [{{ repo.name }}]({{ repo.html_url }}) | {{ (display_descs.get(repo.full_name) or repo.description or short_intros.get(repo.full_name, "") or "—").replace("|", " \\| ").replace("\n", " ") }} | {{ repo.stars }} | {{ lang_badge(repo.language) }} |
 {% endfor %}
 {% elif not pinned %}
 

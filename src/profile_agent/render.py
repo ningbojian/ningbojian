@@ -196,6 +196,8 @@ def render_readme(ctx: TemplateContext, template_path: Path, lang: str = "zh") -
         header_b=L["header_b"],
         bio_placeholder=L["bio_placeholder"].format(key_env=ctx.key_env),
         custom_text=ctx.custom_text,
+        # A-WP-B：en 渲染的英译描述（zh 恒空 dict → 短路照搬原文，字节恒等）
+        display_descs=ctx.display_descs,
     )
 
 

@@ -20,7 +20,7 @@ def test_render_en_sections_headers_and_badges():
     assert "Public%20repos-42-" in out  # 统计徽章 label 英文化（URL 编码空格）
     assert "Total%20stars-230-" in out  # en label = "Total stars"（正常英文大小写）
     assert "统计信息" not in out and "仓库列表" not in out
-    # 仓库内容数据照常（名称/描述来自数据本身，不做翻译）
+    # 仓库内容数据照常展示；display_descs 为空时照搬原文（A-WP-B：英译由 cli 侧注入）
     assert "| [cool-tool](https://github.com/alice/cool-tool) | 一个很酷的工具 | 120 |" in out
 
 
@@ -73,3 +73,32 @@ def test_en_output_has_no_pin_pointer():
     ctx.pin_panel = "<details>旧面板</details> 模拟升级前残留的面板上下文"
     out = render_readme(ctx, TEMPLATE, lang="en")
     assert "Pin configuration lives" not in out
+
+
+def test_en_display_descs_translation_overrides_table():
+    """A-WP-B：display_descs 命中的仓库，en 表格用英译替换中文原文。"""
+    ctx = _ctx()
+    ctx.display_descs = {"alice/cool-tool": "A cool tool"}
+    out = render_readme(ctx, TEMPLATE, lang="en")
+    assert "| [cool-tool](https://github.com/alice/cool-tool) | A cool tool | 120 |" in out
+    assert "一个很酷的工具" not in out  # 英译命中后原文不得再出现
+    # 未命中的仓库照搬原文（回落链：display_descs → description → short_intros）
+    assert "网页应用" in out
+
+
+def test_en_display_descs_translation_overrides_pinned_quote():
+    """A-WP-B：置顶卡片引用块同样优先英译。"""
+    ctx = _ctx()
+    ctx.pinned = [ctx.featured[0]]
+    ctx.display_descs = {"alice/cool-tool": "A cool tool"}
+    out = render_readme(ctx, TEMPLATE, lang="en")
+    assert "> A cool tool" in out
+    assert "一个很酷的工具" not in out
+
+
+def test_en_display_descs_pipe_escaped():
+    """A-WP-B：英译里的 | 同样走表格转义（沿用既有 replace 链）。"""
+    ctx = _ctx()
+    ctx.display_descs = {"alice/cool-tool": "Cool|Tool"}
+    out = render_readme(ctx, TEMPLATE, lang="en")
+    assert "Cool \\| Tool" in out

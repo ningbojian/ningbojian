@@ -63,6 +63,7 @@ class TemplateContext:
     switch_zh_href: str = "./README.md"  # 顶部切换行互链（双文件互切）
     switch_en_href: str = "./README.en.md"
     custom_text: str = ""  # custom 标记区内容（WP5：逐文件独立提取、永久保留）
+    display_descs: dict[str, str] = field(default_factory=dict)  # A-WP-B：en 专用 AI 英译描述（zh 恒空 → 照搬原文）
 
 
 @dataclass

@@ -31,6 +31,7 @@ from .checklist import (
     update_checklist,
 )
 from .config import Config, ConfigError, load_config
+from .desc_translate import contains_cjk, translate_descriptions
 from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .projects import intro_filename, intro_input_hash, update_project_intros
@@ -957,6 +958,36 @@ def run(
             if text_en:
                 short_intros_en[r.full_name] = text_en
 
+    # 4.5 仓库描述英译（A-WP-B）：en 文件里含中文的 GitHub 描述换 AI 英译，按描述原文缓存
+    # （快照 desc_en + desc_en_src 原文直比）。zh 恒用原文（display_descs 空 → 短路）；
+    # 失败/漏译回落原文且不写缓存（下轮开门自动重试）；不改增量门、不进任何指纹。
+    desc_states: dict[str, dict] = {}
+    descs_en: dict[str, str] = {}
+    if cfg.readme.bilingual and ai_active and readme_active:
+        prev_states_desc = _prev_repo_states(prev)
+        stale: list = []
+        for r in featured:
+            if not r.description or not contains_cjk(r.description):
+                continue  # 无描述/不含中文：en 照搬原文（纯 ASCII/假名不译，零回归）
+            st = prev_states_desc.get(r.full_name) or {}
+            if st.get("desc_en") and st.get("desc_en_src") == r.description:
+                descs_en[r.full_name] = st["desc_en"]  # 缓存新鲜：直接用（仍喂 en 渲染）
+            else:
+                stale.append(r)
+        if stale:
+            translated, warn = translate_descriptions(
+                [(r.full_name, r.description) for r in stale], cfg.ai
+            )
+            if warn:
+                print(warn, file=sys.stderr)
+            for r in stale:
+                if r.full_name in translated:
+                    descs_en[r.full_name] = translated[r.full_name]
+                    desc_states[r.full_name] = {
+                        "desc_en": translated[r.full_name],
+                        "desc_en_src": r.description,
+                    }
+
     # 4. AI 简介（只在更新 overview 时生成；失败保留旧简介，任务不失败）
     bio_text = prev.bio.text if prev else ""
     bio_text_en = prev.bio.text_en if prev else ""
@@ -1024,6 +1055,8 @@ def run(
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
             custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
+            # A-WP-B：zh 描述永远照搬 GitHub 原文（英译只进 en 文件）
+            display_descs={},
         )
         content = render_readme(ctx, template_path)
         # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取
@@ -1034,6 +1067,7 @@ def run(
                     ctx,
                     bio_text=ctx.bio_text_en,
                     short_intros=ctx.short_intros_en,
+                    display_descs=descs_en,  # A-WP-B：en 侧 AI 英译描述（缺省回落原文）
                     custom_text=custom_en,
                 ),
                 template_path,
@@ -1085,6 +1119,7 @@ def run(
     merged_states = _prev_repo_states(prev)
     merged_states.update(project_states)
     merged_states.update(short_states)
+    merged_states.update(desc_states)  # A-WP-B：英译缓存（desc_en/desc_en_src）落盘
     new_snap = Snapshot(
         schema=4,  # 2026-10-23 WP1：pins/readme_last/readme_last_en/BioInfo.text_en
         username=cfg.github.username,
@@ -1110,7 +1145,11 @@ def run(
                 **{
                     k: v
                     for k, v in (merged_states.get(r.full_name) or {}).items()
-                    if k.startswith("intro_") or k.startswith("short_intro") or k == "ai_generated"
+                    # 有意变更（A-WP-B）：desc_en* 必须入过滤器，漏加则英译缓存永不落盘
+                    if k.startswith("intro_")
+                    or k.startswith("short_intro")
+                    or k.startswith("desc_en")
+                    or k == "ai_generated"
                 },
             }
             for r in repos
