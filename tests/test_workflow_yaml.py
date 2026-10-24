@@ -13,14 +13,18 @@ def _wf() -> dict:
     return raw.get("on") or raw.get(True)
 
 
-def test_wf_schedule_interval_input_is_choice_with_8_options():
-    """Run workflow 里必须有「定时运行间隔」下拉：不修改 + 每 1..7 天，且默认不修改。"""
+def test_wf_schedule_interval_input_is_choice_with_sparse_options():
+    """「定时运行间隔」下拉：不修改 + 每 1/3/5/7 天，且默认不修改。
+
+    有意变更（2026-10-24 交互治理）：1–7 全档改为稀疏档位——相邻档语义差别小，
+    档位越多越难选；1/3/5/7 覆盖从「每天」到「一周」的实际需求（用户定档）。
+    """
     inputs = _wf()["workflow_dispatch"]["inputs"]
     spec = inputs["schedule_interval"]
     assert spec["type"] == "choice"
     assert spec["options"][0].startswith("不修改")
     assert spec["default"] == spec["options"][0]
-    assert spec["options"][1:] == [f"每 {n} 天" for n in range(1, 8)]
+    assert spec["options"][1:] == ["每 1 天", "每 3 天", "每 5 天", "每 7 天"]
 
 
 def test_wf_daily_cron_with_interval_markers():
@@ -49,51 +53,57 @@ def test_wf_rewrite_step_only_on_dispatch_and_skips_default():
 def test_wf_dialog_hides_projects_inputs():
     """Run workflow 对话框不再暴露任何 projects 相关输入（功能已彻底移除）。
 
-    对话框输入须恰好是这五个安全项，不含 update_projects / projects_repos /
-    逐仓「仅项目介绍」勾选框。有意变更（A-P0）：项目介绍功能已删除——
-    config.yaml 的 projects 段、workflow 勾选框映射与点名链路一并下线。
+    对话框输入须恰好是这四个安全项：本次强制重跑（rerun 单选下拉）/ 更新主页 /
+    等待合并 / 定时运行间隔，不含 update_projects / projects_repos / 逐仓勾选框。
+    有意变更（A-P0）：项目介绍功能已删除——config.yaml 的 projects 段、workflow
+    勾选框映射与点名链路一并下线。
     """
     inputs = _wf()["workflow_dispatch"]["inputs"]
     assert set(inputs) == {
-        "force",
-        "repo_readmes",
+        "rerun",
+        "update_readme",
         "wait_for_merges",
         "schedule_interval",
-        "update_readme",
     }
     text = WF.read_text(encoding="utf-8")
     assert "REPO_CHECKBOXES_START" not in text  # 勾选框区块标记（移除后同步步骤自我跳过）
 
 
-def test_wf_force_and_repo_readmes_descriptions_match_semantics():
-    """对话框文案与实际旗标语义一致（2026-10-23 重写：新人一眼可辨、去内部黑话）。
+def test_wf_rerun_choice_options_and_flag_mapping():
+    """强制重跑为单选下拉（四选一互斥）：选项、默认值与 CLI 旗标映射一一对应。
 
-    force = 跳过「有变化才更新」：主页 overview 立即重写 + 全部公开仓库 README
-    全量重跑开 PR；repo_readmes = 只强制各仓库 README，明确不影响主页 overview。
-    两行并排时「谁含主页谁不含」字面直接可辨——不再依赖 A+B/模式 B 这类
-    内部代号（用户反馈：新人看不懂、描述太长）。
+    有意变更（2026-10-24 交互治理）：force / repo_readmes 两个重叠勾选合并为
+    rerun 下拉——force 原已包含 repo_readmes 的全量重跑，两个勾选并存让用户
+    无法判断该点哪个。shell 按选项名精确 case，测试锁选项列表与三条映射分支，
+    文案改字忘改映射会立即红。
     """
     inputs = _wf()["workflow_dispatch"]["inputs"]
-    force_desc = inputs["force"]["description"]
-    rr_desc = inputs["repo_readmes"]["description"]
-    # force：必须点名主页 + 全量重跑（覆盖 A 门与 B 队列两层语义）
-    assert "主页" in force_desc
-    assert "全量重跑" in force_desc
-    # repo_readmes：全量重跑且明确排除主页（与 force 的字面对照锚点）
-    assert "全量重跑" in rr_desc
-    assert "不影响主页 overview" in rr_desc
-    # 去黑话：两行都不得再出现内部代号（防止文案回退成黑话）
-    for desc in (force_desc, rr_desc):
-        assert "A+B" not in desc
-        assert "模式 B" not in desc
+    spec = inputs["rerun"]
+    assert spec["type"] == "choice"
+    assert spec["options"] == [
+        "不强制（按变化更新）",
+        "强制重写主页",
+        "强制重跑各仓库 README（主页仍按变化更新）",
+        "两者都强制（主页重写 + 仓库 README 全量重跑）",
+    ]
+    assert spec["default"] == spec["options"][0]
+    text = WF.read_text(encoding="utf-8")
+    assert '"强制重写主页") FLAGS="$FLAGS --force"' in text
+    assert 'FLAGS="$FLAGS --repo-readmes"' in text
+    assert 'FLAGS="$FLAGS --force --repo-readmes"' in text
+    # 旧的两个重叠布尔输入不得回潮（否则重叠困惑重现）
+    assert "force" not in inputs
+    assert "repo_readmes" not in inputs
 
 
 def test_wf_dialog_descriptions_single_line_short_and_plain():
-    """对话框五条 description 均单行、短、零黑话（2026-10-23 用户反馈：太长、对新人不自解释）。
+    """对话框四条 description 均单行、短、零黑话（用户反馈：太长、对新人不自解释）。
 
     description 即 Run workflow 里输入旁的可见文本：换行会拖成多行，超长会淹没
-    其余选项；wait_for_merges 保住「不勾也行」零风险语义，update_readme 与
-    default:true 一致（写明默认勾选），schedule_interval 只答「改什么、何时生效」。
+    其余选项；rerun 说明「不选 = 只更新有变化的内容」且如实交代 AI 文案仍按
+    缓存复用（force 不会重生成简介）；wait_for_merges 保住「不勾零风险」语义，
+    update_readme 与 default:true 一致（写明默认勾选），schedule_interval 只答
+    「改什么、何时生效」。
     """
     inputs = _wf()["workflow_dispatch"]["inputs"]
     for spec in inputs.values():
@@ -102,14 +112,16 @@ def test_wf_dialog_descriptions_single_line_short_and_plain():
         assert len(desc) <= 60  # 一行读完的上限
         for jargon in ("A+B", "模式 B", "增量门"):
             assert jargon not in desc
+    rerun_desc = inputs["rerun"]["description"]
+    assert "不选" in rerun_desc  # 默认档的语义可见
+    assert "缓存" in rerun_desc  # 如实说明：强制重跑不会重生成 AI 文案
     wait_desc = inputs["wait_for_merges"]["description"]
-    assert "不勾也行" in wait_desc  # 不是必选项：消除「不勾会不会漏掉」的焦虑
+    assert "不勾" in wait_desc  # 不是必选项：消除「不勾会不会漏掉」的焦虑
     assert "30 分钟" in wait_desc  # 等待窗口时长可见
     update_desc = inputs["update_readme"]["description"]
     assert "默认" in update_desc  # default:true 对应「默认勾选」
-    # 跨行矛盾化解（2026-10-23 设计验证）：不勾主页时，force 行的「立即重写」也失效——
-    # 引号内必须逐字引用 force 行界面上真实出现的词（不引用 UI 不显示的 input id）
-    assert "『立即重写』" in update_desc
+    # 跨控件矛盾化解：不勾主页时，rerun 的「强制重写主页」也失效——必须写明
+    assert "完全不动主页" in update_desc
     interval_desc = inputs["schedule_interval"]["description"]
     assert "本轮结束后" in interval_desc  # 何时生效说清楚
 

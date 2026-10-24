@@ -528,7 +528,10 @@ def run(
                 cfg.github.username,
                 fetch_head=fetchers.fetch_head,
                 fetch_compare=fetchers.fetch_compare,
-                force=force or b_force,
+                # 有意变更（A-P0 交互治理）：force 只负责主页 A 侧；模式 B 的强制
+                # 只认 --repo-readmes（与 workflow「强制重跑各仓库」下拉一一对应），
+                # 消除「force 已包含 repo_readmes、两勾重叠」的困惑
+                force=b_force,
                 stats=b_stats,
             )
             # 逐仓走完「AI → 推送」再进下一仓（OR20：第一仓终态行先于第二仓进度行）；
@@ -562,7 +565,8 @@ def run(
                                 else None
                             ),
                             strip_readme=b_merged,
-                            force=force or b_force,
+                            # 有意变更（A-P0）：B 侧强制只认 --repo-readmes，不叠加主页 force
+                            force=b_force,
                             bilingual=cfg.readme.bilingual,
                         )
                         b_results.extend(one)
@@ -1132,7 +1136,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="自动维护 GitHub Profile README")
     parser.add_argument("--config", default="config.yaml", help="配置文件路径")
     parser.add_argument("--dry-run", action="store_true", help="打印到 stdout，不写文件")
-    parser.add_argument("--force", action="store_true", help="忽略增量检测，强制重新生成")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="忽略增量检测，强制重写主页（不连带强制各仓库 README；那用 --repo-readmes）",
+    )
     parser.add_argument("--no-ai", action="store_true", help="跳过 AI 调用（仍生成数据版内容）")
     parser.add_argument("--skip-readme", action="store_true", help="本次不更新 overview README")
     parser.add_argument("--fixture", default=None, help="从本地 fixture 目录读取数据（离线测试）")

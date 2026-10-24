@@ -2,9 +2,9 @@ name: Update Profile README
 
 # 全部入口就这一个 workflow：
 #   - 定时（schedule）：cron 每天唤醒，是否真跑由 interval_days 间隔门决定
-#     （Run workflow 的「定时运行间隔」下拉可一键改 1–7 天，见 docs/guide.md）
-#   - 手动 Run workflow：对话框可选 强制重生成 / 模式 B（repo_readmes）/ 等待合并 / 更新主页
-#     （模式 B 的 git-data 推送与 PR 需配置 WORKFLOW_PAT secret，见 docs/guide.md）
+#     （Run workflow 的「定时运行间隔」下拉可一键改 1/3/5/7 天，见 docs/guide.md）
+#   - 手动 Run workflow：四个控件——本次强制重跑（单选下拉，四选一）/ 更新主页 /
+#     等待合并 / 定时运行间隔（模式 B 的 git-data 推送与 PR 需配置 WORKFLOW_PAT secret）
 #   - 保存即触发（push）：README.md / README.en.md 推到 main 即唤醒，秒级生效；
 #     与定时/手动共用 concurrency 串行，防循环由 [skip ci] + paths 过滤 + branches:[main] 三重保险
 on:
@@ -17,36 +17,35 @@ on:
     # interval_anchor: 2026-10-22 —— 间隔锚点（UTC 日期）；改间隔时自动重置
   workflow_dispatch:
     inputs:
-      force:
-        # 单行短文案即对话框可见 label；去 A+/模式 B 内部黑话，新人一眼可辨（2026-10-23）
-        description: "跳过『有变化才更新』：主页 overview 立即重写，全部公开仓库 README 全量重跑开 PR"
+      rerun:
+        # 重叠勾选合并为一个单选下拉（2026-10-24）：四选一互斥，勾选之间不再有
+        # 「勾了 A 又勾 B 会怎样」的重叠/抵消关系
+        description: "选强制重跑的范围；不选 = 只更新有变化的内容（AI 简介/补位文案仍按缓存复用）"
+        type: choice
+        default: "不强制（按变化更新）"
+        options:
+          - "不强制（按变化更新）"
+          - "强制重写主页"
+          - "强制重跑各仓库 README（主页仍按变化更新）"
+          - "两者都强制（主页重写 + 仓库 README 全量重跑）"
+      update_readme:
+        description: "更新个人主页 overview（默认勾选）；不勾 = 本轮完全不动主页（选了强制重写也跳过）"
         type: boolean
-        default: false
-      repo_readmes:
-        description: "只强制各仓库 README：全部公开仓库全量重跑开 PR，不影响主页 overview"
-        type: boolean
-        default: false
+        default: true
       wait_for_merges:
-        description: "开 PR 后暂停等你合并（最多 30 分钟）；不勾也行，PR 事后随时可合，照常更新"
+        description: "开 PR 后等你合并（最多 30 分钟）；不勾 = 直接结束，PR 留着随时可合"
         type: boolean
         default: false
       schedule_interval:
-        description: "改定时任务每隔几天自动跑一次，本轮结束后生效；选『不修改』则不改周期"
+        description: "改定时周期（本轮结束后生效）；选『不修改』则不改"
         type: choice
         default: 不修改（保持当前周期）
         options:
           - 不修改（保持当前周期）
           - 每 1 天
-          - 每 2 天
           - 每 3 天
-          - 每 4 天
           - 每 5 天
-          - 每 6 天
           - 每 7 天
-      update_readme:
-        description: "更新个人主页 overview（默认勾选）；不勾则本轮不更新主页（『立即重写』也不生效），其余照常"
-        type: boolean
-        default: true
 
 # 防止定时与手动同时运行；不取消进行中的运行
 concurrency:
@@ -126,10 +125,13 @@ jobs:
           # concurrency 组串行：多轮触发会显示 Queued——排队等待上一轮完成，已开的 PR 不受影响
           echo "提示：定时/手动多轮触发会排队串行执行（显示 Queued），排队期间已开的 PR 不受影响"
           FLAGS=""
-          [ "${{ inputs.force }}" = "true" ] && FLAGS="$FLAGS --force"
+          # 强制重跑范围：单选下拉四选一 → 一一对应 CLI 旗标（互斥，无重叠）
+          case "${{ inputs.rerun }}" in
+            "强制重写主页") FLAGS="$FLAGS --force" ;;
+            "强制重跑各仓库 README（主页仍按变化更新）") FLAGS="$FLAGS --repo-readmes" ;;
+            "两者都强制（主页重写 + 仓库 README 全量重跑）") FLAGS="$FLAGS --force --repo-readmes" ;;
+          esac
           [ "${{ inputs.update_readme }}" = "false" ] && FLAGS="$FLAGS --skip-readme"
-          # 模式 B：勾选即强制重跑队列（只影响 B，不触碰模式 A 的门）
-          [ "${{ inputs.repo_readmes }}" = "true" ] && FLAGS="$FLAGS --repo-readmes"
           # 等待仅勾选时执行（30 分钟窗口）；不勾与 cron 一样 0 分钟——直接继续
           [ "${{ inputs.wait_for_merges }}" = "true" ] && FLAGS="$FLAGS --wait-for-merges"
           python -m profile_agent --config config.yaml $FLAGS

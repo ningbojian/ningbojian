@@ -33,7 +33,7 @@ pip install -e ".[dev]"
 python -m profile_agent --no-ai            # 不调 AI，直接生成
 python -m profile_agent                    # 完整运行（需 ANTHROPIC_API_KEY）
 python -m profile_agent --dry-run          # 只打印不写文件
-python -m profile_agent --force            # 忽略增量检测
+python -m profile_agent --force            # 忽略增量检测（只重写主页，不强制仓库 README）
 python -m profile_agent --fixture tests/fixtures --no-ai --dry-run   # 完全离线演示
 ```
 
@@ -73,7 +73,7 @@ ai:
 
 | 层级 | 怎么做 | 效果 |
 | --- | --- | --- |
-| **运行频率** | Run workflow 对话框里选「定时运行间隔」（不修改 / 每 1–7 天） | 选了天数，本轮结束时自动把定时改为每 N 天一次；不勾不影响本轮回调 |
+| **运行频率** | Run workflow 对话框里选「定时运行间隔」（不修改 / 每 1、3、5、7 天） | 选了天数，本轮结束时自动把定时改为每 N 天一次；不勾不影响本轮回调 |
 | **定时开关** | `config.yaml` 里 `schedule.enabled: false` | 定时运行第一步就结束（不装依赖不调 API）；手动触发不受影响。更彻底可在 Actions 页面点 "Disable workflow" |
 | **AI 调用** | 增量检测 + `ai.max_age_days` | 数据没变化完全不调 API；简介 14 天内不重新生成（可调） |
 
@@ -141,10 +141,15 @@ GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 无权修改 `.g
      include: ["你的某个仓库名"] # 空 = 全部仓库；先放 1 个灰度，稳了再清空
    ```
 
-3. 手动触发 Run workflow 时有三个可选勾选（不勾 = 与定时跑完全一样的默认行为）：
-   - **force**：强制重生成 A+B——忽略增量门重写主页 overview，并把**全部公开仓库**的 README 全量重跑一遍（AI 生成 → 开 PR → 主页吸收）。新仓库/没提交过的仓库也会立即出第一份 README PR，不用等真实提交；
-   - **repo_readmes**：只强制模式 B（同上的全量重跑），不影响主页 overview 的增量门；
-   - **wait_for_merges**：暂停，等你合并 PR（最多 30 分钟），合并完立刻继续；不勾则直接继续，PR 事后随时可合。
+3. 手动触发 Run workflow 时有四个控件（全部不选/不勾 = 与定时跑完全一样的默认行为）：
+   - **本次强制重跑**（单选下拉，四选一互斥）：
+     - *不强制（默认）*：只更新有变化的内容；
+     - *强制重写主页*：忽略「有变化才更新」，立即重建主页 overview（AI 简介/补位文案仍按缓存复用，不会额外调模型；想重新生成简介请改 `ai.prompt_version`）；
+     - *强制重跑各仓库 README*：全部公开仓库 README 全量重跑一遍（AI 生成 → 开 PR → 主页吸收），新仓库/没提交过的仓库也会立即出第一份 README PR；主页仍只按有变化才更新；
+     - *两者都强制*：以上两项一起做（消耗最多）。
+   - **更新主页 overview**（默认勾选）：不勾 = 本轮完全不动主页；此时即使上面选了「强制重写主页」也会跳过（主页以这个勾选为准）。
+   - **等待合并**：开 PR 后暂停等你合并（最多 30 分钟），合并完立刻继续；不勾则直接结束，PR 事后随时可合。
+   - **定时运行间隔**：改定时周期（不修改 / 每 1、3、5、7 天），本轮结束后生效。
 
 ### 清单在哪、怎么通知你
 
@@ -169,7 +174,7 @@ GitHub 有个硬性限制——Actions 内置的 `GITHUB_TOKEN` 无权修改 `.g
 
 ### 不产出也是正常状态（静默路径）
 
-Summary 里每轮必有一行「模式 B 状态」：没变化、首见记基线（新仓库默认等下一次真实提交才出第一份 README；不想等就勾 force/repo_readmes 立即全量生成）、AI 缺 key 积压、与上次失败输入相同已跳过（新提交或 force 才重试）……这些都不是错误。读取失败（如某仓 token 不可见导致 404）、AI 失败、推送失败都被逐仓隔离——一个仓库出问题只会把它自己跳过并在「模式 B 状态」里显示「读取失败 N 仓」，绝不影响其他仓库与主页更新。
+Summary 里每轮必有一行「模式 B 状态」：没变化、首见记基线（新仓库默认等下一次真实提交才出第一份 README；不想等就在「本次强制重跑」里选「强制重跑各仓库 README」立即全量生成）、AI 缺 key 积压、与上次失败输入相同已跳过（新提交或强制重跑才重试）……这些都不是错误。读取失败（如某仓 token 不可见导致 404）、AI 失败、推送失败都被逐仓隔离——一个仓库出问题只会把它自己跳过并在「模式 B 状态」里显示「读取失败 N 仓」，绝不影响其他仓库与主页更新。
 
 ## 双语 README（中英互切）
 
@@ -271,18 +276,18 @@ repo_readmes:
   pr_branch: "readme-auto/update"  # PR 分支名；主页从这里读未合并内容
 ```
 
-改完 `ai.prompt_version` 或想立刻刷新简介时，手动触发并勾选 force。
+改完 `ai.prompt_version` 后下一轮运行就会重新生成简介（不必额外勾强制重跑——强制重写主页不会重生成 AI 简介）。
 
 ## 常见问题
 
 - **想关掉自动更新**：`config.yaml` 里 `schedule.enabled: false` 提交即可；或在 Actions 页面 Disable workflow。
-- **想让所有仓库立刻出/更新 README PR**：Run workflow 勾 **force**（A+B 全量）或 **repo_readmes**（只 B 全量）——全部公开仓库（profile 自身除外）都会重新生成并开 PR，不勾则只处理有新代码提交的仓库。
+- **想让所有仓库立刻出/更新 README PR**：Run workflow 的「本次强制重跑」选 **两者都强制**（主页 + 仓库 README 全量）或 **强制重跑各仓库 README**（只全量重跑仓库 README，主页仍按变化更新）——全部公开仓库（profile 自身除外）都会重新生成并开 PR，不选则只处理有新代码提交的仓库。
 - **某仓「读取失败 404」但它明明是公开仓库**：几乎都是 `WORKFLOW_PAT` 的问题。按顺序查：① secret 里的值是不是 **classic PAT**（`ghp_` 开头）——fine-grained PAT 若选了 "Only select repositories"，对未勾选的公开仓一律 404；② 换了新令牌后**有没有把新值重新粘进 secret**（在 PAT 页面重建/续期不会自动同步到 secret，这是最常见的坑）；③ 令牌是否已过期。一个仓读取失败只跳过它自己，不影响其他仓库。
 - **AI 简介没生成**：检查 secret 名称是否为 `ANTHROPIC_API_KEY`；工具在 AI 失败时会保留旧简介，不会让任务失败。
 - **英文版里仓库描述还是中文**：三种情况——① 描述本身不含中文（纯英文等非中文描述直接照搬、不翻译）；② AI 翻译失败或超时（本轮沿用原文，下轮自动重试）；③ secret 里没配 `ANTHROPIC_API_KEY`（AI 能力整体降级）。
 - **手改 README 会被覆盖吗**：不会整篇覆盖——生成区随数据更新，你的手工微调会保留（与数据变化冲突处以数据为准；删除生成区内容会在下次恢复，想隐藏请改 config）；custom 标记之间的内容永远保留（旧版置顶面板已在升级时移除）。改坏了想重置：把手改行改回去或清空 custom 区即可，下次运行自动恢复规范版。
-- **数据是旧的**：Actions 手动触发 + force 即可刷新。
-- **模式 B 没跑**：看 Summary 里的「模式 B 状态」行——最常见是没配 `WORKFLOW_PAT`（无法推送/开 PR，配好自动启用）或 `repo_readmes.enabled` 还是 false；勾选了 `repo_readmes` 但 config 里是 false 也会给冲突警告。
+- **数据是旧的**：Actions 手动触发 +「本次强制重跑」选「强制重写主页」即可刷新。
+- **模式 B 没跑**：看 Summary 里的「模式 B 状态」行——最常见是没配 `WORKFLOW_PAT`（无法推送/开 PR，配好自动启用）或 `repo_readmes.enabled` 还是 false；选了「强制重跑各仓库 README」但 config 里是 false 也会给冲突警告。
 - **@提醒没收到**：确认本仓库 Issues 没被关闭、GitHub 通知设置里勾了 Issues；清单入口固定在本仓「🔔 README 更新待合并清单」issue + 运行页 Summary 快照。
 - **把本工具分享给别人**：对方只需完成「快速开始」4 步；本仓库既是工具源码也是 profile 仓库。
 

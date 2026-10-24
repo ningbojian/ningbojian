@@ -99,16 +99,38 @@ def _snapshot(tmp_path: Path) -> dict:
 
 
 def test_global_force_forces_b_first_seen_without_recording_baseline(tmp_path, capsys):
-    """Q09：全局 force 同时强制 A 与 B——首见仓合成全量队列项入队（不发 compare、不记基线）。"""
+    """Q09：全局 force + b_force 同时强制 A 与 B——首见仓合成全量队列项入队
+    （不发 compare、不记基线）。
+
+    有意变更（A-P0 交互治理）：force 已与模式 B 解耦（只强制主页），A+B 全量
+    语义改由 force=True + b_force=True 表达，与 workflow「两者都强制」下拉一一对应。
+    """
     cfg = _write_config(tmp_path)
     fetchers = FakeFetchers(heads=_heads_all("head789"))
-    assert _run(cfg, fetchers, force=True) == 0
+    assert _run(cfg, fetchers, force=True, b_force=True) == 0
     out = capsys.readouterr().out
     assert "无变化，跳过更新" not in out  # force 开门
     assert "入队 3 仓" in out  # 三仓合成入队（旧空树 compare 路径在生产必 404）
     assert fetchers.compare_calls == []
     assert (tmp_path / "README.md").exists()  # A 照常
     assert _snapshot(tmp_path)["repo_readmes"] == {}  # no_ai 不落条目（与 Q21 成对：全局 force=A+B）
+
+
+def test_force_alone_does_not_force_b(tmp_path, capsys):
+    """回归锁（A-P0 交互治理）：全局 force 只强制主页，不连带强制模式 B。
+
+    模式 B 的强制只认 --repo-readmes（workflow「强制重跑各仓库 README」下拉项），
+    避免「勾了 force，repo_readmes 变空操作」的重叠困惑。
+    """
+    cfg = _write_config(tmp_path)
+    # 第一轮：首见 → 建立 B 基线（head0001）
+    assert _run(cfg, FakeFetchers(heads=_heads_all("head0001"))) == 0
+    capsys.readouterr()
+    # 第二轮：heads 完全没变，只勾 force → 主页门打开，但 B 零队列（不入队）
+    assert _run(cfg, FakeFetchers(heads=_heads_all("head0001")), force=True) == 0
+    out = capsys.readouterr().out
+    assert "无变化，跳过更新" not in out  # force 绕过了主页增量门
+    assert "入队" not in out  # 但 B 没有被强制全量重跑
 
 
 def test_pending_opens_gate_and_b_runs(tmp_path, capsys):
