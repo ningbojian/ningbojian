@@ -37,8 +37,6 @@
 
 > GitHub Trending Agent - WeCom daily trending digest + NL search + star sync
 
-⭐ **[ningbojian](https://github.com/ningbojian/ningbojian)**｜![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ningbojian?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ningbojian?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--24-c9d8e8?style=flat)
-
 ⭐ **[ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)**｜![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)
 
 > 模板仓库：一键生成自动更新的 GitHub 个人主页 README，含仓库统计、精选项目卡片与中文 AI 简介，每周定时刷新。
@@ -51,24 +49,28 @@
 - halcon
 - image-processing
 
+⭐ **[vscode-pairlet-live](https://github.com/ningbojian/vscode-pairlet-live)**｜![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--24-c9d8e8?style=flat)
+
+> 只读 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话。零配置、零网络，让存活中的手机会话在 IDE 内可见。
+
 ---
 
 ## 📦 仓库列表
 
 | 仓库 | 简介 | Stars | 语言 |
 | --- | --- | --- | --- |
+| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | Windows 下的手机热点代理助手，自动探测手机侧代理并一键设置系统级代理，关窗自动关闭，零依赖单文件。 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) | 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |
-| [vscode-pairlet-live](https://github.com/ningbojian/vscode-pairlet-live) | 只读的 VS Code 侧边栏扩展，零配置实时直播手机端 Pairlet 驱动的 Claude Code 会话，零网络、不写入、不注入输入。 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |
 
 ---
 
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-24 20:15（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-24 22:20（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
