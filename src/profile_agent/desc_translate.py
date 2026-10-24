@@ -1,6 +1,10 @@
-"""仓库描述批量英译（A-WP-B1）：英文版 README 里含中文的 description 换成 AI 英译。
+"""仓库描述批量本地化（A-WP-B1，2026-10-24 扩展双向）。
 
-- contains_cjk 只认 Han（基本区 + 扩展A）：纯假名/纯 ASCII 不译（零回归裁定）
+- 英文方向：中文 README 之外，en 文件里含中文的 description 换成 AI 英译；
+- 中文方向（2026-10-24）：zh 文件里不含汉字的 description 换成 AI 中译——
+  中英两版各自只看自己语言，用户切到哪版看到的描述就是哪一版的语言。
+- contains_cjk 只认 Han（基本区 + 扩展A）：纯假名/纯 ASCII 在英文方向不译，
+  在中文方向则视为「非中文」需要中译（零回归裁定见测试）
 - 全量目标一次 chat_text 调用（单批单请求），JSON map 宽松解析（仿 bio._parse_dual）
 - 失败/解析失败 → ({}, 中文警告含「沿用原文"])：调用方回落原文且不写缓存，下轮开门自动重试
 """
@@ -16,10 +20,25 @@ from .config import AIConfig
 # Han 基本区（一-鿿）+ 扩展A（㐀-䶿）；不含假名/谚文（不译非中文语言，零回归）
 _HAN_RE = re.compile("[一-鿿㐀-䶿]")
 
-_SYSTEM = (
-    "你是一位技术翻译助手，负责把 GitHub 仓库的中文简介翻译成自然地道的英文。"
-    "只输出 JSON，不要代码块围栏或任何解释。"
-)
+# 两个翻译方向各自的 system / 动词 / 目标语言名（提示词与警告文案同源，避免漂移）
+_DIRECTIONS = {
+    "en": {
+        "system": (
+            "你是一位技术翻译助手，负责把 GitHub 仓库的中文简介翻译成自然地道的英文。"
+            "只输出 JSON，不要代码块围栏或任何解释。"
+        ),
+        "verb": "翻译成自然地道的英文",
+        "target_name": "英文",
+    },
+    "zh": {
+        "system": (
+            "你是一位技术翻译助手，负责把 GitHub 仓库的英文简介翻译成自然地道的简体中文。"
+            "只输出 JSON，不要代码块围栏或任何解释。"
+        ),
+        "verb": "翻译成自然地道的简体中文",
+        "target_name": "中文",
+    },
+}
 
 
 def contains_cjk(text: str) -> bool:
@@ -58,15 +77,16 @@ def _parse_desc_map(raw: str) -> dict[str, str] | None:
     return out
 
 
-def build_desc_translate_prompt(items: list[tuple[str, str]]) -> str:
-    """批量翻译提示词：items=[(full_name, 中文描述)]；只输出 JSON map。"""
+def build_desc_translate_prompt(items: list[tuple[str, str]], target: str = "en") -> str:
+    """批量翻译提示词：items=[(full_name, 描述)]；target 为目标语言（en/zh），只输出 JSON map。"""
+    direction = _DIRECTIONS.get(target) or _DIRECTIONS["en"]
     payload = [{"full_name": fn, "description": desc} for fn, desc in items]
     return (
-        "把下面每个仓库的中文简介翻译成自然地道的英文，用作 GitHub 个人主页的仓库描述。\n"
+        f"把下面每个仓库的简介{direction['verb']}，用作 GitHub 个人主页的仓库描述。\n"
         "要求：忠实原意、不扩写、每条压成单行（不许换行）、不要引号包裹整句；"
         "保留必要的专有名词与命令原文。\n"
         "只输出一个 JSON 对象，形如：\n"
-        '{"full_name": "English description"}\n'
+        '{"full_name": "Translated description"}\n'
         "每个仓库都要有条目，键必须与输入的 full_name 完全一致；"
         "不要输出 JSON 之外的任何文字或代码块围栏。\n\n"
         f"仓库列表：\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n"
@@ -77,10 +97,11 @@ def translate_descriptions(
     items: list[tuple[str, str]],
     cfg: AIConfig,
     *,
+    target: str = "en",
     client=None,
     http_post=None,
 ) -> tuple[dict[str, str], str]:
-    """批量英译（单批一次调用）。返回 (译文 map, 警告)。
+    """批量翻译（单批一次调用）。target=en 中→英，target=zh 英→中。返回 (译文 map, 警告)。
 
     - 空 items → ({}, "")，不发起调用
     - AI 异常/解析失败 → ({}, 中文警告含「沿用原文"])：不写缓存，下轮自动重试
@@ -89,20 +110,30 @@ def translate_descriptions(
     """
     if not items:
         return {}, ""
+    direction = _DIRECTIONS.get(target) or _DIRECTIONS["en"]
+    target_name = direction["target_name"]
     names = [fn for fn, _ in items]
     try:
         raw = chat_text(
-            cfg, _SYSTEM, build_desc_translate_prompt(items), client=client, http_post=http_post
+            cfg,
+            direction["system"],
+            build_desc_translate_prompt(items, target),
+            client=client,
+            http_post=http_post,
         )
         parsed = _parse_desc_map(raw)
     except Exception as exc:  # AI 层任何失败都不影响任务（回落原文）
         msg = str(exc)[:120]
         return {}, (
-            f"仓库描述英译失败（沿用原文）：{msg}；涉及 {len(items)} 个仓库"
+            f"仓库描述翻译（目标语言：{target_name}）失败（沿用原文）：{msg}；"
+            f"涉及 {len(items)} 个仓库"
             f"（{', '.join(names[:5])}{' 等' if len(names) > 5 else ''}）"
         )
     if parsed is None:
-        return {}, f"仓库描述英译输出无法解析（沿用原文）；涉及 {len(items)} 个仓库"
+        return {}, (
+            f"仓库描述翻译（目标语言：{target_name}）输出无法解析（沿用原文）；"
+            f"涉及 {len(items)} 个仓库"
+        )
     out: dict[str, str] = {}
     for fn in names:
         translated = parsed.get(fn)
@@ -112,7 +143,8 @@ def translate_descriptions(
     warn = ""
     if missing:
         warn = (
-            f"警告：{len(missing)} 个仓库的描述英译缺失（沿用原文）："
+            f"警告：{len(missing)} 个仓库的描述翻译缺失"
+            f"（目标语言：{target_name}；沿用原文）："
             f"{', '.join(missing[:5])}{' 等' if len(missing) > 5 else ''}"
         )
     return out, warn

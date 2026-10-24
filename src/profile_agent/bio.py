@@ -79,8 +79,8 @@ def build_prompt(payload: dict, cfg: AIConfig, bilingual: bool = True) -> str:
         f"请为下面这位开发者写一段 GitHub 个人主页简介，使用简体中文。\n"
         f"简介长度在 {cfg.bio_min_chars} 到 {cfg.bio_max_chars} 字之间，"
         f"语气自然、专业，突出技术方向与代表项目，不要夸大。\n"
-        f"在简介末尾另起几行，以“亮点：”开头，给出 3 条以内的要点，"
-        f"每条以“- ”开头、不超过 30 字，只写可验证的事实。\n\n"
+        f"只写一段连续文字，不要分点、不要列表、不要附加小节"
+        f"（项目信息由主页的置顶项目与仓库列表展示）。\n\n"
         f"个人资料：\n{json.dumps({k: payload.get(k) for k in ('name', 'blog', 'bio', 'totals')}, ensure_ascii=False, indent=2)}\n\n"
         f"代表项目：\n{json.dumps(payload.get('repos', []), ensure_ascii=False, indent=2)}\n"
     )

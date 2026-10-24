@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from .bio import _parse_dual
 from .config import RepoReadmesConfig
-from .readme_block import markers_balanced, merge_readme
+from .readme_block import END, START, markers_balanced, merge_readme
 from .repo_readmes import SELF_FILES, QueueItem, build_diff_text
 
 # 缺 key 的可读原因行（Summary/日志同源，测试计划 AP23/IW12 共享该常量）
@@ -52,6 +53,44 @@ _BILINGUAL_JSON_HINT = (
     "zh 值为简体中文正文、en 值为英文正文，两者结构一致（同样的标题层级与 bullets），"
     "不要 markdown 代码块包裹，不要任何解释。"
 )
+
+# 中英互指切换行（2026-10-24）：两版 README 的托管区内都带一行，用户一点即切。
+# 放进托管区而不是文件头——marker 之外的手写内容一个字节都不能碰（§5.2）；
+# 由代码统一注入，AI 正文里若自带同款行会先被剔除，避免重复。
+SWITCH_LINE = "🇨🇳 [中文](README.md) · 🇺🇸 [English](README.en.md)"
+_SWITCH_LINE_RE = re.compile(
+    r"^[^\n]*🇨🇳[^\n]*README\.md[^\n]*🇺🇸[^\n]*README\.en\.md[^\n]*\n?", re.MULTILINE
+)
+
+
+def _strip_switch(text: str) -> str:
+    """剔除 AI 正文里自带的切换行（统一由 _inject_switch 注入，防重复）。"""
+    return _SWITCH_LINE_RE.sub("", text).strip("\n")
+
+
+def _insert_after_h1(text: str) -> str:
+    """无 marker 的整份新文件：切换行紧跟 H1（无 H1 则置于文件头）。"""
+    lines = text.splitlines(keepends=True)
+    for idx, line in enumerate(lines):
+        if line.startswith("# "):
+            head = "".join(lines[: idx + 1])
+            if not head.endswith("\n"):
+                head += "\n"
+            rest = "".join(lines[idx + 1 :]).lstrip("\n")
+            return f"{head}\n{SWITCH_LINE}\n\n{rest}" if rest else f"{head}\n{SWITCH_LINE}\n"
+    return f"{SWITCH_LINE}\n\n{text}"
+
+
+def _inject_switch(content: str) -> str:
+    """把切换行放到托管区顶部（无 marker 时放 H1 之后）；已存在则不重复。"""
+    if SWITCH_LINE in content:
+        return content
+    if START in content and END in content:
+        i = content.index(START)
+        if content.index(END) > i:
+            at = i + len(START)
+            return content[:at] + f"\n{SWITCH_LINE}" + content[at:]
+    return _insert_after_h1(content)
 
 
 @dataclass
@@ -293,6 +332,7 @@ def process_queue(
         # WP7 en 侧：取数 + marker 检查——en 不平衡只跳 en（zh 照常），不猜测修复
         existing_en = ""
         en_skipped = False
+        had_en_file = False  # marker 坏时也记「文件存在」：切换行据此判断不是死链
         if bilingual and fetch_readme_en is not None:
             try:
                 existing_en = fetch_readme_en(item.full_name) or ""
@@ -302,6 +342,7 @@ def process_queue(
                     file=sys.stderr,
                 )
                 existing_en = ""
+            had_en_file = bool(existing_en)
             if existing_en and not markers_balanced(existing_en):
                 print(
                     f"「{item.full_name}」README.en.md 托管区 marker 不平衡"
@@ -357,11 +398,21 @@ def process_queue(
             results.append(result)
             continue
 
+        # 切换行统一由代码注入：先剔除 AI 正文自带的同款行，避免重复
+        text = _strip_switch(text)
+        if en_text:
+            en_text = _strip_switch(en_text)
         content, _ = merge_readme(existing or "", text)
         # WP7 en 落地：en 被跳过（marker 坏）或 AI en 字段为空 → content_en 空（本轮 zh-only）
         content_en = ""
         if bilingual and not en_skipped and en_text:
             content_en, _ = merge_readme(existing_en, en_text)
+        # 切换行：两版都落地（或 en 文件已存在，只是本轮 marker 坏）才注入——
+        # 否则 zh 会挂一个指向不存在文件的死链
+        if bilingual and (content_en or had_en_file):
+            content = _inject_switch(content)
+        if content_en:
+            content_en = _inject_switch(content_en)
         entry["failed_hash"] = ""  # 成功清空失败标记
         entry["last_input_hash"] = h
         entry["pending"] = False  # 补跑成功清积压（§7）

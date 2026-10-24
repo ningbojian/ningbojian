@@ -909,35 +909,58 @@ def run(
             if text_en:
                 short_intros_en[r.full_name] = text_en
 
-    # 4.5 仓库描述英译（A-WP-B）：en 文件里含中文的 GitHub 描述换 AI 英译，按描述原文缓存
-    # （快照 desc_en + desc_en_src 原文直比）。zh 恒用原文（display_descs 空 → 短路）；
-    # 失败/漏译回落原文且不写缓存（下轮开门自动重试）；不改增量门、不进任何指纹。
+    # 4.5 仓库描述本地化（A-WP-B，2026-10-24 扩展双向）：en 文件里含中文的描述换英译，
+    # zh 文件里不含汉字的描述换中译——切到哪版就读到哪一版的语言。各自按描述原文缓存
+    # （desc_en/desc_en_src、desc_zh/desc_zh_src）；失败/漏译回落原文且不写缓存
+    # （下轮开门自动重试）；不改增量门、不进任何指纹。
     desc_states: dict[str, dict] = {}
     descs_en: dict[str, str] = {}
-    if cfg.readme.bilingual and ai_active and readme_active:
+    descs_zh: dict[str, str] = {}
+    if ai_active and readme_active:
         prev_states_desc = _prev_repo_states(prev)
-        stale: list = []
+        stale_en: list = []
+        stale_zh: list = []
         for r in featured:
-            if not r.description or not contains_cjk(r.description):
-                continue  # 无描述/不含中文：en 照搬原文（纯 ASCII/假名不译，零回归）
+            if not r.description:
+                continue  # 无描述：交给补位文案，不进翻译
             st = prev_states_desc.get(r.full_name) or {}
-            if st.get("desc_en") and st.get("desc_en_src") == r.description:
-                descs_en[r.full_name] = st["desc_en"]  # 缓存新鲜：直接用（仍喂 en 渲染）
+            if contains_cjk(r.description):
+                # zh 侧原本就是中文；en 侧需要英译（仅双语模式生成 en 文件）
+                if cfg.readme.bilingual:
+                    if st.get("desc_en") and st.get("desc_en_src") == r.description:
+                        descs_en[r.full_name] = st["desc_en"]  # 缓存新鲜：直接用
+                    else:
+                        stale_en.append(r)
             else:
-                stale.append(r)
-        if stale:
+                # en 侧原本就是非中文；zh 侧需要中译（中英混排之外的假名等也按中译处理）
+                if st.get("desc_zh") and st.get("desc_zh_src") == r.description:
+                    descs_zh[r.full_name] = st["desc_zh"]  # 缓存新鲜：直接用
+                else:
+                    stale_zh.append(r)
+        if stale_en:
             translated, warn = translate_descriptions(
-                [(r.full_name, r.description) for r in stale], cfg.ai
+                [(r.full_name, r.description) for r in stale_en], cfg.ai, target="en"
             )
             if warn:
                 print(warn, file=sys.stderr)
-            for r in stale:
+            for r in stale_en:
                 if r.full_name in translated:
                     descs_en[r.full_name] = translated[r.full_name]
-                    desc_states[r.full_name] = {
-                        "desc_en": translated[r.full_name],
-                        "desc_en_src": r.description,
-                    }
+                    desc_states.setdefault(r.full_name, {}).update(
+                        {"desc_en": translated[r.full_name], "desc_en_src": r.description}
+                    )
+        if stale_zh:
+            translated, warn = translate_descriptions(
+                [(r.full_name, r.description) for r in stale_zh], cfg.ai, target="zh"
+            )
+            if warn:
+                print(warn, file=sys.stderr)
+            for r in stale_zh:
+                if r.full_name in translated:
+                    descs_zh[r.full_name] = translated[r.full_name]
+                    desc_states.setdefault(r.full_name, {}).update(
+                        {"desc_zh": translated[r.full_name], "desc_zh_src": r.description}
+                    )
 
     # 4. AI 简介（只在更新 overview 时生成；失败保留旧简介，任务不失败）
     bio_text = prev.bio.text if prev else ""
@@ -990,8 +1013,8 @@ def run(
             visitors_badge=cfg.readme.visitors_badge,
             key_env=cfg.ai.key_env_name,
             custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
-            # A-WP-B：zh 描述永远照搬 GitHub 原文（英译只进 en 文件）
-            display_descs={},
+            # A-WP-B（zh 方向）：非中文描述的中译（缺省回落原文）
+            display_descs=descs_zh,
         )
         content = render_readme(ctx, template_path)
         # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取
@@ -1083,6 +1106,7 @@ def run(
                     # 旧快照里的存量 intro 键经此自然清除（下一次 save 起不再落盘）
                     if k.startswith("short_intro")
                     or k.startswith("desc_en")
+                    or k.startswith("desc_zh")
                 },
             }
             for r in repos

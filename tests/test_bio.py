@@ -45,7 +45,9 @@ def test_build_prompt_contains_zh_instructions_and_repos():
     assert "简体中文" in prompt
     assert str(cfg.bio_min_chars) in prompt
     assert str(cfg.bio_max_chars) in prompt
-    assert "亮点" in prompt
+    # 有意变更（2026-10-24 视觉）：简介末尾的「亮点：」要点与下方置顶项目/仓库列表
+    # 重复，已从 prompt 移除——简介只留一段自然文字，项目信息交给列表
+    assert "亮点" not in prompt
     assert "cool-tool" in prompt
     assert "网页应用" in prompt
     assert "128" in prompt  # followers 注入

@@ -73,7 +73,8 @@ class AIConfig:
     bio_min_chars: int = 100
     bio_max_chars: int = 150
     language: str = "zh-CN"
-    prompt_version: int = 1
+    # 2：2026-10-24 移除简介末尾「亮点：」小节（与置顶项目/仓库列表重复）
+    prompt_version: int = 2
     fill_empty_descriptions: bool = True  # 精选仓库缺描述时用 AI 基于其 README 生成主页补位文案
 
     @property
@@ -235,7 +236,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         bio_min_chars=int(ai.get("bio_min_chars", 100)),
         bio_max_chars=int(ai.get("bio_max_chars", 150)),
         language=language,
-        prompt_version=int(ai.get("prompt_version", 1)),
+        prompt_version=int(ai.get("prompt_version", 2)),
         fill_empty_descriptions=bool(ai.get("fill_empty_descriptions", True)),
     )
 

@@ -51,7 +51,7 @@ ai:
   bio_min_chars: 100
   bio_max_chars: 150
   language: "zh-CN"
-  prompt_version: 1 # 改 prompt 时 +1，强制重新生成简介
+  prompt_version: 2 # 改 prompt 时 +1，强制重新生成简介（2：移除简介末尾「亮点：」小节）
 
 # 模式 B：各仓库 README 托管区自动更新（代码提交 → AI 更新该仓库 README → 开 PR 审核；
 # 主页只有缺描述仓库的一句话简介会随后吸收，统计与其余内容不依赖合并）

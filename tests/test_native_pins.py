@@ -31,7 +31,7 @@ def test_native_pinned_json_drives_section_order(tmp_path):
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "## 📌 置顶项目" in readme
     # 官方顺序：old-thing 在 cool-tool 之前
-    assert readme.index("⭐ **[old-thing]") < readme.index("⭐ **[cool-tool]")
+    assert readme.index("### ⭐ [old-thing]") < readme.index("### ⭐ [cool-tool]")
     assert "| [old-thing](" not in readme  # 表格不重复
     assert "| [cool-tool](" not in readme
 
@@ -56,7 +56,7 @@ def test_missing_pinned_json_falls_back_to_config_pin(tmp_path):
     fx = _fixture_with_pins(tmp_path, pins=None)
     assert _run(cfg, fixture=fx) == 0
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
-    assert "⭐ **[old-thing](https://github.com/alice/old-thing)**｜" in readme
+    assert "### ⭐ [old-thing](https://github.com/alice/old-thing)" in readme
 
 
 def test_pinned_change_opens_gate_then_noop(tmp_path):
@@ -65,13 +65,13 @@ def test_pinned_change_opens_gate_then_noop(tmp_path):
     fx = _fixture_with_pins(tmp_path, ["alice/old-thing"])
     assert _run(cfg, fixture=fx) == 0
     readme = tmp_path / "README.md"
-    assert "⭐ **[old-thing]" in readme.read_text(encoding="utf-8")
+    assert "### ⭐ [old-thing]" in readme.read_text(encoding="utf-8")
     # 改置顶：开门 → 重排
     (fx / "pinned.json").write_text(json.dumps(["alice/cool-tool"]), encoding="utf-8")
     assert _run(cfg, fixture=fx) == 0
     out = readme.read_text(encoding="utf-8")
-    assert "⭐ **[cool-tool]" in out
-    assert "⭐ **[old-thing]" not in out
+    assert "### ⭐ [cool-tool]" in out
+    assert "### ⭐ [old-thing]" not in out
     # 其后连续两轮 noop（mtime 不变）
     mtime = readme.stat().st_mtime_ns
     assert _run(cfg, fixture=fx) == 0
@@ -103,4 +103,4 @@ def test_native_pins_failure_falls_back_to_prev_pins(tmp_path):
     assert readme.stat().st_mtime_ns == mtime  # 未重写（指纹不变、内容不变）
     data = json.loads(snap.read_text(encoding="utf-8"))
     assert data["pins"] == ["alice/old-thing"]  # 快照名单原样，下轮继续回退
-    assert "⭐ **[old-thing]" in readme.read_text(encoding="utf-8")
+    assert "### ⭐ [old-thing]" in readme.read_text(encoding="utf-8")

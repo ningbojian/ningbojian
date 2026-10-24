@@ -89,7 +89,7 @@ def test_featured_pin_renders_pinned_section(tmp_path):
     assert _run(cfg) == 0
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "## 📌 置顶项目" in readme
-    assert "⭐ **[old-thing](https://github.com/alice/old-thing)**｜" in readme
+    assert "### ⭐ [old-thing](https://github.com/alice/old-thing)" in readme
     assert "> 很久没动的项目" in readme  # 置顶卡片一句话摘要
     assert readme.index("## 📌 置顶项目") < readme.index("## 📦 仓库列表")
     assert "| [old-thing](" not in readme  # 列表不重复置顶仓库
@@ -176,7 +176,7 @@ def test_user_edited_panel_lines_still_removed_by_migration(tmp_path):
     out = readme.read_text(encoding="utf-8")
     assert "pin-config" not in out and "置顶配置面板" not in out
     # 沿用 base 里的旧勾选（手改的新增勾选随面板一并丢弃，不产生半摘状态）
-    assert "⭐ **[old-thing](https://github.com/alice/old-thing)**｜" in out
+    assert "### ⭐ [old-thing](https://github.com/alice/old-thing)" in out
 
 
 def test_force_regenerates_even_when_unchanged(tmp_path):
@@ -764,8 +764,16 @@ snapshot:
     assert not (tmp_path / "README.en.md").exists()
 
 
-def test_ascii_description_not_translated(tmp_path, monkeypatch):
-    """A-WP-B：不含中文的描述（纯 ASCII）不进翻译请求（零回归裁定）。"""
+def test_ascii_description_becomes_chinese_in_zh_readme(tmp_path, monkeypatch):
+    """2026-10-24 双语描述：纯 ASCII 描述不进英文翻译批（原本就是英文），但要进
+    中文翻译批——中文 README 呈现中文描述，英文 README 逐字原文。
+
+    有意变更：旧断言「纯 ASCII 不译」只针对 en 文件成立；现在 zh/en 各自看语言，
+    zh 侧必须把非中文描述中译（用户要求：切到哪版就读哪版的语言）。
+    缓存落盘 desc_zh + desc_zh_src，描述不变不重译。
+    """
+    import profile_agent.cli as cli_mod
+
     cfg = _write_config(tmp_path)
     fx = _copy_fixture(tmp_path)
     repos = json.loads((fx / "repos.json").read_text(encoding="utf-8"))
@@ -773,12 +781,33 @@ def test_ascii_description_not_translated(tmp_path, monkeypatch):
         if r["full_name"] == "alice/cool-tool":
             r["description"] = "A cool CLI tool"
     (fx / "repos.json").write_text(json.dumps(repos, ensure_ascii=False), encoding="utf-8")
-    calls = _desc_translation_env(monkeypatch)
+    calls = []
+
+    def fake(items, cfg_ai, *, target="en", **kwargs):
+        calls.append((target, list(items)))
+        return {fn: (f"中译：{d}" if target == "zh" else f"T:{d}") for fn, d in items}, ""
+
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    monkeypatch.setattr(cli_mod, "translate_descriptions", fake)
+
     assert run(cfg, fixture=fx) == 0
-    requested = [fn for batch in calls for fn, _ in batch]
-    assert "alice/cool-tool" not in requested  # 纯 ASCII 不译
+    en_batch = [fn for t, batch in calls if t == "en" for fn, _ in batch]
+    zh_batch = [fn for t, batch in calls if t == "zh" for fn, _ in batch]
+    assert "alice/cool-tool" not in en_batch  # 原本就是英文，不英译
+    assert "alice/cool-tool" in zh_batch  # 中译目标
+    zh = (tmp_path / "README.md").read_text(encoding="utf-8")
     en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
-    assert "A cool CLI tool" in en  # 照搬原文
+    assert "中译：A cool CLI tool" in zh
+    assert "A cool CLI tool" in en  # en 照搬原文
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = next(r for r in data["repos"] if r["full_name"] == "alice/cool-tool")
+    assert entry["desc_zh"] == "中译：A cool CLI tool"
+    assert entry["desc_zh_src"] == "A cool CLI tool"
+    # 第二轮 force：描述没变 → 缓存命中，0 次新翻译调用
+    calls.clear()
+    assert run(cfg, fixture=fx, force=True) == 0
+    assert calls == []
 
 
 def test_description_change_triggers_retranslate(tmp_path, monkeypatch):

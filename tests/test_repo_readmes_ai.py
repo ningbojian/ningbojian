@@ -13,6 +13,7 @@ from profile_agent.readme_block import END, START
 from profile_agent.repo_readmes import QueueItem, build_diff_text
 from profile_agent.repo_readmes_ai import (
     MISSING_KEY_REASON,
+    SWITCH_LINE,
     SYSTEM,
     build_user_prompt,
     compute_input_hash,
@@ -549,8 +550,77 @@ def test_en_missing_generates_full_en_file():
         bilingual=True,
     )
     r = results[0]
-    assert r.content_en == "New EN managed block"  # 整份（不强加 marker）
+    # 有意变更（2026-10-24 切换行）：整份 en 文件顶部注入中英互指切换行
+    assert r.content_en == SWITCH_LINE + "\n\nNew EN managed block"
     assert START not in r.content_en
+
+
+# ---- 中英切换行（2026-10-24）：两版 README 互指，用户一点即切 ----
+
+
+def test_bilingual_adds_switch_line_to_both_readmes_once():
+    """两版托管区顶部都有切换行；AI 原样带回切换行时不得重复（统一由代码注入）。"""
+    body = json.dumps(
+        {
+            "zh": SWITCH_LINE + "\n\n新中文托管区正文",
+            "en": SWITCH_LINE + "\n\nNew EN managed block",
+        },
+        ensure_ascii=False,
+    )
+    rec = Recorder(text=body)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )[0]
+    assert r.content.count(SWITCH_LINE) == 1
+    assert r.content_en.count(SWITCH_LINE) == 1
+    # 切换行落在托管区内（marker 外侧的手写内容保持逐字节不动）
+    zh_block = r.content.split(START)[1].split(END)[0]
+    en_block = r.content_en.split(START)[1].split(END)[0]
+    assert SWITCH_LINE in zh_block and SWITCH_LINE in en_block
+
+
+def test_full_new_bilingual_readmes_get_switch_line_after_h1():
+    """首份中英 README 都整份生成（无 marker）→ 切换行紧跟 H1，两文件互指。"""
+    body = json.dumps(
+        {"zh": "# 很酷的工具\n\n介绍", "en": "# Cool Tool\n\nIntro"}, ensure_ascii=False
+    )
+    rec = Recorder(text=body)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: "",
+        fetch_readme_en=lambda fn: "",
+        bilingual=True,
+    )[0]
+    assert r.content == f"# 很酷的工具\n\n{SWITCH_LINE}\n\n介绍"
+    assert r.content_en == f"# Cool Tool\n\n{SWITCH_LINE}\n\nIntro"
+
+
+def test_switch_line_not_added_in_single_language_mode():
+    """单语模式（bilingual=False）字节与旧版一致：无切换行、不读 en。"""
+    rec = Recorder()
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        bilingual=False,
+    )[0]
+    assert SWITCH_LINE not in r.content
+
+
+def test_en_marker_imbalance_keeps_switch_on_zh_because_en_file_exists():
+    """en marker 坏（本轮只跳 en）但文件存在 → zh 仍带切换行（文件在，不是死链）。"""
+    rec = Recorder(text=DUAL_JSON)
+    broken_en = "# Title\n" + START + "\n缺 end\n"
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: broken_en,
+        bilingual=True,
+    )[0]
+    assert r.content_en == ""
+    assert r.content.count(SWITCH_LINE) == 1
 
 
 def test_input_hash_changes_when_bilingual_flips():

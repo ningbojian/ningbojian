@@ -111,3 +111,40 @@ def test_prompt_requests_json_map_only():
     prompt = build_desc_translate_prompt([("a/b", "很酷的工具")])
     assert "JSON" in prompt
     assert "很酷的工具" in prompt and "a/b" in prompt
+
+
+# ---- 中文方向（2026-10-24）：中文 README 里的英文描述翻成中文 ----
+
+
+def test_translate_to_zh_uses_chinese_system_and_prompt():
+    """target="zh"：英文描述 → 中文译文，system/prompt 均要求简体中文（不误用英译指令）。"""
+    fake = FakeClient(['{"a/b": "一个很酷的工具"}'])
+    got, warn = translate_descriptions(
+        [("a/b", "A cool CLI tool")], _cfg(), target="zh", client=fake
+    )
+    assert got == {"a/b": "一个很酷的工具"} and warn == ""
+    assert "简体中文" in fake.calls[0]["system"]
+    prompt = fake.calls[0]["messages"][0]["content"]
+    assert "A cool CLI tool" in prompt and "中文" in prompt
+
+
+def test_build_prompt_zh_direction_distinct_from_en():
+    """中文方向提示词与英文方向不同：一个要求英译、一个要求中译。"""
+    en_prompt = build_desc_translate_prompt([("a/b", "一个很酷的工具")], target="en")
+    zh_prompt = build_desc_translate_prompt([("a/b", "A cool tool")], target="zh")
+    assert "翻译成自然地道的英文" in en_prompt
+    assert "翻译成自然地道的简体中文" in zh_prompt
+
+
+def test_translate_target_zh_failure_warning_names_direction():
+    """中文方向失败：警告仍含「沿用原文」，且标明目标语言，便于日志定位。"""
+    class Boom:
+        messages = None
+
+        def create(self, **kwargs):
+            raise RuntimeError("api down")
+
+    got, warn = translate_descriptions(
+        [("a/b", "A cool tool")], _cfg(), target="zh", client=Boom()
+    )
+    assert got == {} and "沿用原文" in warn and "中文" in warn

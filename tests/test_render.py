@@ -123,8 +123,13 @@ def test_render_tech_tags_hidden_without_languages():
 
 
 def test_render_pinned_section_card_structure():
-    """置顶范式（规范 §3，最重要）：⭐ 打头、名称｜徽章同一行、> 一句话摘要、
-    亮点 ≤3 条；📌 板块在 📦 之前，且仓库列表不重复展示置顶仓库。"""
+    """置顶范式（规范 §3，最重要）：⭐ + 名称行用三级标题（不用 ** 加粗）、徽章紧随
+    下一行横排、> 一句话摘要、亮点 ≤3 条；📌 板块在 📦 之前，且仓库列表不重复展示置顶仓库。
+
+    有意变更（2026-10-24 视觉）：名称由「⭐ **[name](url)**｜徽章同行」改为
+    「### ⭐ [name](url)」+ 下一行徽章——正文加粗星号是 AI 生成腔，且正文字号
+    太细，置顶项目突出不了重点；三级标题比板块标题低一级，层级合适。
+    """
     ctx = _ctx()
     ctx.featured[0].topics = ["python", "cli"]
     ctx.pinned = [ctx.featured[0]]
@@ -133,13 +138,14 @@ def test_render_pinned_section_card_structure():
     i_list = out.index("## 📦 仓库列表")
     assert i_pin < i_list  # 置顶在前
     card = out[i_pin:i_list]
-    title = next(ln for ln in card.splitlines() if "⭐" in ln)
-    assert (
-        "⭐ **[cool-tool](https://github.com/alice/cool-tool)**｜" in title
-    )  # 名称｜徽章同行
-    assert "img.shields.io/badge/Python-" in title  # badge1
-    assert "img.shields.io/github/stars/alice/cool-tool" in title  # badge2
-    assert "img.shields.io/github/forks/alice/cool-tool" in title  # badge3
+    lines = card.splitlines()
+    title = next(ln for ln in lines if "⭐" in ln)
+    assert title == "### ⭐ [cool-tool](https://github.com/alice/cool-tool)"
+    assert "**" not in title  # 不再用加粗星号包裹名称
+    badge_line = next(ln for ln in lines[lines.index(title) + 1 :] if "img.shields.io" in ln)
+    assert "img.shields.io/badge/Python-" in badge_line  # badge1
+    assert "img.shields.io/github/stars/alice/cool-tool" in badge_line  # badge2
+    assert "img.shields.io/github/forks/alice/cool-tool" in badge_line  # badge3
     assert "> 一个很酷的工具" in card  # 一句话摘要（引用块）
     assert "- python" in card and "- cli" in card  # 亮点列表
     # 仓库列表不重复置顶仓库，其余照常
@@ -169,7 +175,7 @@ def test_render_pinned_without_description_omits_quote():
     card = render_readme(ctx, TEMPLATE)
     section = card[card.index("📌") : card.index("📦")]
     assert not any(ln.startswith("> ") for ln in section.splitlines())
-    assert "⭐ **[cool-tool]" in section
+    assert "### ⭐ [cool-tool]" in section
 
 
 def test_render_repo_table_aligned_columns():

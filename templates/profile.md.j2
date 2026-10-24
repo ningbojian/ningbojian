@@ -47,7 +47,9 @@
 {{ L.pinned_title }}
 
 {% for repo in pinned %}
-⭐ **[{{ repo.name }}]({{ repo.html_url }})**｜{{ [lang_badge(repo.language), stars_badge(repo.full_name), forks_badge(repo.full_name), push_badge(repo.pushed_at)] | reject("equalto", "") | join(" ") }}
+### ⭐ [{{ repo.name }}]({{ repo.html_url }})
+
+{{ [lang_badge(repo.language), stars_badge(repo.full_name), forks_badge(repo.full_name), push_badge(repo.pushed_at)] | reject("equalto", "") | join(" ") }}
 {% set desc = display_descs.get(repo.full_name) or repo.description or short_intros.get(repo.full_name, "") %}{% if desc %}
 
 > {{ desc }}
