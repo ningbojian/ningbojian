@@ -47,12 +47,11 @@ def test_wf_rewrite_step_only_on_dispatch_and_skips_default():
 
 
 def test_wf_dialog_hides_projects_inputs():
-    """Run workflow 对话框不再暴露任何 projects 相关输入（功能已隐式关闭）。
+    """Run workflow 对话框不再暴露任何 projects 相关输入（功能已彻底移除）。
 
     对话框输入须恰好是这五个安全项，不含 update_projects / projects_repos /
-    逐仓「仅项目介绍」勾选框；REPO_CHECKBOXES 标记被移除后同步步骤会自我跳过，
-    不会再把勾选框注入回来。config.yaml 仍保留 projects 段（enabled: false），
-    代码路径休眠但可随时重新启用。
+    逐仓「仅项目介绍」勾选框。有意变更（A-P0）：项目介绍功能已删除——
+    config.yaml 的 projects 段、workflow 勾选框映射与点名链路一并下线。
     """
     inputs = _wf()["workflow_dispatch"]["inputs"]
     assert set(inputs) == {
@@ -161,7 +160,16 @@ def test_wf_git_add_includes_readme_en():
 
 
 def test_wf_bot_commit_keeps_skip_ci():
-    """WP8：bot 的两个提交都保留 [skip ci]（防 push 触发自循环的第一道保险）。"""
+    """WP8：bot 提交保留 [skip ci]（防 push 触发自循环的第一道保险）。
+
+    有意变更（A-P0）：项目介绍 PR 提交随审核流移除，工作流只剩直提 main 一个提交。
+    """
     text = WF.read_text(encoding="utf-8")
     assert 'git commit -m "chore: 自动更新 Profile README [skip ci]"' in text
-    assert 'git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"' in text
+
+
+def test_wf_has_no_projects_or_named_repo_traces():
+    """反向锁（A-P0）：yml 全文不得再出现项目介绍/点名仓库链路的任何痕迹。"""
+    text = WF.read_text(encoding="utf-8")
+    for token in ("docs/projects", "--repos", "repo_inputs", "项目介绍", "steps.resolve"):
+        assert token not in text, f"workflow 残留项目介绍痕迹：{token}"

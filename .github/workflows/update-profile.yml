@@ -55,7 +55,7 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
+  # 有意变更（A-P0）：pull-requests 权限随方向二 PR 审核流一并移除（gh pr 命令已删）
   issues: write # 模式 B 清单 issue 用内置 GITHUB_TOKEN 开/改/关（§5.7）
 
 jobs:
@@ -111,51 +111,10 @@ jobs:
           print(f"snapshot={(c.get('snapshot') or {}).get('path', 'data/snapshot.json')}")
           PY
 
-      # 解析本次要点名的仓库（保留钩子：当前无勾选框/输入来源，恒为空 → 按 config 全量）
-      - name: 解析勾选/点名的仓库
-        if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
-        id: resolve
-        env:
-          INPUTS_JSON: ${{ toJSON(inputs) }}
-        run: |
-          REPOS=$(python3 - <<'PY'
-          import json
-          import os
-          import re
+      # 有意变更（A-P0）：方向二功能已移除——原「解析勾选/点名的仓库」步骤随
+      # 点名仓库链路一并下线（inputs 无勾选框、恒输出空，唯一消费者是方向二点名重跑）
 
-          try:
-              inputs = json.loads(os.environ.get("INPUTS_JSON") or "{}")
-          except json.JSONDecodeError:
-              inputs = {}
-          try:
-              mapping = json.load(open("data/repo_inputs.json", encoding="utf-8"))
-          except Exception:
-              mapping = {}
-          # 勾选框命中的仓库（映射文件由同步步骤维护；值同样过字符集白名单）
-          picked = sorted(
-              name
-              for box, name in mapping.items()
-              if inputs.get(box) is True and re.fullmatch(r"[A-Za-z0-9._-]+", name or "")
-          )
-          if not picked:
-              # 退回字符串输入：逐 token 校验仓库名字符集（非法 token 直接丢弃，防注入）
-              raw = os.environ.get("INPUT_REPOS") or ""
-              picked = [
-                  t
-                  for t in (x.strip() for x in raw.split(","))
-                  if t and re.fullmatch(r"[A-Za-z0-9._-]+", t)
-              ]
-          print(",".join(picked))
-          PY
-          )
-          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
-          if [ -n "$REPOS" ]; then
-            echo "本次点名仓库：$REPOS"
-          else
-            echo "未点名仓库：按 config 规则全量处理"
-          fi
-
-      - name: 生成 README 与项目介绍
+      - name: 生成 README
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,7 +122,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          INPUT_REPOS: ${{ steps.resolve.outputs.repos }}
         run: |
           # concurrency 组串行：多轮触发会显示 Queued——排队等待上一轮完成，已开的 PR 不受影响
           echo "提示：定时/手动多轮触发会排队串行执行（显示 Queued），排队期间已开的 PR 不受影响"
@@ -174,10 +132,6 @@ jobs:
           [ "${{ inputs.repo_readmes }}" = "true" ] && FLAGS="$FLAGS --repo-readmes"
           # 等待仅勾选时执行（30 分钟窗口）；不勾与 cron 一样 0 分钟——直接继续
           [ "${{ inputs.wait_for_merges }}" = "true" ] && FLAGS="$FLAGS --wait-for-merges"
-          # 点名的仓库（勾选框/输入框）：点名即强制重跑
-          if [ -n "$INPUT_REPOS" ]; then
-            FLAGS="$FLAGS --repos $INPUT_REPOS"
-          fi
           python -m profile_agent --config config.yaml $FLAGS
 
       # 「定时运行间隔」下拉：选了天数就改写 cron 旁的间隔标记（提交由下一步统一完成）
@@ -214,49 +168,23 @@ jobs:
           print(f"定时已改为每 {n} 天一次（锚点 {today} UTC 起算，每 N 天的对应日期运行）")
           PY
 
-      # 项目介绍（AI 生成内容）走 PR 人工审核；纯 README/统计更新直接提交
-      - name: 提交变更（项目介绍有变化时开 PR 审核）
+      # 有意变更（A-P0）：方向二已移除——PR 审核流与点名仓库链路一并下线，纯直提 main
+      - name: 提交变更
         if: github.event_name != 'schedule' || steps.check.outputs.schedule == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }}
-          NAMED_REPOS: ${{ steps.resolve.outputs.repos }}
-          INPUT_FORCE: ${{ inputs.force }}
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          review_via_pr=true
-          grep -A6 '^projects:' config.yaml | grep -qE 'review_via_pr:[[:space:]]*false' && review_via_pr=false
-
-          # 项目介绍是否有变化（目录可能不存在，status 比 staged 判断更稳）
-          projects_changed=false
-          if [ -d docs/projects ] && [ -n "$(git status --porcelain -- docs/projects)" ]; then
-            projects_changed=true
-          fi
-
-          # 走 PR 时分支里只放 docs/projects：README/统计/勾选框直接进 main，
-          # 两者文件永不相交 → PR 开着期间 main 再怎么更新都不会产生冲突
-          pr_route=false
-          if [ "$review_via_pr" = "true" ] && [ "$projects_changed" = "true" ]; then
-            pr_route=true
-          fi
-
           git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.readme_en }}" "${{ steps.paths.outputs.snapshot }}"
-          # 勾选框同步产物（workflow 输入块 + 仓库映射）跟 README 一起直接进 main
-          for p in .github/workflows/update-profile.yml data/repo_inputs.json; do
-            if [ -e "$p" ]; then git add "$p"; fi
-          done
-          if [ "$pr_route" = "false" ] && [ "$projects_changed" = "true" ]; then
-            git add docs/projects
-          fi
 
           has_direct=false
           if ! git diff --cached --quiet; then
             has_direct=true
           fi
-          if [ "$has_direct" = "false" ] && [ "$pr_route" = "false" ]; then
+          if [ "$has_direct" = "false" ]; then
             echo "无变更，跳过提交"
             exit 0
           fi
@@ -277,63 +205,25 @@ jobs:
             git pull --rebase --autostash origin main
           }
 
-          # ---- 1. 直接提交 main：README/统计/勾选框（非 PR 模式下也含项目介绍）----
-          if [ "$has_direct" = "true" ]; then
-            git commit -m "chore: 自动更新 Profile README [skip ci]"
-            pushed=false
-            for i in 1 2 3; do
-              if err=$(git_push 2>&1); then
-                pushed=true
-                break
-              fi
-              echo "$err"
-              # 权限/认证类失败重试也没用，直接给出修法
-              if echo "$err" | grep -qE 'workflows` permission|Authentication failed|invalid username or password|Support for password authentication'; then
-                echo "::error::push 因权限/认证被拒：修改 workflow 文件需要配置 WORKFLOW_PAT secret（classic PAT 需勾选 repo 与 workflow 两项权限，见 docs/guide.md）；若已配置请检查是否过期"
-                exit 1
-              fi
-              echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
-              git_pull_rebase
-              sleep 5
-            done
-            if [ "$pushed" != "true" ]; then
-              echo "::error::push 失败（可能与 main 上的手工修改冲突），请打开本次运行日志检查，或手动合并后重新运行工作流"
+          # ---- 直接提交 main：README/统计 ----
+          git commit -m "chore: 自动更新 Profile README [skip ci]"
+          pushed=false
+          for i in 1 2 3; do
+            if err=$(git_push 2>&1); then
+              pushed=true
+              break
+            fi
+            echo "$err"
+            # 权限/认证类失败重试也没用，直接给出修法
+            if echo "$err" | grep -qE 'workflows` permission|Authentication failed|invalid username or password|Support for password authentication'; then
+              echo "::error::push 因权限/认证被拒：修改 workflow 文件需要配置 WORKFLOW_PAT secret（classic PAT 需勾选 repo 与 workflow 两项权限，见 docs/guide.md）；若已配置请检查是否过期"
               exit 1
             fi
-          fi
-
-          # ---- 2. 项目介绍走 PR 人工审核（分支只含 docs/projects）----
-          if [ "$pr_route" = "true" ]; then
-            fingerprint=$(python3 -c "import json;print(json.load(open('${{ steps.paths.outputs.snapshot }}',encoding='utf-8')).get('stats_fingerprint',''))")
-            # 「closed 且未合并」（你点了 Close 拒绝）的批次，常规/定时跑不再重复开 PR；
-            # 但点名重跑（勾选框/--repos/force）是显式要求，不受此压制
-            explicit=false
-            [ -n "$NAMED_REPOS" ] && explicit=true
-            [ "$INPUT_FORCE" = "true" ] && explicit=true
-            if [ "$explicit" = "false" ] && gh pr list --state closed --head auto/profile-update --limit 30 --json body,mergedAt \
-                -q '.[] | select(.mergedAt == null) | .body' | grep -qF "$fingerprint"; then
-              echo "这批内容上次被 Close 拒绝过，本次跳过（想重跑可勾选具体仓库或勾 force）"
-              exit 0
-            fi
-            git checkout -B auto/profile-update
-            git add docs/projects
-            git commit -m "feat: AI 项目介绍更新（待审核）[skip ci]"
-            git push -u origin auto/profile-update --force
-            echo "已推送分支 auto/profile-update（PR 将基于最新 main，无冲突）"
-            if ! gh pr create --title "AI 项目介绍更新（待审核）" \
-              --body "🤖 由 profile-agent 自动生成，请在 Diff 中审核 AI 写的项目介绍/简历素材，可直接编辑后 Merge；不想要就 Close（同批内容不会重复出现）。
-
-          本 PR 只包含 docs/projects（简历素材），主页 README/统计的更新都已直接进 main，不会被本 PR 拖住。
-
-          💡 如本页显示 conflict：重新运行一次本工作流即可自动解决（分支会基于最新 main 重建）。
-
-          数据指纹: $fingerprint" \
-              --head auto/profile-update --base main; then
-              if gh pr view auto/profile-update >/dev/null 2>&1; then
-                gh pr edit auto/profile-update --body "🤖 待审核更新（只含 docs/projects，已刷新）。如显示 conflict 请重新运行工作流。数据指纹: $fingerprint"
-              else
-                echo "::error::创建 PR 被拒绝。请到仓库 Settings → Actions → General → Workflow permissions，勾选 Allow GitHub Actions to create and approve pull requests，然后重新运行本工作流。"
-                exit 1
-              fi
-            fi
+            echo "push 被拒绝（main 有新提交），第 $i 次 rebase 重试..."
+            git_pull_rebase
+            sleep 5
+          done
+          if [ "$pushed" != "true" ]; then
+            echo "::error::push 失败（可能与 main 上的手工修改冲突），请打开本次运行日志检查，或手动合并后重新运行工作流"
+            exit 1
           fi
