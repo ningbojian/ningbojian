@@ -88,21 +88,6 @@ class AIConfig:
 
 
 @dataclass
-class ProjectsConfig:
-    """可选功能：按仓库生成深度项目介绍 / 简历素材（docs/projects/）。
-
-    默认关闭；开启且配置好 AI key 后才会生成有内容的介绍文件。
-    """
-
-    enabled: bool = False
-    dir: str = "docs/projects"
-    featured_only: bool = False
-    review_via_pr: bool = True  # 生成/更新走 PR 人工审核；false = 直接提交
-    include: list[str] = field(default_factory=list)  # 非空 = 只给这些仓库名生成
-    exclude: list[str] = field(default_factory=list)  # 永远跳过这些仓库名
-
-
-@dataclass
 class SnapshotConfig:
     path: str = "data/snapshot.json"
 
@@ -130,7 +115,6 @@ class Config:
     featured: FeaturedConfig = field(default_factory=FeaturedConfig)
     readme: ReadmeConfig = field(default_factory=ReadmeConfig)
     ai: AIConfig = field(default_factory=AIConfig)
-    projects: ProjectsConfig = field(default_factory=ProjectsConfig)
     repo_readmes: RepoReadmesConfig = field(default_factory=RepoReadmesConfig)
     snapshot: SnapshotConfig = field(default_factory=SnapshotConfig)
 
@@ -255,19 +239,8 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         fill_empty_descriptions=bool(ai.get("fill_empty_descriptions", True)),
     )
 
-    proj = _section(data, "projects")
-    include = proj.get("include") or []
-    exclude = proj.get("exclude") or []
-    if not isinstance(include, list) or not isinstance(exclude, list):
-        raise ConfigError("projects.include / projects.exclude 必须是列表")
-    cfg.projects = ProjectsConfig(
-        enabled=bool(proj.get("enabled", True)),
-        dir=str(proj.get("dir") or "docs/projects"),
-        featured_only=bool(proj.get("featured_only", False)),
-        review_via_pr=bool(proj.get("review_via_pr", True)),
-        include=[str(x) for x in include],
-        exclude=[str(x) for x in exclude],
-    )
+    # 有意变更（A-P0）：项目介绍功能已移除——用户 config 残留的 projects: 段
+    # 一律静默忽略（_section 之外不再读取），不报错、不生效
 
     rr = _section(data, "repo_readmes")
     rr_include = rr.get("include") or []

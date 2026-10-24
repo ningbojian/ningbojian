@@ -206,7 +206,8 @@ def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys
     """
     import profile_agent.cli as cli_mod
 
-    counters = {"bio_gen": 0, "intro": 0}
+    # 有意变更（A-P0）：项目介绍功能已移除，intro 计数与 update_project_intros 挡板一并下线
+    counters = {"bio_gen": 0}
 
     def fake_bio(
         payload,
@@ -224,17 +225,12 @@ def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys
         counters["bio_gen"] += 1
         return "测试简介，用于主页展示的中文简介文本。", "", True
 
-    def fake_intro(*args, **kwargs):
-        counters["intro"] += 1
-        return {}
-
     monkeypatch.setattr(cli_mod, "generate_bio", fake_bio)
-    monkeypatch.setattr(cli_mod, "update_project_intros", fake_intro)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")  # ai_active 开（key 只进夹具不调 API）
 
     cfg = _write_config(
         tmp_path,
-        extra="projects:\n  enabled: false\nai:\n  fill_empty_descriptions: false\n",
+        extra="ai:\n  fill_empty_descriptions: false\n",
     )
     fake_readme_ai = lambda system, prompt: "新托管内容X"  # noqa: E731
 
@@ -260,7 +256,7 @@ def test_q21_checkbox_forces_b_only_and_leaves_a_gate_untouched(tmp_path, capsys
     assert fetchers.head_calls == PARTICIPANTS  # B 确实取了各仓 HEAD
     assert fetchers.compare_calls == []  # 强制走合成路径，零 compare
     assert (tmp_path / "README.md").stat().st_mtime_ns == readme_mtime  # ③ 不碰 A 的门
-    assert counters == after_first  # ② bio 不再生成、项目介绍零调用
+    assert counters == after_first  # ② bio 不再生成（数据未变，B 强制开门不影响 A）
 
 
 def _checkbox_round_routes(http, issue_body):

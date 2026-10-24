@@ -120,23 +120,25 @@ def test_iw08_reuse_single_issue_with_multiple_prs():
     assert assignees == ["alice"]
 
 
-def test_iw06_final_state_appends_overview_line_and_project_pr():
-    """IW06：收尾追加 Overview 终态行与项目介绍 PR 链接——仍原地 PATCH、无评论。"""
+def test_iw06_final_state_appends_overview_line():
+    """IW06：收尾追加 Overview 终态行——仍原地 PATCH、无评论。
+
+    有意变更（A-P0）：项目介绍功能已移除，project_pr_url 参数与项目介绍 PR
+    链接一并下线，终态行只剩 Overview 进 main 一条。
+    """
     http = FakeHttp()
     _search_existing(http, body="清单正文\n")
     http.add("PATCH", f"{API}/repos/alice/alice/issues/5", FakeResponse(json_data={"number": 5}))
     append_final_state(_client(http), SELF,
-                       {"number": 5, "body": "清单正文\n"},
-                       project_pr_url="https://github.com/ningbojian/ningbojian/pull/3")
+                       {"number": 5, "body": "清单正文\n"})
     writes = http.writes()
     assert [r["method"] for r in writes] == ["PATCH"]
     body = writes[0]["json"]["body"]
     assert "本轮 Overview 已进入 main" in body
-    assert "https://github.com/ningbojian/ningbojian/pull/3" in body
 
 
 def test_iw07_final_state_without_project_pr_has_no_dangling_link():
-    """IW07：无项目介绍 PR 时仅追加终态行，不产生悬空死链。"""
+    """IW07：收尾仅追加终态行，正文无悬空死链（项目介绍字样恒不出现）。"""
     http = FakeHttp()
     http.add("PATCH", f"{API}/repos/alice/alice/issues/5", FakeResponse(json_data={"number": 5}))
     append_final_state(_client(http), SELF, {"number": 5, "body": "清单正文\n"})

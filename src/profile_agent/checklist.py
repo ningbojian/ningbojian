@@ -253,18 +253,14 @@ def append_final_state(
     client: GitHubClient,
     owner_repo: str,
     issue: dict | None,
-    *,
-    project_pr_url: str | None = None,
 ) -> None:
-    """收尾：清单仍开着时原地追加终态行（Overview 进 main + 项目介绍 PR 链接，§4-5）。
+    """收尾：清单仍开着时原地追加终态行（Overview 进 main，§4-5）。
 
     issue 为 None（已结清/从未创建）时直接跳过（IW07 附）。
+    有意变更（A-P0）：项目介绍功能已移除，project_pr_url 参数与分支一并下线。
     """
     if not issue:
         return
-    lines = [""]
-    if project_pr_url:
-        lines.append(f"本轮项目介绍 PR：{project_pr_url}")
-    lines.append("本轮 Overview 已进入 main")
+    lines = ["", "本轮 Overview 已进入 main"]
     body = str(issue.get("body") or "") + "\n" + "\n".join(lines) + "\n"
     client._patch(f"{API}/repos/{owner_repo}/issues/{issue['number']}", {"body": body})

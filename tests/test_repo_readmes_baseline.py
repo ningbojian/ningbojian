@@ -527,8 +527,6 @@ readme:
   template: "{p(TEMPLATE)}"
 ai:
   fill_empty_descriptions: false  # fixture 模式无 client，避免补位路径真抓 README
-projects:
-  enabled: false  # 本文件只测 B 与门，项目介绍默认开启会带 key 轮次走真 AI 网络
 repo_readmes:
   enabled: true
 {include_line}snapshot:

@@ -201,7 +201,7 @@ def test_featured_pin_ignores_unknown_duplicate_and_hard_filtered():
 
 
 def test_featured_pin_matches_bare_name():
-    """裸名（短名）也能命中——与 projects.include 的肌肉记忆一致；文档推荐 full_name。"""
+    """裸名（短名）也能命中——与 repos.exclude 的肌肉记忆一致；文档推荐 full_name。"""
     feat = FeaturedConfig(count=0, sort_by="stars", pin=["old-thing"])
     repos = normalize_repos(_raw_repos(), ReposConfig(exclude=["alice/old-profile"]))
     assert select_featured(repos, feat, now=NOW)[0].full_name == "alice/old-thing"

@@ -203,7 +203,8 @@ def render_fingerprint(cfg, template_bytes: bytes, user: dict) -> str:
             "prompt_version": cfg.ai.prompt_version,
             "fill_empty_descriptions": cfg.ai.fill_empty_descriptions,
         },
-        "projects": asdict(cfg.projects),
+        # 有意变更（A-P0）：projects 已随项目介绍功能移除，指纹不再含该键
+        #（存量指纹变化 → 升级首跑开门重渲染一次，0 AI）
         "template_sha256": hashlib.sha256(template_bytes).hexdigest(),
         "user": {
             "name": user.get("name") or "",

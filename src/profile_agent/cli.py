@@ -34,7 +34,6 @@ from .config import Config, ConfigError, load_config
 from .desc_translate import contains_cjk, translate_descriptions
 from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
-from .projects import intro_filename, intro_input_hash, update_project_intros
 from .preserve import extract_custom, merge_readme_3way
 from .render import render_readme, write_if_changed
 from .repo_readmes import CompareGone, compute_queue, participants
@@ -76,46 +75,6 @@ def _prev_repo_states(prev: Snapshot | None) -> dict[str, dict]:
     if prev is None:
         return {}
     return {r["full_name"]: r for r in prev.repos if isinstance(r, dict) and r.get("full_name")}
-
-
-def _project_targets(repos, featured, cfg: Config) -> list:
-    """按 featured_only + include/exclude 白黑名单选出要生成介绍的仓库。
-
-    profile 仓库自身（用户名/用户名）硬性排除：它的 README 是工具自己的输出、
-    pushed_at 又随每次 bot 提交前进——自引用会让它每轮都「过期」，无限重生成
-    项目介绍并开 PR（实测踩过），AI 额度被空烧。
-    """
-    base = featured if cfg.projects.featured_only else repos
-    inc = set(cfg.projects.include)
-    exc = set(cfg.projects.exclude)
-    self_repo = f"{cfg.github.username}/{cfg.github.username}"
-    return [
-        r for r in base
-        if r.name not in exc
-        and (not inc or r.name in inc)
-        and r.full_name != self_repo
-    ]
-
-
-def _projects_clean(
-    targets, cfg: Config, prev: Snapshot | None, root: Path, *, ai_active: bool = False
-) -> bool:
-    """全部目标仓库的介绍文件都已是最新且存在 → 无待生成内容。
-
-    AI 已可用（ai_active）但某仓库还是数据版占位（ai_generated=False）时
-    视为不干净：下一次普通运行就升级重写，不让占位内容永久豁免。
-    """
-    states = _prev_repo_states(prev)
-    out_dir = root / cfg.projects.dir
-    for r in targets:
-        st = states.get(r.full_name) or {}
-        if st.get("intro_hash") != intro_input_hash(r, cfg.ai):
-            return False
-        if not (out_dir / intro_filename(r)).exists():
-            return False
-        if ai_active and not st.get("ai_generated"):
-            return False
-    return True
 
 
 def _memo_readme(gh_client: GitHubClient | None):
@@ -261,9 +220,7 @@ def run(
     force: bool = False,
     no_ai: bool = False,
     skip_readme: bool = False,
-    skip_projects: bool = False,
     fixture: Path | None = None,
-    only_repos: list[str] | None = None,
     readme_fetchers=None,
     readme_generate=None,
     b_client=None,
@@ -280,20 +237,13 @@ def run(
         print(f"配置错误：{exc}", file=sys.stderr)
         return 2
 
-    # 手动点名仓库（--repos / 勾选板 /run）：精确到仓库一级，即使不在精选名单也生成；
-    # 点名即「重跑」语义——忽略仓库级 hash 复用，强制重新生成
-    named_repos = bool(only_repos and only_repos != ["all"])
-    if named_repos:
-        cfg.projects.include = list(only_repos)
-        cfg.projects.featured_only = False
-
+    # 手动点名仓库机制已随项目介绍功能一并下线（A-P0 有意变更：唯一作用面是 projects 点名）
     root = cfg_path.parent
     readme_path = root / cfg.readme.path
     # 双语第二文件（2026-10-23 WP3）：README.md → 同目录 README.en.md，零配置派生
     en_readme_path = readme_path.with_name(readme_path.stem + ".en.md")
     template_path = root / cfg.readme.template
     readme_active = cfg.readme.enabled and not skip_readme
-    projects_active = cfg.projects.enabled and not skip_projects
 
     # A-WP2：面板已下线——prev 提前加载（A-WP3：native 失败时的回退来源）
     snap_path = root / cfg.snapshot.path
@@ -364,7 +314,6 @@ def run(
     )
     if legacy_residue:
         print("警告：检测到旧版置顶面板/指针（一次性迁移），本轮已清除", file=sys.stderr)
-    proj_targets = _project_targets(repos, featured, cfg) if projects_active else []
     ai_active = bool(
         not no_ai and cfg.ai.enabled and os.environ.get(cfg.ai.key_env_name)
     )
@@ -512,7 +461,6 @@ def run(
     b_gate = b_force and cfg.repo_readmes.enabled
     if (
         not force
-        and not named_repos  # 点名即重跑：不走整体增量门
         and not b_gate
         and not merge_requested
         and prev is not None
@@ -524,7 +472,6 @@ def run(
         # A-WP2：旧面板残留（一次性迁移）开门（仅渲染+写入，0 AI）
         and not legacy_residue
         and bio_fresh
-        and (not projects_active or _projects_clean(proj_targets, cfg, prev, root, ai_active=ai_active))
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
         and not b_pending
     ):
@@ -1007,22 +954,6 @@ def run(
         except BioError as exc:
             print(f"简介生成失败，沿用旧简介：{exc}", file=sys.stderr)
 
-    # 5. 项目介绍（方向二：仓库级增量；include/exclude 多选控制）
-    project_states: dict[str, dict] = {}
-    if projects_active and proj_targets:
-        project_states = update_project_intros(
-            proj_targets,
-            dataclasses.replace(cfg.projects, dir=str(root / cfg.projects.dir)),
-            cfg.ai,
-            _prev_repo_states(prev),
-            allow_ai=ai_active,
-            # 真实抓取时把各仓库 README 拉下来喂给模型（介绍内容的信息密度来源）
-            fetch_readme=gh_client.get_repo_readme if gh_client else None,
-            # --force 或点名重跑：忽略仓库级 hash 复用
-            force=force or named_repos,
-            dry_run=dry_run,
-        )
-
     now_bj = datetime.now(_BEIJING)
     changed = False
     # WP5：三路合并 base = 本轮渲染输出（存含手改的写入内容会让下轮把手改误当已拥有而抹掉）
@@ -1117,7 +1048,6 @@ def run(
         )
 
     merged_states = _prev_repo_states(prev)
-    merged_states.update(project_states)
     merged_states.update(short_states)
     merged_states.update(desc_states)  # A-WP-B：英译缓存（desc_en/desc_en_src）落盘
     new_snap = Snapshot(
@@ -1145,11 +1075,10 @@ def run(
                 **{
                     k: v
                     for k, v in (merged_states.get(r.full_name) or {}).items()
-                    # 有意变更（A-WP-B）：desc_en* 必须入过滤器，漏加则英译缓存永不落盘
-                    if k.startswith("intro_")
-                    or k.startswith("short_intro")
+                    # 有意变更（A-P0）：intro_*/ai_generated 白名单删除——项目介绍已移除，
+                    # 旧快照里的存量 intro 键经此自然清除（下一次 save 起不再落盘）
+                    if k.startswith("short_intro")
                     or k.startswith("desc_en")
-                    or k == "ai_generated"
                 },
             }
             for r in repos
@@ -1162,7 +1091,7 @@ def run(
 
     # 6.5 收尾（§4-5）：本轮确实更新了 Overview 且清单仍开着时，原地追加终态行。
     # （终审 I4：未更新 Overview 不写「已进入 main」——提交由随后的工作流步骤完成，
-    # 不替它打包票；项目介绍 PR 在后续步骤创建，CLI 拿不到链接，不写入 issue）
+    # 不替它打包票）
     if issue is not None and issue_eff is not None and not checklist_closed and changed:
         try:
             append_final_state(issue_eff, owner_repo, issue)
@@ -1170,45 +1099,23 @@ def run(
             print(f"清单收尾更新失败（忽略）：{exc}", file=sys.stderr)
 
     # 7. 运行明细：逐仓库列出本次做了什么（写入 Actions 摘要页 + 日志）
-    if proj_targets or short_targets:
-        prev_states_all = _prev_repo_states(prev)
-        proj_dir = root / cfg.projects.dir
-        actions: dict[str, list[str]] = {}
-
-        def _cell(name: str, col: int, value: str) -> None:
-            actions.setdefault(name, ["—", "—"])[col] = value
-
-        for r in proj_targets:
-            st = prev_states_all.get(r.full_name) or {}
-            new_st = project_states.get(r.full_name) or {}
-            if not new_st.get("regenerated") and st.get("intro_hash") == intro_input_hash(
-                r, cfg.ai
-            ) and (proj_dir / intro_filename(r)).exists():
-                action = "跳过（无变化）"
-            elif new_st.get("ai_generated"):
-                action = "已重新生成（AI，走 PR 审核）"
-            else:
-                action = "已生成数据版（AI 未启用或失败）"
-            _cell(r.name, 0, action)
+    if short_targets:
+        actions: dict[str, str] = {}
         for r in short_targets:
             if r.full_name not in short_states:
-                _cell(r.name, 1, "已是最新（复用）")
+                actions[r.name] = "已是最新（复用）"
             elif short_states[r.full_name].get("short_intro"):
-                _cell(r.name, 1, "已生成补位文案")
+                actions[r.name] = "已生成补位文案"
             else:
-                _cell(r.name, 1, "生成失败（保留暂无描述）")
+                actions[r.name] = "生成失败（保留暂无描述）"
         lines = [
             "## 本次运行明细（逐仓库）",
             "",
-            "| 仓库 | 项目介绍 | 主页描述补位 |",
-            "| --- | --- | --- |",
+            "| 仓库 | 主页描述补位 |",
+            "| --- | --- |",
         ]
-        for name, (a, b) in actions.items():
-            lines.append(f"| `{name}` | {a} | {b} |")
-        lines += [
-            "",
-            f"全部公开仓库（可在 projects_repos 里点名）：{'、'.join(sorted(r.name for r in repos))}",
-        ]
+        for name, action in actions.items():
+            lines.append(f"| `{name}` | {action} |")
         _append_summary("\n".join(lines))
         print("\n".join(lines))
 
@@ -1228,12 +1135,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true", help="忽略增量检测，强制重新生成")
     parser.add_argument("--no-ai", action="store_true", help="跳过 AI 调用（仍生成数据版内容）")
     parser.add_argument("--skip-readme", action="store_true", help="本次不更新 overview README")
-    parser.add_argument("--skip-projects", action="store_true", help="本次不生成项目介绍")
-    parser.add_argument(
-        "--repos",
-        default=None,
-        help="只更新这些仓库的介绍（逗号分隔仓库名，可点名任意公开仓库）；all = 按 config 规则的全部",
-    )
     parser.add_argument("--fixture", default=None, help="从本地 fixture 目录读取数据（离线测试）")
     parser.add_argument(
         "--repo-readmes", action="store_true", help="本次强制重跑模式 B（各仓库 README 托管区更新）"
@@ -1250,9 +1151,6 @@ def main(argv: list[str] | None = None) -> int:
         help="等待合并窗口分钟数（0 = 不等待；给出时覆盖 --wait-for-merges 的默认 30）",
     )
     args = parser.parse_args(argv)
-    only_repos = None
-    if args.repos:
-        only_repos = [s.strip() for s in args.repos.split(",") if s.strip()] or None
     merge_wait = 30.0 if args.wait_for_merges else 0.0
     if args.merge_wait_minutes is not None:
         merge_wait = args.merge_wait_minutes
@@ -1262,9 +1160,7 @@ def main(argv: list[str] | None = None) -> int:
         force=args.force,
         no_ai=args.no_ai,
         skip_readme=args.skip_readme,
-        skip_projects=args.skip_projects,
         fixture=Path(args.fixture) if args.fixture else None,
-        only_repos=only_repos,
         b_force=args.repo_readmes,
         merge_wait_minutes=merge_wait,
     )

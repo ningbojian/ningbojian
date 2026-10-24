@@ -141,8 +141,6 @@ github:
   username: "alice"
 repos:
   exclude: ["alice/old-profile"]
-projects:
-  enabled: false
 readme:
   path: "{p(tmp_path / 'README.md')}"
   template: "{p(TEMPLATE)}"

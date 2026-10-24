@@ -23,11 +23,22 @@ def test_minimal_config_uses_defaults(tmp_path):
     assert cfg.featured.count == 0  # 默认展示全部仓库
     assert cfg.featured.recency_days == 0  # 默认不限推送时间
     assert cfg.featured.pin == []  # 默认无置顶
-    assert cfg.projects.featured_only is False  # 默认全部仓库参与介绍生成
+    # 有意变更（A-P0）：cfg.projects.featured_only 断言删除——项目介绍功能已移除
     assert cfg.readme.template == "templates/profile.md.j2"
     assert cfg.ai.enabled is True
     assert cfg.ai.model == "claude-opus-5-5"
     assert cfg.snapshot.path == "data/snapshot.json"
+
+
+def test_legacy_projects_section_silently_ignored(tmp_path):
+    """项目介绍功能已移除（A-P0 回归锁①）：config 残留 projects: 段必须被静默忽略、不报错。"""
+    path = _write(
+        tmp_path,
+        'github:\n  username: "alice"\nprojects:\n  enabled: true\n  include: ["x"]\n',
+    )
+    cfg = load_config(path)
+    assert cfg.github.username == "alice"
+    assert getattr(cfg, "projects", None) is None  # 接口已下线：不再有 projects 配置对象
 
 
 def test_empty_username_raises_chinese_error(tmp_path):
@@ -219,7 +230,7 @@ repo_readmes:
 
 
 def test_repo_readmes_include_must_be_list(tmp_path):
-    """Q16：include 写成字符串时报中文配置错误（镜像 projects.include 先例）。"""
+    """Q16：include 写成字符串时报中文配置错误（列表校验口径同 repos.exclude）。"""
     path = _write(
         tmp_path,
         'github:\n  username: "a"\nrepo_readmes:\n  include: "cool-tool"\n',
