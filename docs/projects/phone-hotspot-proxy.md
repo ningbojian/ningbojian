@@ -3,17 +3,20 @@
 
 - 仓库：[ningbojian/phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy)
 - 语言：Python　⭐ 0　🍴 0
-- 最近推送：2026-09-26
+- 最近推送：2026-10-22
 
-项目介绍
-这是一个 Windows 下的系统代理一键切换工具，解决连上手机热点后部分软件无法上网、又不支持单独设置代理的问题。它自动探测手机侧代理地址并写入系统代理，让所有软件统一生效；关窗即关闭系统代理。实现上用 PowerShell Get-NetRoute 获取 IPv4 默认网关，在候选端口上逐一 TCP 探测，写入注册表后调用 Wininet InternetSetOptionW(39/37) 使设置即时生效。改动前会把原始代理设置备份到 backup.json，可随时还原。
+**项目介绍**
 
-亮点
-- 自动探测 IPv4 默认网关并在候选端口 TCP 探测，免手动填 IP 端口
-- 零依赖：仅用 Python 标准库 + tkinter，单文件双击即用
-- 改动前备份原始代理设置到 backup.json，支持一键还原
-- 记住上次探测成功的网关，下次优先尝试，并内置连通性测试按钮
-- bat 启动器按真实安装路径、py 启动器、PATH 多级查找解释器，规避 Store 占位程序
+phone-hotspot-proxy 是一个 Windows 桌面小工具，解决连接手机热点后，部分不支持单独配置代理的软件无法上网的问题。它自动探测手机侧代理服务的 IP 与端口，将 Windows 系统代理一键接入，使所有软件全局生效，并在退出时关闭代理、可随时还原原始设置。项目使用 Python 标准库与 tkinter 实现，零第三方依赖、单文件运行。
 
-简历素材
-用 Python 标准库 + tkinter 实现 Windows 系统代理一键切换（单文件、零第三方依赖）：PowerShell 获取 IPv4 网关、多端口 TCP 探测手机侧代理、写入注册表并经 Wininet 通知生效，支持原设置备份还原。
+**亮点**
+
+- 用 PowerShell Get-NetRoute 枚举 IPv4 默认网关，正则提取 IP，绕开中文系统输出乱码
+- 内置候选端口 TCP 探测与连通性测试，成功网关写入 config.json 下次优先复用
+- 修改系统代理前备份至 backup.json，提供一键还原，不破坏原有设置
+- 通过 Wininet InternetSetOptionW(39/37) 通知系统，确保注册表改动即时生效
+- 零依赖单文件，仅用标准库 + tkinter；启动脚本规避 Microsoft Store 占位 python.exe 的坑
+
+**简历素材**
+
+开发 Windows 桌面代理助手（Python 3.7+/tkinter），用于自动接入手机热点侧代理：通过 PowerShell Get-NetRoute 枚举 IPv4 默认网关，TCP 探测 5 个内置候选端口定位代理，写入注册表并调用 Wininet InternetSetOptionW 使系统代理生效；修改前自动备份至 JSON 支持一键还原，并缓存上次成功的网关提升二次启动速度。全程零第三方依赖，单文件交付，MIT 开源。
