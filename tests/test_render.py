@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-from profile_agent.models import Repo, TemplateContext, Totals
+from profile_agent.models import Repo, Sections, TemplateContext, Totals
 from profile_agent.render import render_readme, write_if_changed
 
 TEMPLATE = Path(__file__).parent.parent / "templates" / "profile.md.j2"
@@ -359,3 +359,84 @@ def test_header_b_has_no_panel_mention():
     out = render_readme(_ctx(), TEMPLATE)
     assert "可编辑区：custom 标记之间的内容，永远保留。" in out
     assert "面板" not in out  # 渲染输出任何位置都不再出现「面板」字样
+
+
+# ---- readme.sections 板块开关（2026-10-25）----
+
+
+def _with_sections(**flags) -> TemplateContext:
+    return dataclasses.replace(_ctx(), sections=Sections(**flags))
+
+
+def test_sections_default_all_on_matches_explicit_defaults():
+    default_out = render_readme(_ctx(), TEMPLATE)
+    explicit_out = render_readme(_with_sections(), TEMPLATE)
+    assert default_out == explicit_out
+    for marker in ("## 📊 统计信息", "## 🏷️ 技术标签", "## 📦 仓库列表", "## ℹ️ 说明备注"):
+        assert marker in default_out
+
+
+def test_sections_bio_off_hides_bio_but_keeps_greeting():
+    out = render_readme(_with_sections(bio=False), TEMPLATE)
+    assert "你好，我是 Alice，一名热爱开源的工程师。" not in out
+    assert "AI 简介暂不可用" not in out  # 占位注释也一并隐藏，不留空洞
+    assert "# 👋 你好，我是 Alice Zhang" in out  # 问候语永远在
+    assert "## 📊 统计信息" in out and "## 📦 仓库列表" in out
+
+
+def test_sections_stats_off_hides_stats_and_tech_tags():
+    out = render_readme(_with_sections(stats=False), TEMPLATE)
+    assert "## 📊 统计信息" not in out
+    assert "## 🏷️ 技术标签" not in out
+    assert "github-readme-stats" not in out  # 卡片一并隐藏
+    assert "## 📦 仓库列表" in out and "## ℹ️ 说明备注" in out
+
+
+def test_sections_pinned_off_puts_pinned_repos_back_into_table():
+    ctx = _with_sections(pinned=False)
+    ctx.pinned = [ctx.featured[0]]
+    out = render_readme(ctx, TEMPLATE)
+    assert "## 📌 置顶项目" not in out
+    assert "### ⭐" not in out
+    # 置顶仓库不能凭空消失：回到表格
+    assert "## 📦 仓库列表" in out
+    assert "| [cool-tool](https://github.com/alice/cool-tool) | 一个很酷的工具 | 120 |" in out
+    assert "| [web-app](https://github.com/alice/web-app) | 网页应用 | 80 |" in out
+
+
+def test_sections_table_off_hides_non_pinned_repos():
+    ctx = _with_sections(table=False)
+    ctx.pinned = [ctx.featured[0]]
+    out = render_readme(ctx, TEMPLATE)
+    assert "## 📦 仓库列表" not in out
+    assert "## 📌 置顶项目" in out
+    assert "web-app" not in out  # 非置顶仓库不再有任何展示位
+    assert "## ℹ️ 说明备注" in out
+
+
+def test_sections_table_off_without_pinned_hides_empty_table_hint():
+    ctx = _with_sections(table=False)
+    out = render_readme(ctx, TEMPLATE)
+    assert "## 📦 仓库列表" not in out
+    assert "暂无符合条件的项目" not in out  # 不留空板块占位
+
+
+def test_sections_pinned_and_table_off_hides_all_repo_blocks():
+    ctx = _with_sections(pinned=False, table=False)
+    ctx.pinned = [ctx.featured[0]]
+    out = render_readme(ctx, TEMPLATE)
+    assert "## 📌 置顶项目" not in out
+    assert "## 📦 仓库列表" not in out
+    assert "cool-tool" not in out and "web-app" not in out
+    assert "## ℹ️ 说明备注" in out
+    assert "---\n\n---" not in out  # 不留下孤立的分隔线
+
+
+def test_sections_off_keeps_custom_and_notes():
+    ctx = _with_sections(bio=False, stats=False, pinned=False, table=False)
+    ctx.custom_text = "联系方式：alice@example.com"
+    out = render_readme(ctx, TEMPLATE)
+    assert "联系方式：alice@example.com" in out
+    assert "<!-- profile-agent:custom:start -->" in out
+    assert "## ℹ️ 说明备注" in out
+    assert "> [!NOTE]" in out

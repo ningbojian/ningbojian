@@ -42,6 +42,16 @@ class Totals:
 
 
 @dataclass
+class Sections:
+    """Overview README 板块开关（默认全开；只隐藏生成区，不动手写/custom 内容）。"""
+
+    bio: bool = True
+    stats: bool = True
+    pinned: bool = True
+    table: bool = True
+
+
+@dataclass
 class TemplateContext:
     username: str
     display_name: str
@@ -64,6 +74,7 @@ class TemplateContext:
     switch_en_href: str = "./README.en.md"
     custom_text: str = ""  # custom 标记区内容（WP5：逐文件独立提取、永久保留）
     display_descs: dict[str, str] = field(default_factory=dict)  # A-WP-B：en 专用 AI 英译描述（zh 恒空 → 照搬原文）
+    sections: Sections = field(default_factory=Sections)  # readme.sections 板块开关（默认全开）
 
 
 @dataclass

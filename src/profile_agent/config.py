@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from .models import Sections
+
 VALID_SORT_BY = ("score", "stars", "updated")
 VALID_CARDS = ("stats", "top_langs", "streak")
 
@@ -59,6 +61,7 @@ class ReadmeConfig:
     include_update_time: bool = True
     visitors_badge: bool = False  # 主页嵌入第三方「主页访问量」计数徽章（komarev.com）
     bilingual: bool = True  # true = 同时生成 README.en.md 英文版，顶部互链切换
+    sections: Sections = field(default_factory=Sections)  # 四个板块开关，默认全开
 
 
 @dataclass
@@ -196,6 +199,21 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
     for name in show:
         if name not in VALID_CARDS:
             raise ConfigError(f"readme.cards.show 含未知卡片：{name}（可选：{VALID_CARDS}）")
+    sections_raw = readme.get("sections", {})
+    if sections_raw is None:
+        sections_raw = {}
+    if not isinstance(sections_raw, dict):
+        raise ConfigError("readme.sections 必须是映射（键值对）")
+    sections = Sections()
+    for key in ("bio", "stats", "pinned", "table"):
+        if key in sections_raw:
+            value = sections_raw[key]
+            # 必须是真正的布尔值：YAML 里写 "false"（带引号）是字符串，静默当真会害人
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    f"readme.sections.{key} 必须是 true 或 false（收到：{value!r}）"
+                )
+            setattr(sections, key, value)
     cfg.readme = ReadmeConfig(
         enabled=bool(readme.get("enabled", True)),
         path=str(readme.get("path") or "README.md"),
@@ -207,6 +225,7 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         include_update_time=bool(readme.get("include_update_time", True)),
         visitors_badge=bool(readme.get("visitors_badge", False)),
         bilingual=bool(readme.get("bilingual", True)),
+        sections=sections,
     )
 
     ai = _section(data, "ai")

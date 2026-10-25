@@ -258,3 +258,49 @@ def test_ai_language_only_zh_cn_accepted(tmp_path):
     )
     with pytest.raises(ConfigError, match="zh-CN"):
         load_config(path_en)
+
+
+# ---- readme.sections 板块开关（2026-10-25）----
+
+
+def test_readme_sections_default_all_on(tmp_path):
+    path = _write(tmp_path, 'github:\n  username: "alice"\n')
+    s = load_config(path).readme.sections
+    assert (s.bio, s.stats, s.pinned, s.table) == (True, True, True, True)
+
+
+def test_readme_sections_overrides_respected(tmp_path):
+    path = _write(
+        tmp_path,
+        """
+github:
+  username: "alice"
+readme:
+  sections:
+    bio: false
+    stats: false
+    pinned: false
+    table: false
+""",
+    )
+    s = load_config(path).readme.sections
+    assert (s.bio, s.stats, s.pinned, s.table) == (False, False, False, False)
+
+
+def test_readme_sections_rejects_non_bool(tmp_path):
+    """写 "false" 字符串是最常见的坑：必须中文报错，不静默当真。"""
+    path = _write(
+        tmp_path,
+        'github:\n  username: "alice"\nreadme:\n  sections:\n    bio: "false"\n',
+    )
+    with pytest.raises(ConfigError, match="sections.bio"):
+        load_config(path)
+
+
+def test_readme_sections_must_be_mapping(tmp_path):
+    path = _write(
+        tmp_path,
+        'github:\n  username: "alice"\nreadme:\n  sections: "off"\n',
+    )
+    with pytest.raises(ConfigError, match="readme.sections"):
+        load_config(path)

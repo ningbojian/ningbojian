@@ -327,12 +327,18 @@ def run(
             if not r.description
             and r.full_name != f"{cfg.github.username}/{cfg.github.username}"
         ]
-        if (readme_active and ai_active and cfg.ai.fill_empty_descriptions)
+        if (
+            readme_active
+            and ai_active
+            and cfg.ai.fill_empty_descriptions
+            # 置顶与列表都关 → 没有任何仓库展示位，补位文案无处可去（也防门反复开门）
+            and (cfg.readme.sections.pinned or cfg.readme.sections.table)
+        )
         else []
     )
     payload = build_bio_payload(user, featured, cfg.ai, bilingual=cfg.readme.bilingual)
     cur_hash = bio_input_hash(payload, cfg.ai)
-    if ai_active and prev is not None:
+    if ai_active and cfg.readme.sections.bio and prev is not None:
         bio_fresh = (
             bool(prev.bio.text)
             # 双语下 en 缺失 → 不完整，须重生成（防 zh 新鲜卡死单语）
@@ -916,7 +922,8 @@ def run(
     desc_states: dict[str, dict] = {}
     descs_en: dict[str, str] = {}
     descs_zh: dict[str, str] = {}
-    if ai_active and readme_active:
+    # 置顶与列表都关 → 描述没有展示位，不调翻译（省额度）
+    if ai_active and readme_active and (cfg.readme.sections.pinned or cfg.readme.sections.table):
         prev_states_desc = _prev_repo_states(prev)
         stale_en: list = []
         stale_zh: list = []
@@ -966,7 +973,7 @@ def run(
     bio_text = prev.bio.text if prev else ""
     bio_text_en = prev.bio.text_en if prev else ""
     bio_generated = False
-    if ai_active and readme_active:
+    if ai_active and readme_active and cfg.readme.sections.bio:
         try:
             bio_text, bio_text_en, bio_generated = generate_bio(
                 payload,
@@ -1015,6 +1022,7 @@ def run(
             custom_text=custom_zh,  # WP5：custom 区内容回注渲染（永久保留）
             # A-WP-B（zh 方向）：非中文描述的中译（缺省回落原文）
             display_descs=descs_zh,
+            sections=cfg.readme.sections,  # 板块开关（默认全开，输出与旧版一致）
         )
         content = render_readme(ctx, template_path)
         # 英文版（WP3）：整页换 labels，简介/补位换 en 来源、custom 换 en 提取

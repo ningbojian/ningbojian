@@ -4,12 +4,15 @@
 
 {{ L.greeting }} {{ display_name or username }}
 
+{% if sections.bio %}
 {% if bio_text %}
 {{ bio_text }}
 {% else %}
 <!-- {{ bio_placeholder }} -->
 {% endif %}
+{% endif %}
 
+{% if sections.stats %}
 ---
 
 {{ L.stats_title }}
@@ -38,15 +41,17 @@
 {% for lang, stars in totals.top_languages[:8] %}{{ lang_star_badge(lang, stars) }}{{ " " if not loop.last }}{% endfor %}
 
 {% endif %}
-{% set pinned_names = pinned | map(attribute="full_name") | list %}
+{% endif %}
+{% set show_pinned = pinned if sections.pinned else [] %}
+{% set pinned_names = show_pinned | map(attribute="full_name") | list %}
 {% set ns = namespace(rest=[]) %}{% for repo in featured %}{% if repo.full_name not in pinned_names %}{% set _ = ns.rest.append(repo) %}{% endif %}{% endfor %}
-{% if pinned %}
+{% if show_pinned %}
 
 ---
 
 {{ L.pinned_title }}
 
-{% for repo in pinned %}
+{% for repo in show_pinned %}
 ### ⭐ [{{ repo.name }}]({{ repo.html_url }})
 
 {{ [lang_badge(repo.language), stars_badge(repo.full_name), forks_badge(repo.full_name), push_badge(repo.pushed_at)] | reject("equalto", "") | join(" ") }}
@@ -64,6 +69,7 @@
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if sections.table %}
 {% if ns.rest %}
 
 ---
@@ -74,13 +80,14 @@
 | --- | --- | --- | --- |
 {% for repo in ns.rest %}| [{{ repo.name }}]({{ repo.html_url }}) | {{ (display_descs.get(repo.full_name) or repo.description or short_intros.get(repo.full_name, "") or "—").replace("|", " \\| ").replace("\n", " ") }} | {{ repo.stars }} | {{ lang_badge(repo.language) }} |
 {% endfor %}
-{% elif not pinned %}
+{% elif not show_pinned %}
 
 ---
 
 {{ L.repos_title }}
 
 <!-- {{ L.no_repos }} -->
+{% endif %}
 {% endif %}
 
 ---
