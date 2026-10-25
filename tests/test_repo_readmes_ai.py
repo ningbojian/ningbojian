@@ -649,3 +649,90 @@ def test_bilingual_false_never_calls_fetch_readme_en():
     assert r.status == "generated"
     assert r.content_en == ""
     assert '"en"' not in rec.calls[0][1]  # 单语 prompt 无 JSON 契约
+
+
+# ---- 语言校验与手写区提醒（2026-10-25）----
+
+
+def test_ai_english_with_chinese_is_discarded(capsys):
+    """AI 的 en 字段含大量汉字 → 丢弃英文、中文照常落地，并留可读警告。"""
+    body = json.dumps(
+        {"zh": "新中文托管区正文", "en": "这是用中文写成的英文版，整段都该被丢弃掉。"},
+        ensure_ascii=False,
+    )
+    rec = Recorder(text=body)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )[0]
+    assert r.status == "generated"
+    assert "新中文托管区正文" in r.content
+    assert r.content_en == ""  # 英文被丢弃：宁可单语，不写中英混杂的文件
+    assert any("英文版" in w for w in r.warnings)
+    assert "英文版" in capsys.readouterr().err
+
+
+def test_ai_english_switch_line_does_not_trigger_discard():
+    """切换行里的中文国旗/中文链接名不算「英文版是中文」——校验对象是 AI 正文。"""
+    body = json.dumps(
+        {"zh": "新中文托管区正文", "en": SWITCH_LINE + "\n\nNew EN managed block"},
+        ensure_ascii=False,
+    )
+    rec = Recorder(text=body)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )[0]
+    assert "New EN managed block" in r.content_en
+    assert r.warnings == []
+
+
+def test_handwritten_english_in_zh_readme_warns(capsys):
+    """README.md 托管区外是成段英文 → 只提醒，不翻译、不改写。"""
+    zh = (
+        "# Title\nThis README was written by hand in English prose.\n"
+        + START + "\n旧中文正文\n" + END + "\n"
+    )
+    rec = Recorder()
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: zh,
+        bilingual=False,
+    )[0]
+    assert any("README.md" in w and "英文" in w and "不会" in w for w in r.warnings)
+    assert "README.md" in capsys.readouterr().err
+    # 手写内容原样保留（只提醒）
+    assert "written by hand in English prose" in r.content
+
+
+def test_handwritten_chinese_in_en_readme_warns():
+    """README.en.md 托管区外是中文 → 提醒目标语言是英文，内容照旧保留。"""
+    en = (
+        "# Title\n这是手写的中文前言，本应出现在英文文件里却写成了中文。\n"
+        + START + "\nOld EN body\n" + END + "\n"
+    )
+    rec = Recorder(text=DUAL_JSON)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: en,
+        bilingual=True,
+    )[0]
+    assert any("README.en.md" in w and "中文" in w for w in r.warnings)
+    assert "这是手写的中文前言" in r.content_en
+
+
+def test_language_matching_handwritten_region_has_no_warning():
+    """手写区语言与目标一致 → 零警告（不制造噪音）。"""
+    rec = Recorder(text=DUAL_JSON)
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )[0]
+    assert r.warnings == []

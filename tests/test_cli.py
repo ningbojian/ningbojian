@@ -853,3 +853,31 @@ def test_no_translation_without_ai_key(tmp_path, monkeypatch):
     assert calls == []
     en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
     assert "一个很酷的工具" in en
+
+
+def test_custom_region_language_mismatch_warns_without_rewriting(tmp_path, monkeypatch, capsys):
+    """手写区语言不匹配：只写警告（日志 + Step Summary），绝不翻译或改写原文。"""
+    cfg = _write_config(tmp_path)
+    (tmp_path / "README.md").write_text(
+        "# My Profile\nI build developer tools and write about them in English.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "README.en.md").write_text(
+        "# 我的主页\n这是我手写的中文内容，本应出现在英文文件里却写成了中文。\n",
+        encoding="utf-8",
+    )
+    summary = tmp_path / "step_summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+
+    assert _run(cfg) == 0
+
+    err = capsys.readouterr().err
+    assert "README.md 的 custom 区看起来是英文" in err
+    assert "README.en.md 的 custom 区看起来是中文" in err
+    text = summary.read_text(encoding="utf-8")
+    assert "看起来是英文" in text and "看起来是中文" in text
+    # 只提醒：手写内容逐字保留（不翻译、不改写）
+    assert "I build developer tools and write about them in English." in (
+        tmp_path / "README.md"
+    ).read_text(encoding="utf-8")
+    assert "这是我手写的中文内容" in (tmp_path / "README.en.md").read_text(encoding="utf-8")

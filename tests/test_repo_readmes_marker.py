@@ -4,7 +4,7 @@
 不平衡（缺一半 / 乱序 / 多对歧义）一律跳过 + 中文警告，绝不猜测修复。
 """
 
-from profile_agent.readme_block import END, START, apply_block, merge_readme
+from profile_agent.readme_block import END, START, apply_block, merge_readme, outside_block
 
 AI_TEXT = "一个命令行配置生成器。\n- 支持 A/B 两种模式"
 FULL_README = "# 完整文档\n\n第一节内容。\n\n## 第二节\n更多内容。\n"
@@ -236,3 +236,34 @@ def test_never_rewrite_full_readme():
     assert out != AI_TEXT
     assert "手写贡献指南在这里。" in out and "## 用法" in out
     assert out.count(START) == 1 and out.count(END) == 1
+
+
+# ---- 托管区外的手写内容提取（语言提醒用，2026-10-25）----
+
+
+def test_outside_block_returns_only_handwritten_text():
+    """只取 marker 之外的手写内容，托管区正文不参与语言判定。"""
+    readme = (
+        "# T\nHandwritten preface in prose.\n"
+        + START
+        + "\n托管区正文\n"
+        + END
+        + "\nHandwritten tail in prose.\n"
+    )
+    outside = outside_block(readme)
+    assert "托管区正文" not in outside
+    assert "Handwritten preface" in outside and "Handwritten tail" in outside
+
+
+def test_outside_block_without_markers_returns_whole_text():
+    """没有 marker = 全部都是手写（首次接管前，整份 README 都要检查）。"""
+    readme = "# T\n全部手写内容。\n"
+    assert outside_block(readme) == readme
+
+
+def test_outside_block_tolerates_unbalanced_markers():
+    """marker 缺一半时也不能把托管区残留当手写内容误报。"""
+    readme = "# T\n手写前言。\n" + START + "\n缺少 end 的半截内容\n"
+    outside = outside_block(readme)
+    assert START not in outside and "缺少 end 的半截内容" not in outside
+    assert "手写前言" in outside

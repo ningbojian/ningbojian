@@ -58,6 +58,21 @@ def markers_balanced(readme: str) -> bool:
     return False
 
 
+def outside_block(readme: str) -> str:
+    """取托管区之外的手写内容（语言提醒用，绝不据此改写）。
+
+    无 marker → 全文都是手写；marker 不平衡 → 从第一个 start 剥到文末
+    （半截托管区不是用户手写的，不能拿它误报语言）。
+    """
+    text = readme or ""
+    i = text.find(START)
+    if i >= 0:
+        j = text.find(END, i + len(START))
+        text = text[:i] + (text[j + len(END) :] if j >= 0 else "")
+    # 乱序残留（end 在 start 之前）或后续重复 marker 一并清掉
+    return text.replace(START, "").replace(END, "")
+
+
 def apply_block(readme: str, new_text: str) -> str | None:
     """把托管区正文写进 README；marker 不平衡时返回 None（跳过信号）并打中文警告。"""
     text = _sanitize(new_text)

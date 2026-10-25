@@ -311,3 +311,22 @@ def test_bio_hash_changes_when_bilingual_flips():
     h_on = bio_input_hash({**PAYLOAD, "bilingual": True}, cfg)
     h_off = bio_input_hash({**PAYLOAD, "bilingual": False}, cfg)
     assert h_on != h_off
+
+
+def test_bio_english_with_chinese_is_discarded(capsys):
+    """AI 的英文简介整段写成中文 → 丢弃 en（zh 照常），下一轮 bio_fresh 会重试。"""
+    raw = '{"zh": "中文简介正文。", "en": "这是用中文写成的英文简介，整段都该被丢弃。"}'
+    client = FakeClient([_block(raw)])
+    zh, en, generated = generate_bio(
+        PAYLOAD,
+        AIConfig(),
+        input_hash="sha256:x",
+        prev_hash="",
+        prev_text="",
+        prev_generated_at="",
+        client=client,
+    )
+    assert generated is True
+    assert zh.startswith("中文简介")
+    assert en == ""
+    assert "英文版" in capsys.readouterr().err

@@ -49,6 +49,7 @@ from .repo_readmes_pr import (
 )
 from .short_intro import generate_short_intro, short_intro_input_hash
 from .snapshot import load_snapshot, save_snapshot
+from .text_lang import language_mismatch
 from .wait_merges import wait_first_line, wait_for_merges
 
 # README 展示时间统一按北京时间（UTC+8）标注
@@ -505,6 +506,7 @@ def run(
     if b_active:
         b_progress: list[str] = []  # 逐仓进度行（OR20：串行 AI 静默期的可见性，写 Summary）
         b_errors: list[str] = []  # 逐仓失败行（OR06：异常不跨仓传播，写 Summary）
+        b_warns: list[str] = []  # 语言提醒（只提醒，不阻断）
         try:
             # 合并检测：已合并 bot PR 的基线推进到 PR head SHA（§12-R10）；b_merged 供 §5.3 剔除
             if b_client_eff is not None and not dry_run:
@@ -588,6 +590,8 @@ def run(
                                 print(f"「{item.full_name}」已推分支：{res.html_url}")
                         for r in one:
                             b_progress.append(f"- `{r.full_name}`：{_b_repo_progress(r)}")
+                            for _w in r.warnings:
+                                b_warns.append(f"- ⚠️ `{r.full_name}`：{_w}")
                     except Exception as exc:  # noqa: BLE001 —— 逐仓隔离，不跨仓传播（OR06）
                         print(
                             f"「{item.full_name}」模式 B 失败（不影响其他仓库与模式 A）：{exc}",
@@ -601,9 +605,9 @@ def run(
             print(f"模式 B 失败（不影响模式 A）：{exc}", file=sys.stderr)
             b_errors.append(f"- 整体：{exc}")
             b_crash = str(exc)
-        if b_progress or b_errors:
+        if b_progress or b_errors or b_warns:
             _append_summary(
-                "### 模式 B 逐仓进度\n" + "\n".join(b_progress + b_errors)
+                "### 模式 B 逐仓进度\n" + "\n".join(b_progress + b_errors + b_warns)
             )
 
     # 钩子①'（2026-10-23 设计验证修订）：扫描前再收割一次——AI/推送阶段（可达数分钟）期间
@@ -997,10 +1001,19 @@ def run(
         # 盘上内容已在增量门前读取（A-WP2 迁移门复用）；custom 区逐文件独立提取
         custom_zh, mode_zh = extract_custom(disk_zh)
         _report_custom_mode(mode_zh, "README.md")
+        # 语言提醒（2026-10-25）：手写区语言不匹配只警告，绝不翻译或改写
+        if custom_zh and language_mismatch(custom_zh, "zh"):
+            _line = "⚠️ README.md 的 custom 区看起来是英文（目标语言：中文）；手写内容不会被翻译或改写"
+            print(_line, file=sys.stderr)
+            _append_summary(f"- {_line}")
         custom_en = ""
         if cfg.readme.bilingual:
             custom_en, mode_en = extract_custom(disk_en)
             _report_custom_mode(mode_en, "README.en.md")
+            if custom_en and language_mismatch(custom_en, "en"):
+                _line = "⚠️ README.en.md 的 custom 区看起来是中文（目标语言：英文）；手写内容不会被翻译或改写"
+                print(_line, file=sys.stderr)
+                _append_summary(f"- {_line}")
         ctx = TemplateContext(
             username=cfg.github.username,
             display_name=user.get("name") or cfg.github.username,

@@ -18,8 +18,9 @@ from datetime import datetime, timezone
 
 from .bio import _parse_dual
 from .config import RepoReadmesConfig
-from .readme_block import END, START, markers_balanced, merge_readme
+from .readme_block import END, START, markers_balanced, merge_readme, outside_block
 from .repo_readmes import SELF_FILES, QueueItem, build_diff_text
+from .text_lang import language_mismatch
 
 # 缺 key 的可读原因行（Summary/日志同源，测试计划 AP23/IW12 共享该常量）
 MISSING_KEY_REASON = "缺少 AI key，模式 B 本次跳过（队列积压，配好后下一轮自动补跑）"
@@ -109,6 +110,26 @@ class ProcessResult:
     error: str = ""
     commits: list[dict] = field(default_factory=list)
     files: list[dict] = field(default_factory=list)
+    # 语言提醒（只提醒、不翻译不改写）：手写区语言不匹配、AI 英文版含中文被丢弃
+    warnings: list[str] = field(default_factory=list)
+
+
+_TARGET_LABEL = {"zh": "中文", "en": "英文"}
+
+
+def _handwritten_language_warnings(
+    full_name: str, readme: str, target: str, filename: str
+) -> list[str]:
+    """托管区外手写内容的语言提醒（非致命；绝不据此翻译或改写）。"""
+    if not readme or not language_mismatch(outside_block(readme), target):
+        return []
+    seen = "英文" if target == "zh" else "中文"
+    msg = (
+        f"「{full_name}」{filename} 托管区外的手写内容看起来是{seen}"
+        f"（目标语言：{_TARGET_LABEL[target]}）；手写内容不会被翻译或改写"
+    )
+    print(msg, file=sys.stderr)
+    return [msg]
 
 
 def compute_input_hash(
@@ -315,6 +336,10 @@ def process_queue(
 
         # fetch_readme 未注入时 existing=None：prompt 按托管区处理（M3 推送阶段带真实 README 判定）
         existing = fetch_readme(item.full_name) if fetch_readme is not None else None
+        if existing:
+            result.warnings.extend(
+                _handwritten_language_warnings(item.full_name, existing, "zh", "README.md")
+            )
         # marker 不平衡在调 AI 之前就跳过（§5.2）：事后才发现只会白烧一次调用，
         # 还让失败语义与「AI 失败」混淆；不记 last_input_hash，修好 marker 后下轮自然重试
         if existing and not markers_balanced(existing):
@@ -343,6 +368,13 @@ def process_queue(
                 )
                 existing_en = ""
             had_en_file = bool(existing_en)
+            if existing_en:
+                # en 文件里手写成中文：只提醒目标语言是英文（marker 坏也照常提醒）
+                result.warnings.extend(
+                    _handwritten_language_warnings(
+                        item.full_name, existing_en, "en", "README.en.md"
+                    )
+                )
             if existing_en and not markers_balanced(existing_en):
                 print(
                     f"「{item.full_name}」README.en.md 托管区 marker 不平衡"
@@ -402,6 +434,16 @@ def process_queue(
         text = _strip_switch(text)
         if en_text:
             en_text = _strip_switch(en_text)
+            # AI 输出校验（2026-10-25）：英文版整段写成中文 → 丢弃，宁可单语也不写混杂文件。
+            # 不重试本轮（与失败抑制语义一致）；下次真实提交或 --force 会重试。
+            if language_mismatch(en_text, "en"):
+                msg = (
+                    f"「{item.full_name}」AI 返回的英文版看起来是中文，本轮只落地中文"
+                    f"（下次真实提交或 --force 会重试）"
+                )
+                print(msg, file=sys.stderr)
+                result.warnings.append(msg)
+                en_text = ""
         content, _ = merge_readme(existing or "", text)
         # WP7 en 落地：en 被跳过（marker 坏）或 AI en 字段为空 → content_en 空（本轮 zh-only）
         content_en = ""
