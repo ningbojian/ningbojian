@@ -38,6 +38,8 @@ python -m profile_agent --force            # 忽略增量检测（只重写主�
 python -m profile_agent --fixture tests/fixtures --no-ai --dry-run   # 完全离线演示
 ```
 
+> 本地运行前，先把 `config.yaml` 的 `github.username` 填成你的用户名（Actions 里留空即可，会自动取仓库所有者）。
+
 环境变量：`GITHUB_TOKEN`（可选，不填走匿名配额 60 次/小时；建议去 GitHub → Settings → Developer settings 生成一个 classic PAT）、AI key（见下一节，名字由 `ai.key_env` 决定，默认 `ANTHROPIC_API_KEY`）。
 
 ## 换用其他模型（DeepSeek / 千问 / Kimi / MiMo / Ollama）
@@ -74,7 +76,7 @@ ai:
 
 | 层级 | 怎么做 | 效果 |
 | --- | --- | --- |
-| **运行频率** | Run workflow 对话框里选「定时运行间隔」（不修改 / 每 1、3、5、7 天） | 选了天数，本轮结束时自动把定时改为每 N 天一次；不勾不影响本轮回调 |
+| **运行频率** | Run workflow 对话框里选「定时运行间隔」（不修改 / 每 1、3、5、7 天） | 选了天数，本轮结束时自动把定时改为每 N 天一次（需 WORKFLOW_PAT）；选「不修改」不影响本轮回调 |
 | **定时开关** | `config.yaml` 里 `schedule.enabled: false` | 定时运行第一步就结束（不装依赖不调 API）；手动触发不受影响。更彻底可在 Actions 页面点 "Disable workflow" |
 | **AI 调用** | 增量检测 + `ai.max_age_days` | 数据没变化完全不调 API；简介 14 天内不重新生成（可调） |
 
@@ -87,7 +89,7 @@ ai:
 # interval_anchor: 2026-10-22  ← 间隔锚点日期（改间隔时自动重置为当天）
 ```
 
-- **改间隔**：Run workflow → 「定时运行间隔」下拉选「每 3 天」之类 → 本轮结束时自动改写上面两行并提交（需 WORKFLOW_PAT）；选「不修改」只跑本轮不改周期；
+- **改间隔**：Run workflow → 「定时运行间隔」下拉选「每 3 天」之类 → 本轮结束时自动改写上面两行并提交（需 WORKFLOW_PAT）；没配 `WORKFLOW_PAT` 时会明确提示「改动未保存」，周期保持不变，其余更新照常；选「不修改」只跑本轮不改周期；
 - 没到日子的唤醒会在第一步直接结束（绿色秒过，日志写明「非每 N 天的运行日」），不装依赖不调 API；
 - 想完全手动控制：直接删掉这两行标记，恢复纯 cron 语义。
 
@@ -214,6 +216,8 @@ readme:
 2. 你原来的手写内容会**逐字完整**放进 custom 标记区，联系方式、社交账号、HTML 都保留；
 3. **合并 PR** → 新版面进入主页，下一轮开始正常自动更新；**关闭 PR** → main 完全不变；
 4. PR 打开期间，每轮只提示「仍待合并」并跳过——不重新渲染、不调 AI、不改仓库描述；已在清单里打勾的 PR 仍会按你的授权合并（那是你手动授权的动作，不受接管暂停影响）。
+
+> 从模板仓库创建的新仓库是例外：模板说明页按机器文件处理，第一次运行会直接生成主页并替换它，**不会开预览 PR**；只有你已经在 `用户名/用户名` 里写了手写 README，才会先开预览 PR。
 
 需要注意：
 
@@ -346,7 +350,7 @@ ai:
   model: "claude-opus-5-5" # 降本可换 "claude-haiku-5-5"
   max_repos: 15            # 最多把多少仓库喂给 AI
   max_age_days: 14         # 简介最长复用天数
-  prompt_version: 1        # 改了 prompt 后 +1 可强制重新生成
+  prompt_version: 2        # 改了 prompt 后 +1 可强制重新生成
   fill_empty_descriptions: true  # 项目列表里 description 为空时，用其 README 生成短描述补位
 repo_readmes:
   enabled: false           # true = 各仓库 README 托管区自动更新（需 WORKFLOW_PAT；默认关闭）

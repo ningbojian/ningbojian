@@ -141,6 +141,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           INTERVAL: ${{ inputs.schedule_interval }}
+          WORKFLOW_PAT: ${{ secrets.WORKFLOW_PAT }}
         run: |
           python3 - <<'PY'
           import datetime
@@ -151,6 +152,9 @@ jobs:
           choice = os.environ.get("INTERVAL") or ""
           if choice.startswith("不修改"):
               print("未选择调整周期，保持当前定时不变")
+              raise SystemExit(0)
+          if not os.environ.get("WORKFLOW_PAT"):
+              print("::warning::定时间隔调整需要 WORKFLOW_PAT（修改 workflow 文件）；本轮保持原周期")
               raise SystemExit(0)
           m = re.fullmatch(r"每 (\d+) 天", choice)
           if not m:
@@ -180,7 +184,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.readme_en }}" "${{ steps.paths.outputs.snapshot }}"
+          # 文件可能不存在（如 readme.bilingual=false 或首次运行前关闭 readme），逐个判断再 add
+          for p in "${{ steps.paths.outputs.readme }}" "${{ steps.paths.outputs.readme_en }}" "${{ steps.paths.outputs.snapshot }}"; do
+            if [ -e "$p" ]; then
+              git add "$p"
+            fi
+          done
+
+          # 定时间隔下拉会改写 workflow 文件；只有 staged 的文件才进提交。
+          # 内置 GITHUB_TOKEN 无权推 workflow 变更——只在配了 WORKFLOW_PAT 时 stage。
+          if ! git diff --quiet -- .github/workflows/update-profile.yml; then
+            if [ -n "$WORKFLOW_PAT" ]; then
+              git add .github/workflows/update-profile.yml
+            else
+              echo "::warning::定时间隔改动未保存：修改 workflow 文件需要 WORKFLOW_PAT（classic，勾选 repo 与 workflow）"
+            fi
+          fi
 
           has_direct=false
           if ! git diff --cached --quiet; then

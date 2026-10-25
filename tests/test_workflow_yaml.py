@@ -159,16 +159,45 @@ def test_wf_steps_bypass_interval_gate_for_non_schedule():
     assert [c for c in conds if c not in allowed] == []
 
 
+def _step(text: str, name: str) -> str:
+    """按步骤名截出该步的 YAML 片段（到下一个 step 或文件末尾）。"""
+    start = text.index(f"- name: {name}")
+    rest = text[start:]
+    nxt = rest.find("\n      - ", 1)
+    return rest if nxt < 0 else rest[:nxt]
+
+
 def test_wf_git_add_includes_readme_en():
     """WP8：提交步 git add 带上 README.en.md（路径步输出 readme_en，与 cli 派生同口径）。"""
     text = WF.read_text(encoding="utf-8")
     assert 'print(f"readme_en=' in text  # 读取配置路径步输出 en 路径
-    assert "steps.paths.outputs.readme_en" in text  # 提交步消费该输出
-    # add 行同时含 readme 与 readme_en 两个输出（双文件一起进 main）
-    add_line = next(
-        line for line in text.splitlines() if "git add" in line and "outputs.readme" in line
-    )
-    assert "outputs.readme }}" in add_line and "outputs.readme_en }}" in add_line
+    commit = _step(text, "提交变更")
+    assert "steps.paths.outputs.readme }}" in commit
+    assert "steps.paths.outputs.readme_en }}" in commit
+
+
+def test_wf_git_add_skips_missing_files_and_commits_interval_change():
+    """提交步只 add 真实存在的文件；定时间隔改写会 stage workflow（需 PAT）。
+
+    真实故障（2026-10-25 复核）：用户先设 bilingual:false / readme.enabled:false 时
+    README.en.md / snapshot 不存在，`set -e` 下 `git add` 返回 128，整个 job 失败；
+    另一头，间隔下拉改写的 workflow 文件从未 staged，改动被丢弃、guide 承诺落空。
+    """
+    text = WF.read_text(encoding="utf-8")
+    commit = _step(text, "提交变更")
+    assert 'if [ -e "$p" ]' in commit
+    for output in ("readme", "readme_en", "snapshot"):
+        assert f"steps.paths.outputs.{output} }}" in commit
+    assert "git add .github/workflows/update-profile.yml" in commit
+    assert "定时间隔改动未保存" in commit
+
+
+def test_wf_interval_rewrite_requires_pat():
+    """间隔改写需要 WORKFLOW_PAT；没有就明确提示并保持原周期，不留无效改动。"""
+    text = WF.read_text(encoding="utf-8")
+    step = _step(text, "调整定时运行间隔（schedule_interval）")
+    assert "WORKFLOW_PAT" in step
+    assert "本轮保持原周期" in step
 
 
 def test_wf_bot_commit_keeps_skip_ci():
