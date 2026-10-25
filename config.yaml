@@ -32,6 +32,11 @@ readme:
   include_update_time: true
   visitors_badge: true # 主页嵌入「主页访问量」计数徽章（komarev.com 免费第三方服务，页面渲染一次 +1）
   bilingual: true # 同时生成 README.en.md（英文版），两文件顶部互链切换；false = 只更新中文 README.md
+  sections: # 板块开关（默认全开）：只隐藏生成区，不动手写/custom 内容
+    bio: true # 简介
+    stats: true # 统计卡与技术标签
+    pinned: true # 📌 置顶项目（关掉后这些仓库回到下方列表）
+    table: true # 📦 仓库列表（与 pinned 都关 → 不输出任何仓库区块）
 
 ai:
   enabled: true
@@ -63,6 +68,14 @@ repo_readmes:
   max_diff_chars: 6000 # 喂给模型的 diff 字符上限
   prompt_version: 2 # 改模式 B 的 prompt 时 +1，强制重新生成（2026-10-23 嵌入原 README 修订基础）
   pr_branch: "readme-auto/update" # PR 分支名；主页从这里读未合并内容
+
+# 仓库描述自动写回（默认关闭）：仓库有新推送时，用 AI 重写 GitHub 上的 description。
+# 需要 WORKFLOW_PAT（classic，repo scope）。第一次见到仓库只记基线、不改；
+# 你在 GitHub 上手动改过的描述会被永久跳过；每轮最多写 5 个。
+repo_descriptions:
+  enabled: false
+  include: [] # 空 = 全部公开仓库（profile 仓库自身始终排除）
+  exclude: [] # 在 include 之上再排除
 
 snapshot:
   path: "data/snapshot.json"
