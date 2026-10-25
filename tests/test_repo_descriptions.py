@@ -14,6 +14,7 @@ from profile_agent.github_client import API, GitHubClient, GitHubError
 from profile_agent.models import Repo
 from profile_agent.repo_descriptions import (
     BATCH_LIMIT,
+    MAX_ATTEMPTS,
     MAX_DESCRIPTION_CHARS,
     apply_updates,
     build_prompt,
@@ -260,6 +261,7 @@ def test_apply_updates_stores_github_normalized_value():
 
 
 def test_apply_updates_does_not_patch_when_generated_equals_current():
+    """生成结果与当前一致也算本轮处理完：推进进度戳，下一轮不再重复调 AI。"""
     repo, entries, candidates = _candidate_setup()
     http = FakeHttp()
     results = apply_updates(
@@ -268,7 +270,61 @@ def test_apply_updates_does_not_patch_when_generated_equals_current():
     )
     assert results[0]["status"] == "unchanged"
     assert http.writes() == []
-    assert entries[repo.full_name]["pushed_at"].startswith("2026-10-01")  # 条目未前进
+    e = entries[repo.full_name]
+    assert e["pushed_at"] == "2026-10-20T00:00:00+00:00"  # 进度已推进
+    assert e["generated_at"] == "2026-10-25T00:00:00+00:00"
+    assert e["attempts"] == 0
+    # 增量门随之关上：下一轮既不记基线也不排队，不再白烧一次批量 AI
+    assert is_dirty([repo], RepoDescriptionsConfig(enabled=True), entries, ALICE) is False
+
+
+def test_failed_and_skipped_accumulate_attempts():
+    """失败与跳过都计入尝试次数；pushed_at 不前进，下轮继续重试。"""
+    repo, entries, candidates = _candidate_setup()
+    http = FakeHttp().add(
+        "PATCH", f"{API}/repos/alice/cool-tool", FakeResponse(422, text="validation failed")
+    )
+    apply_updates(
+        _client(http), candidates, {repo.full_name: "新描述"},
+        entries, now_iso="2026-10-25T00:00:00+00:00",
+    )
+    assert entries[repo.full_name]["attempts"] == 1
+    assert entries[repo.full_name]["pushed_at"].startswith("2026-10-01")
+    apply_updates(_client(FakeHttp()), candidates, {}, entries, now_iso="2026-10-25T00:00:00+00:00")
+    assert entries[repo.full_name]["attempts"] == 2
+    assert entries[repo.full_name]["pushed_at"].startswith("2026-10-01")
+
+
+def test_three_failures_park_until_next_push():
+    """连续 3 轮失败：暂停该仓库，不再每轮白烧 AI；下次真实推送后自动恢复。"""
+    repo, entries, candidates = _candidate_setup()
+    http = FakeHttp().add(
+        "PATCH", f"{API}/repos/alice/cool-tool", FakeResponse(422, text="validation failed")
+    )
+    for _ in range(MAX_ATTEMPTS):
+        apply_updates(
+            _client(http), candidates, {repo.full_name: "新描述"},
+            entries, now_iso="2026-10-25T00:00:00+00:00",
+        )
+    e = entries[repo.full_name]
+    assert e["attempts"] == MAX_ATTEMPTS == 3
+
+    candidates2, notices, _ = _plan([repo], entries)
+    assert candidates2 == []  # 已暂停，本轮不再排队
+    assert e["pushed_at"] == "2026-10-20T00:00:00+00:00"  # 进度推进到当前推送
+    assert e["attempts"] == 0
+    assert any("暂停" in n for n in notices)
+    assert is_dirty([repo], RepoDescriptionsConfig(enabled=True), entries, ALICE) is False
+
+    moved = _repo(pushed="2026-10-24T00:00:00+00:00")
+    candidates3, _, _ = _plan([moved], entries)
+    assert [r.full_name for r in candidates3] == ["alice/cool-tool"]  # 新推送后恢复
+
+
+def test_summary_lines_remaining_mentions_pushed_repos():
+    lines = summary_lines([], 2)
+    text = "\n".join(lines)
+    assert "2" in text and "有推送的仓库" in text
 
 
 def test_apply_updates_failure_leaves_entry_for_retry():
@@ -326,3 +382,34 @@ def test_summary_lines_cover_all_outcomes():
     assert "a/x" in text and "旧" in text and "新" in text
     assert "a/y" in text and "失败" in text
     assert "3" in text and "下轮" in text
+
+
+def test_generate_descriptions_drops_wrong_language_values():
+    """目标语言不符的结果丢弃（计入下轮重试），符合的保留。"""
+    items = [
+        {"full_name": "alice/zh-repo", "description": "", "readme": "",
+         "language": "Python", "topics": [], "target": "zh"},
+        {"full_name": "alice/en-repo", "description": "", "readme": "",
+         "language": "Python", "topics": [], "target": "en"},
+    ]
+    raw = json.dumps(
+        {
+            "alice/zh-repo": "A CLI tool for exporting CSVs quickly.",
+            "alice/en-repo": "一个把数据导出为 CSV 的命令行工具。",
+        },
+        ensure_ascii=False,
+    )
+    mapping, warning = generate_descriptions(items, AIConfig(), generate=lambda *_: raw)
+    assert mapping == {}
+    assert "不是中文/英文" in warning and "下轮重试" in warning
+
+    raw_ok = json.dumps(
+        {
+            "alice/zh-repo": "一个把数据导出为 CSV 的命令行工具。",
+            "alice/en-repo": "A CLI tool that exports data to CSV.",
+        },
+        ensure_ascii=False,
+    )
+    mapping_ok, warning_ok = generate_descriptions(items, AIConfig(), generate=lambda *_: raw_ok)
+    assert set(mapping_ok) == {"alice/zh-repo", "alice/en-repo"}
+    assert warning_ok == ""

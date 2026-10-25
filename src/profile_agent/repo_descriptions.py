@@ -20,10 +20,13 @@ from .config import AIConfig, RepoDescriptionsConfig
 from .github_client import API, GitHubClient
 from .models import Repo
 from .repo_readmes import participants
-from .text_lang import contains_han, dominant_language
+from .text_lang import contains_han, dominant_language, language_mismatch
 
 MAX_DESCRIPTION_CHARS = 350
 BATCH_LIMIT = 5
+# 连续失败上限：同一个仓库连续 N 轮都没成功就暂停，等它下次真实推送再排队，
+# 避免一个坏仓库长期占住每轮 5 个名额、每轮白烧一次批量 AI。
+MAX_ATTEMPTS = 3
 README_EXCERPT_CHARS = 1200
 
 _LATIN_RE = re.compile(r"[A-Za-z]")
@@ -120,6 +123,7 @@ def plan_updates(
                 "pushed_at": pushed,
                 "generated_at": now_iso,
                 "manual": False,
+                "attempts": 0,
             }
             notices.append(f"- 📌 `{repo.full_name}` 首次见到：已记录描述基线，本次不修改")
             continue
@@ -133,6 +137,15 @@ def plan_updates(
             notices.append(_manual_notice(repo.full_name))
             continue
         if pushed == str(entry.get("pushed_at") or ""):
+            continue
+        if int(entry.get("attempts") or 0) >= MAX_ATTEMPTS:
+            # 试满仍不成：暂停到下次真实推送，别长期占名额
+            entry["pushed_at"] = pushed
+            entry["attempts"] = 0
+            notices.append(
+                f"- ⏸️ `{repo.full_name}` 描述连续 {MAX_ATTEMPTS} 轮未成功，已暂停；"
+                "该仓库下次推送后自动恢复"
+            )
             continue
         candidates.append(repo)
 
@@ -217,10 +230,37 @@ def generate_descriptions(
     mapping = parse_description_map(raw or "")
     if mapping is None:
         return {}, "仓库描述生成结果解析失败（沿用现有描述，下轮重试）"
+    # 语言校验（2026-10-25）：目标中文却返回英文（或反之）→ 丢弃，下轮重试。
+    # AI 输出用 0.20 严格阈值，成段另一种语言不再放过。
+    targets = {str(i.get("full_name")): str(i.get("target") or "") for i in items}
+    dropped: list[str] = []
+    for name in list(mapping):
+        target = targets.get(name, "")
+        if target in ("zh", "en") and language_mismatch(
+            mapping[name], target, threshold=0.20
+        ):
+            dropped.append(name)
+            mapping.pop(name)
+    if dropped:
+        return mapping, (
+            "生成结果不是中文/英文，已丢弃（下轮重试）：" + "、".join(sorted(dropped))
+        )
     return mapping, ""
 
 
 # ---- 写回 ----
+
+
+def _advance(entry: dict, repo: Repo, *, now_iso: str) -> None:
+    """本轮已处理完：进度戳推进到仓库当前推送，尝试次数清零。"""
+    entry["pushed_at"] = iso_pushed(repo)
+    entry["generated_at"] = now_iso
+    entry["attempts"] = 0
+
+
+def _bump_attempts(entry: dict) -> None:
+    """没处理完（失败/跳过）：只累计尝试次数，不推进进度，下轮继续。"""
+    entry["attempts"] = int(entry.get("attempts") or 0) + 1
 
 
 def apply_updates(
@@ -236,12 +276,17 @@ def apply_updates(
     for repo in candidates:
         current = repo.description or ""
         new = str(generated.get(repo.full_name) or "").strip()
+        entry = entries.setdefault(repo.full_name, {})
         if not new:
+            _bump_attempts(entry)
             results.append(
                 {"full_name": repo.full_name, "status": "skipped", "old": current, "new": ""}
             )
             continue
         if new == current:
+            # 生成结果与当前一致：本轮算处理完，推进进度戳——否则每轮都会重新排队
+            _advance(entry, repo, now_iso=now_iso)
+            entry.setdefault("manual", False)
             results.append(
                 {"full_name": repo.full_name, "status": "unchanged", "old": current, "new": new}
             )
@@ -249,6 +294,7 @@ def apply_updates(
         try:
             data, _ = client._patch(f"{API}/repos/{repo.full_name}", {"description": new})
         except Exception as exc:  # noqa: BLE001 —— 网络中断也逐仓隔离，整轮不崩
+            _bump_attempts(entry)
             results.append(
                 {
                     "full_name": repo.full_name,
@@ -263,17 +309,15 @@ def apply_updates(
         written = new
         if isinstance(data, dict) and isinstance(data.get("description"), str):
             written = data["description"]
-        entry = entries.setdefault(repo.full_name, {})
         entry.update(
             {
                 "baseline": str(entry.get("baseline") or current),
                 "previous": current,
                 "written": written,
-                "pushed_at": iso_pushed(repo),
-                "generated_at": now_iso,
                 "manual": False,
             }
         )
+        _advance(entry, repo, now_iso=now_iso)
         repo.description = written  # 同轮渲染/简介立刻使用新描述
         results.append(
             {"full_name": repo.full_name, "status": "updated", "old": current, "new": written}
@@ -291,7 +335,9 @@ def summary_lines(results: list[dict], remaining: int) -> list[str]:
                 f"- ✅ `{r['full_name']}` 描述已更新：{r.get('old') or '（空）'} → {r.get('new')}"
             )
         elif status == "unchanged":
-            lines.append(f"- ⏭️ `{r['full_name']}` 描述无需改动（生成结果与当前一致）")
+            lines.append(
+                f"- ⏭️ `{r['full_name']}` 描述无需改动（生成结果与当前一致），已记进度"
+            )
         elif status == "failed":
             lines.append(
                 f"- ⚠️ `{r['full_name']}` 描述更新失败（下轮重试）：{r.get('error') or ''}"
@@ -300,6 +346,6 @@ def summary_lines(results: list[dict], remaining: int) -> list[str]:
             lines.append(f"- ⏭️ `{r['full_name']}` 本轮没有可用的新描述（下轮重试）")
     if remaining:
         lines.append(
-            f"- ⏳ 还有 {remaining} 个仓库待下轮继续（每轮最多 {BATCH_LIMIT} 个）"
+            f"- ⏳ 还有 {remaining} 个有推送的仓库本轮未处理，下轮继续（每轮最多 {BATCH_LIMIT} 个）"
         )
     return lines

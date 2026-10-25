@@ -736,3 +736,21 @@ def test_language_matching_handwritten_region_has_no_warning():
         bilingual=True,
     )[0]
     assert r.warnings == []
+
+
+def test_english_output_with_a_chinese_section_is_dropped(capsys):
+    """约三成汉字（成段中文夹在英文里）也算语言不符：AI 输出用严格阈值 0.20。"""
+    en = (
+        "This repository provides a command line tool "
+        "用来生成密码并导出为 CSV 文件，支持批量处理。"
+    )
+    rec = Recorder(text=json.dumps({"zh": "新中文托管区正文", "en": en}, ensure_ascii=False))
+    r = _process(
+        [_item()], {"alice/cool-tool": _entry()}, rec,
+        fetch_readme=lambda fn: ZH_EXISTING,
+        fetch_readme_en=lambda fn: EN_EXISTING,
+        bilingual=True,
+    )[0]
+    assert r.status == "generated"
+    assert r.content_en == ""  # 成段中文不再放过
+    assert any("英文版" in w for w in r.warnings)

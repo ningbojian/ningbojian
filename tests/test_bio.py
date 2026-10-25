@@ -1,5 +1,6 @@
 """bio.py 提示词构建与生成逻辑测试（假 client，无网络）。"""
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -329,4 +330,26 @@ def test_bio_english_with_chinese_is_discarded(capsys):
     assert generated is True
     assert zh.startswith("中文简介")
     assert en == ""
+    assert "英文版" in capsys.readouterr().err
+
+
+def test_bio_english_with_a_chinese_section_is_discarded(capsys):
+    """英文简介里夹着成段中文（约三成汉字）同样丢弃：AI 输出阈值 0.20 更严。"""
+    en = (
+        "A small tool that turns notes into slides "
+        "用来整理笔记并导出为演示文稿，支持批量处理。"
+    )
+    raw = json.dumps({"zh": "中文简介正文。", "en": en}, ensure_ascii=False)
+    client = FakeClient([_block(raw)])
+    zh, got_en, generated = generate_bio(
+        PAYLOAD,
+        AIConfig(),
+        input_hash="sha256:x",
+        prev_hash="",
+        prev_text="",
+        prev_generated_at="",
+        client=client,
+    )
+    assert generated is True
+    assert got_en == ""
     assert "英文版" in capsys.readouterr().err

@@ -343,3 +343,13 @@ def test_repo_descriptions_include_must_be_list(tmp_path):
     )
     with pytest.raises(ConfigError, match="repo_descriptions.include"):
         load_config(path)
+
+
+def test_repo_descriptions_enabled_must_be_bool(tmp_path):
+    """带引号的 "false" 是字符串，bool("false") == True 会意外开启对外写操作。"""
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nrepo_descriptions:\n  enabled: "false"\n',
+    )
+    with pytest.raises(ConfigError, match="repo_descriptions.enabled"):
+        load_config(path)

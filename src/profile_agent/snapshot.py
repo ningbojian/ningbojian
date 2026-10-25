@@ -47,6 +47,10 @@ def _normalize_repo_descriptions(raw: object) -> dict[str, dict]:
     for full_name, entry in raw.items():
         if not isinstance(entry, dict):
             continue
+        try:
+            attempts = int(entry.get("attempts") or 0)
+        except (TypeError, ValueError):
+            attempts = 0
         result[str(full_name)] = {
             "baseline": str(entry.get("baseline") or ""),
             "previous": str(entry.get("previous") or ""),
@@ -54,6 +58,7 @@ def _normalize_repo_descriptions(raw: object) -> dict[str, dict]:
             "pushed_at": str(entry.get("pushed_at") or ""),
             "generated_at": str(entry.get("generated_at") or ""),
             "manual": bool(entry.get("manual")),
+            "attempts": max(0, attempts),
         }
     return result
 
@@ -89,6 +94,7 @@ def load_snapshot(path: Path) -> Snapshot | None:
                 generated_at=str(bio_raw.get("generated_at") or ""),
                 model=str(bio_raw.get("model") or ""),
                 prompt_version=int(bio_raw.get("prompt_version") or 0),
+                en_dropped_hash=str(bio_raw.get("en_dropped_hash") or ""),
             ),
             repo_readmes=_normalize_repo_readmes(data.get("repo_readmes")),
             repo_descriptions=_normalize_repo_descriptions(

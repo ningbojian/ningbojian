@@ -270,6 +270,31 @@ def test_stale_bio_regenerates_even_when_data_unchanged(tmp_path, monkeypatch):
     assert "刷新后的简介" in (tmp_path / "README.md").read_text(encoding="utf-8")
 
 
+def test_dropped_english_bio_is_not_retried_every_round(tmp_path, monkeypatch):
+    """AI 双语返回里英文被丢弃：同一输入只试一次，门关上，不再每轮白跑一次 AI。"""
+    cfg = _write_config(tmp_path)
+    _with_env(monkeypatch, ANTHROPIC_API_KEY="test-key")
+    calls = []
+    _gen(monkeypatch, [("初始简介", "", True), ("刷新后的简介", "", True)], calls)
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(calls) == 1
+    snap_path = tmp_path / "data" / "snapshot.json"
+    snap_bytes = snap_path.read_bytes()
+    readme_mtime = (tmp_path / "README.md").stat().st_mtime_ns
+
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(calls) == 1  # 同输入不再重试
+    assert (tmp_path / "README.md").stat().st_mtime_ns == readme_mtime
+    assert snap_path.read_bytes() == snap_bytes  # 也不再产生「只有快照变化」的提交
+
+    # 简介过期后才重新尝试英文（数据变化 / 改 prompt_version 同理）
+    data = json.loads(snap_path.read_text(encoding="utf-8"))
+    data["bio"]["generated_at"] = "2000-01-01T00:00:00+00:00"
+    snap_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert len(calls) == 2
+
+
 def test_config_change_invalidates_gate(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path)
     run(cfg, fixture=FIXTURES)
@@ -1305,8 +1330,65 @@ def test_after_takeover_pr_merged_next_round_is_noop(tmp_path, monkeypatch, caps
     assert "无变化，跳过更新" in capsys.readouterr().out
 
 
-def test_takeover_pr_failure_falls_back_to_direct_write(tmp_path, monkeypatch, capsys):
-    """PR 创建失败（网络/权限）：回退直接写 main，任务不失败。"""
+def _open_pr_response() -> "object":
+    from fake_github import FakeResponse
+
+    return FakeResponse(
+        200, [{"number": 12, "html_url": "https://github.com/alice/alice/pull/12"}]
+    )
+
+
+def test_takeover_force_refreshes_open_pr_and_stays_off_main(
+    tmp_path, monkeypatch, capsys
+):
+    """--force + 已打开的接管 PR：刷新该 PR（不新建），main 一个字节都不动。"""
+    from fake_github import FakeResponse
+    from profile_agent.github_client import API
+
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    before_zh = (tmp_path / "README.md").read_text(encoding="utf-8")
+    http, client = _takeover_client(prs_first=[_open_pr_response()] * 2)
+    http.add(
+        "PATCH",
+        f"{API}/repos/{_OWNER}/pulls/12",
+        FakeResponse(200, {"number": 12}),
+    )
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client, force=True) == 0
+
+    out = capsys.readouterr().out
+    assert "仍待合并" in out and "刷新" in out and "main 仍不改动" in out
+    assert "分支上手动改动会被覆盖" in out  # 覆盖风险必须说清
+    assert not any(
+        r["method"] == "POST" and r["url"].endswith("/pulls") for r in http.requests
+    )  # 刷新不新建 PR
+    assert http.has("PATCH", "/pulls/12")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == before_zh
+    assert not (tmp_path / "data" / "snapshot.json").exists()
+
+
+def test_takeover_force_refresh_failure_never_writes_main(
+    tmp_path, monkeypatch, capsys
+):
+    """刷新失败也不能绕过待审核的 PR 去写 main：只警告，下一轮重试。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    before_zh = (tmp_path / "README.md").read_text(encoding="utf-8")
+    http, client = _takeover_client(prs_first=[_open_pr_response()] * 2, blob_ok=False)
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client, force=True) == 0
+
+    err = capsys.readouterr().err
+    assert "main 未改动" in err and "自动重试" in err
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == before_zh
+    assert not (tmp_path / "data" / "snapshot.json").exists()
+
+
+def test_takeover_push_failure_never_writes_main(tmp_path, monkeypatch, capsys):
+    """推送/开 PR 阶段失败（分支可能已推出去）：绝不回退写 main。"""
     cfg = _write_config(tmp_path)
     _handwritten(tmp_path, bilingual=False)
     http, client = _takeover_client(blob_ok=False)
@@ -1314,7 +1396,23 @@ def test_takeover_pr_failure_falls_back_to_direct_write(tmp_path, monkeypatch, c
 
     assert run(cfg, fixture=FIXTURES, b_client=client) == 0
     err = capsys.readouterr().err
-    assert "回退" in err and "main" in err
+    assert "main 未改动" in err and "自动重试" in err
+    assert not (tmp_path / "data" / "snapshot.json").exists()
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# 我的主页")
+
+
+def test_takeover_head_read_failure_falls_back_to_direct_write(
+    tmp_path, monkeypatch, capsys
+):
+    """连 HEAD 都读不到（什么都没推出去）：回退直接写 main 仍是安全的。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path, bilingual=False)
+    http, client = _takeover_client(with_commit_head=False)
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    err = capsys.readouterr().err
+    assert "回退直接写入 main" in err
     assert (tmp_path / "data" / "snapshot.json").exists()
     assert "我手写的介绍" in (tmp_path / "README.md").read_text(encoding="utf-8")
 
@@ -1357,3 +1455,63 @@ def test_after_takeover_merged_data_change_updates_normally(tmp_path, monkeypatc
     readme = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "新的描述" in readme
     assert "我手写的介绍，请完整保留" in readme  # custom 区仍然保留
+
+
+def test_description_summary_has_single_heading(tmp_path, monkeypatch, capsys):
+    """仓库描述相关提示只占一个小节：### 仓库描述写回（警告与结果合并）。"""
+    import profile_agent.cli as cli_mod
+
+    from fake_github import FakeHttp
+    from profile_agent.github_client import GitHubClient
+
+    fx = _copy_fixture(tmp_path)
+    http = FakeHttp()
+    client = GitHubClient("pat", session=http, sleep=lambda _s: None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    cfg = _desc_cfg(tmp_path)
+    assert run(cfg, fixture=fx, b_client=client) == 0  # 首轮：只记基线
+    _bump_fixture(fx, "alice/cool-tool", pushed="2026-11-01T00:00:00+00:00")
+    monkeypatch.setattr(
+        cli_mod, "generate_descriptions", lambda *a, **k: ({}, "生成失败（测试）")
+    )
+    summary = tmp_path / "step_summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert run(cfg, fixture=fx, b_client=client) == 0
+    text = summary.read_text(encoding="utf-8")
+    assert "### 仓库描述写回" in text
+    assert text.count("### 仓库描述") == 1  # 不再出现重复小节
+    assert "生成失败（测试）" in text
+
+
+def test_description_unchanged_then_next_round_is_noop(tmp_path, monkeypatch):
+    """生成结果与当前描述一致也算处理完：下一轮门关上，不再白烧一次批量 AI。"""
+    import profile_agent.cli as cli_mod
+
+    from fake_github import FakeHttp
+    from profile_agent.github_client import GitHubClient
+
+    fx = _copy_fixture(tmp_path)
+    http = FakeHttp()
+    client = GitHubClient("pat", session=http, sleep=lambda _s: None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    cfg = _desc_cfg(tmp_path)
+    assert run(cfg, fixture=fx, b_client=client) == 0  # 首轮：只记基线
+    _bump_fixture(fx, "alice/cool-tool", pushed="2026-11-01T00:00:00+00:00")
+    calls = []
+
+    def gen(items, cfg_ai, **kw):
+        calls.append(items)
+        return {"alice/cool-tool": "一个很酷的工具"}, ""
+
+    monkeypatch.setattr(cli_mod, "generate_descriptions", gen)
+    assert run(cfg, fixture=fx, b_client=client) == 0
+    assert len(calls) == 1
+    assert http.writes() == []  # 无需改动：不 PATCH
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_descriptions",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("无需改动后不应再调 AI")),
+    )
+    assert run(cfg, fixture=fx, b_client=client) == 0

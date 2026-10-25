@@ -85,6 +85,9 @@ class BioInfo:
     generated_at: str = ""
     model: str = ""
     prompt_version: int = 0
+    # 英文被丢弃时记下的输入指纹：同一输入只试一次，避免每轮重生成
+    # （数据变化 / 改 ai.prompt_version / 简介过期后才会重新尝试）
+    en_dropped_hash: str = ""
 
 
 @dataclass

@@ -200,11 +200,14 @@ def generate_bio(
         if prev_text:
             return prev_text, prev_text_en, False
         raise BioError("模型返回了空简介")
-    # 输出校验（2026-10-25）：英文简介整段写成中文 → 丢弃 en，宁可单语也不写混杂内容。
-    # 下一轮 bio_fresh 因 en 缺失而不成立，会自动重试（多一次调用，可接受）。
-    if text_en and language_mismatch(text_en, "en"):
+    # 输出校验（2026-10-25）：英文简介成段写成中文 → 丢弃 en，宁可单语也不写混杂内容。
+    # AI 输出用更严的 0.20 阈值（手写警告仍用默认 0.50）。
+    # 同一输入只试一次：cli 会把当前 input_hash 记进 en_dropped_hash，
+    # 数据变化 / 改 ai.prompt_version / 简介过期后才会重新尝试。
+    if text_en and language_mismatch(text_en, "en", threshold=0.20):
         print(
-            "警告：AI 返回的英文版简介看起来是中文，已丢弃英文简介（下一轮会自动重试）",
+            "警告：AI 返回的英文版简介看起来是中文，已丢弃英文简介"
+            "（数据变化、改 ai.prompt_version 或简介过期后才会重新尝试）",
             file=sys.stderr,
         )
         text_en = ""

@@ -197,7 +197,9 @@ def test_snapshot_schema5_roundtrip_pins_bio_en_and_descriptions(tmp_path):
         schema=5,
         username="alice",
         pins=["alice/cool-tool", "alice/web-app"],
-        bio=BioInfo(text="你好。", text_en="Hi.", input_hash="sha256:x"),
+        bio=BioInfo(
+            text="你好。", text_en="Hi.", input_hash="sha256:x", en_dropped_hash="sha256:y"
+        ),
         readme_last="# 上次写入的 README\n",
         repo_descriptions={
             "alice/cool-tool": {
@@ -207,6 +209,7 @@ def test_snapshot_schema5_roundtrip_pins_bio_en_and_descriptions(tmp_path):
                 "pushed_at": "2026-10-20T00:00:00+00:00",
                 "generated_at": "2026-10-25T00:00:00+00:00",
                 "manual": False,
+                "attempts": 1,
             }
         },
     )
@@ -217,8 +220,10 @@ def test_snapshot_schema5_roundtrip_pins_bio_en_and_descriptions(tmp_path):
     assert got.schema == 5
     assert got.pins == ["alice/cool-tool", "alice/web-app"]
     assert got.bio.text_en == "Hi."
+    assert got.bio.en_dropped_hash == "sha256:y"
     assert got.readme_last == "# 上次写入的 README\n"
     assert got.repo_descriptions["alice/cool-tool"]["written"] == "新描述"
+    assert got.repo_descriptions["alice/cool-tool"]["attempts"] == 1
 
 
 def test_schema4_upgrades_to_5_with_empty_repo_descriptions(tmp_path):
@@ -269,4 +274,26 @@ def test_malformed_repo_descriptions_entries_are_normalized(tmp_path):
         "pushed_at": "",
         "generated_at": "",
         "manual": True,
+        "attempts": 0,
     }
+
+
+def test_repo_descriptions_attempts_roundtrip_and_bad_value_defaults(tmp_path):
+    """attempts 往返保留；坏值（字符串等）按 0 处理，不崩。"""
+    p = tmp_path / "snapshot.json"
+    p.write_text(
+        json.dumps(
+            {
+                "schema": 5,
+                "repo_descriptions": {
+                    "alice/b": {"baseline": "b", "attempts": 2},
+                    "alice/c": {"baseline": "c", "attempts": "坏值"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    got = load_snapshot(p)
+    assert got is not None
+    assert got.repo_descriptions["alice/b"]["attempts"] == 2
+    assert got.repo_descriptions["alice/c"]["attempts"] == 0

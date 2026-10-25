@@ -434,9 +434,10 @@ def process_queue(
         text = _strip_switch(text)
         if en_text:
             en_text = _strip_switch(en_text)
-            # AI 输出校验（2026-10-25）：英文版整段写成中文 → 丢弃，宁可单语也不写混杂文件。
+            # AI 输出校验（2026-10-25）：英文版成段写成中文 → 丢弃，宁可单语也不写混杂文件。
+            # AI 输出用更严的 0.20 阈值（手写警告仍用默认 0.50）。
             # 不重试本轮（与失败抑制语义一致）；下次真实提交或 --force 会重试。
-            if language_mismatch(en_text, "en"):
+            if language_mismatch(en_text, "en", threshold=0.20):
                 msg = (
                     f"「{item.full_name}」AI 返回的英文版看起来是中文，本轮只落地中文"
                     f"（下次真实提交或 --force 会重试）"

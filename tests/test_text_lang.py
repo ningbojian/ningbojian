@@ -70,3 +70,13 @@ def test_language_mismatch_custom_min_letters():
 
 def test_language_mismatch_unknown_target_is_false():
     assert language_mismatch("这是一段中文", "fr") is False
+
+
+def test_language_mismatch_ignores_urls_and_inline_code():
+    """中文手写区里的链接与行内代码不算拉丁字母，不应误报「看起来是英文」。"""
+    text = (
+        "我做了很多工具，详情见 https://github.com/alice/cool-tool ，"
+        "安装命令是 `pip install cool-tool` ，欢迎试用。"
+    )
+    assert language_mismatch(text, "zh") is False
+    assert han_ratio(text) > 0.9  # URL 与行内代码整体剔除

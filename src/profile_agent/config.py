@@ -303,8 +303,15 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         raise ConfigError("repo_descriptions.include 必须是列表")
     if not isinstance(rd_exclude, list):
         raise ConfigError("repo_descriptions.exclude 必须是列表")
+    rd_enabled = rd.get("enabled", False)
+    # 必须是真正的布尔值：YAML 里写 "false"（带引号）是字符串，bool() 会当成 True，
+    # 从而意外开启「对外写仓库描述」——与 readme.sections 同款校验。
+    if not isinstance(rd_enabled, bool):
+        raise ConfigError(
+            f"repo_descriptions.enabled 必须是 true 或 false（收到：{rd_enabled!r}）"
+        )
     cfg.repo_descriptions = RepoDescriptionsConfig(
-        enabled=bool(rd.get("enabled", False)),
+        enabled=rd_enabled,
         include=[str(x) for x in rd_include],
         exclude=[str(x) for x in rd_exclude],
     )

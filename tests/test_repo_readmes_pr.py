@@ -23,6 +23,7 @@ from profile_agent.repo_readmes_pr import (
     parse_commit_titles,
     push_results,
     read_branch_block_hash,
+    takeover_pr_body,
 )
 
 API = "https://api.github.com"
@@ -649,3 +650,12 @@ def test_build_pr_body_bilingual_mentions_two_files():
         commits=[{"sha": "def4567890"}], base_sha="base1234567", head_sha="def4567890",
     )
     assert "README.en.md" not in body_zh  # 单语 body 不提 en
+
+
+def test_takeover_pr_body_warns_force_refresh_overwrites_branch():
+    """首次接管 PR 正文提醒：分支上手动解过冲突后，别在合并前用「强制重写主页」。"""
+    body = takeover_pr_body(
+        username="alice", snapshot_path="data/snapshot.json", bilingual=True
+    )
+    assert "强制重写主页" in body and "覆盖" in body and "手动" in body
+    assert "main 不会改动" in body  # 关闭 PR 的后果仍在
