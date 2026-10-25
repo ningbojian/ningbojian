@@ -502,6 +502,16 @@ def run(
         _profile_repo = next((r for r in repos if r.full_name == owner_repo), None)
         if _profile_repo is not None and _profile_repo.default_branch:
             profile_base = _profile_repo.default_branch
+        elif b_client_eff is not None and not dry_run:
+            # profile 仓库常被 repos.exclude 排除（示例配置就建议排除），此时查一次
+            # 仓库元数据拿真实默认分支；master 仓库不再因为硬编码 main 而开不出 PR
+            try:
+                _repo_data, _ = b_client_eff._get(f"{API}/repos/{owner_repo}")
+                profile_base = str(
+                    (_repo_data or {}).get("default_branch") or "main"
+                )
+            except Exception as exc:  # noqa: BLE001 —— 查不到按 main，PR 失败会回退
+                print(f"读取主页仓库默认分支失败（按 main 处理）：{exc}", file=sys.stderr)
     takeover_pr: dict | None = None
     if takeover_active and b_client_eff is not None and not dry_run:
         try:

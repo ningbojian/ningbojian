@@ -1067,10 +1067,13 @@ def test_repo_descriptions_manual_edit_is_never_overwritten(tmp_path, monkeypatc
 
 _TAKEOVER_BRANCH = "readme-auto/takeover"
 _OWNER = "alice/alice"
-_PULLS_TAKEOVER = (
-    f"https://api.github.com/repos/{_OWNER}/pulls"
-    f"?state=open&head=alice:{_TAKEOVER_BRANCH}&base=main"
-)
+
+
+def _pulls_url(base: str = "main") -> str:
+    return (
+        f"https://api.github.com/repos/{_OWNER}/pulls"
+        f"?state=open&head=alice:{_TAKEOVER_BRANCH}&base={base}"
+    )
 
 
 def _handwritten(tmp_path: Path, *, bilingual: bool = True) -> None:
@@ -1084,14 +1087,22 @@ def _handwritten(tmp_path: Path, *, bilingual: bool = True) -> None:
         )
 
 
-def _takeover_client(*, prs_first=None, with_commit_head=True, blob_ok=True):
+def _takeover_client(
+    *, prs_first=None, with_commit_head=True, blob_ok=True, repo_default_branch="main"
+):
     from fake_github import FakeHttp, FakeResponse
     from profile_agent.github_client import API, GitHubClient
 
     http = FakeHttp()
+    # 主页仓库不在 repos 列表时（常见：config 排除了 profile 自身），默认分支走 API
+    http.add(
+        "GET",
+        f"{API}/repos/{_OWNER}",
+        FakeResponse(200, {"default_branch": repo_default_branch}),
+    )
     # 开局检测 + open_or_refresh_pr 内部再查一次
     first = prs_first if prs_first is not None else [FakeResponse(200, [])] * 2
-    http.add("GET", _PULLS_TAKEOVER, *first)
+    http.add("GET", _pulls_url(repo_default_branch), *first)
     if with_commit_head:
         http.add(
             "GET",
@@ -1258,6 +1269,20 @@ snapshot:
         "README.md",
         "data/snapshot.json",
     }
+
+
+def test_takeover_uses_profile_repo_default_branch(tmp_path, monkeypatch, capsys):
+    """profile 仓库被 config 排除时，PR base 仍取真实默认分支（不是硬编码 main）。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path, bilingual=False)
+    http, client = _takeover_client(repo_default_branch="trunk")
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    assert http.has("GET", f"/repos/{_OWNER}")
+    pr_req = next(r for r in http.requests if r["url"].endswith("/pulls") and r["method"] == "POST")
+    assert pr_req["json"]["base"] == "trunk"
+    assert "接管" in capsys.readouterr().out
 
 
 def test_after_takeover_pr_merged_next_round_is_noop(tmp_path, monkeypatch, capsys):

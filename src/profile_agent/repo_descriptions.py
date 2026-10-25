@@ -17,7 +17,7 @@ import re
 
 from .bio import chat_text
 from .config import AIConfig, RepoDescriptionsConfig
-from .github_client import API, GitHubClient, GitHubError
+from .github_client import API, GitHubClient
 from .models import Repo
 from .repo_readmes import participants
 from .text_lang import contains_han, dominant_language
@@ -248,7 +248,7 @@ def apply_updates(
             continue
         try:
             data, _ = client._patch(f"{API}/repos/{repo.full_name}", {"description": new})
-        except GitHubError as exc:
+        except Exception as exc:  # noqa: BLE001 —— 网络中断也逐仓隔离，整轮不崩
             results.append(
                 {
                     "full_name": repo.full_name,

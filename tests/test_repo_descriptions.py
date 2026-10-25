@@ -288,6 +288,24 @@ def test_apply_updates_failure_leaves_entry_for_retry():
     assert "422" in results[0]["error"]
 
 
+def test_apply_updates_isolates_non_github_network_errors():
+    """连接中断等非 GitHubError 异常同样逐仓隔离，不得让整轮任务崩溃。"""
+    repo, entries, candidates = _candidate_setup()
+    client = _client(FakeHttp())
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("connection reset by peer")
+
+    client._patch = boom
+    results = apply_updates(
+        client, candidates, {repo.full_name: "新描述"},
+        entries, now_iso="2026-10-25T00:00:00+00:00",
+    )
+    assert results[0]["status"] == "failed"
+    assert "connection reset" in results[0]["error"]
+    assert entries[repo.full_name]["written"] == "旧描述"  # 条目未前进，下轮重试
+
+
 def test_apply_updates_skips_missing_generated_description():
     repo, entries, candidates = _candidate_setup()
     http = FakeHttp()
