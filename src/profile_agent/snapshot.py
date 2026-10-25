@@ -39,6 +39,25 @@ def _normalize_repo_readmes(raw: object) -> dict[str, dict]:
     return result
 
 
+def _normalize_repo_descriptions(raw: object) -> dict[str, dict]:
+    """描述写回条目补缺省；坏条目丢弃（残缺快照不得让进程崩溃）。"""
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, dict] = {}
+    for full_name, entry in raw.items():
+        if not isinstance(entry, dict):
+            continue
+        result[str(full_name)] = {
+            "baseline": str(entry.get("baseline") or ""),
+            "previous": str(entry.get("previous") or ""),
+            "written": str(entry.get("written") or ""),
+            "pushed_at": str(entry.get("pushed_at") or ""),
+            "generated_at": str(entry.get("generated_at") or ""),
+            "manual": bool(entry.get("manual")),
+        }
+    return result
+
+
 def load_snapshot(path: Path) -> Snapshot | None:
     if not path.exists():
         return None
@@ -56,8 +75,8 @@ def load_snapshot(path: Path) -> Snapshot | None:
         pins_raw = []
     try:
         return Snapshot(
-            # schema 1/2/3 旧快照读入时自动升级为 4（设计 §5.1）
-            schema=max(4, int(data.get("schema") or 1)),
+            # schema 1-4 旧快照读入时自动升级为 5（设计 §5.1 / 描述写回）
+            schema=max(5, int(data.get("schema") or 1)),
             username=str(data.get("username") or ""),
             stats_fingerprint=str(data.get("stats_fingerprint") or ""),
             stats_config_hash=str(data.get("stats_config_hash") or ""),
@@ -72,6 +91,9 @@ def load_snapshot(path: Path) -> Snapshot | None:
                 prompt_version=int(bio_raw.get("prompt_version") or 0),
             ),
             repo_readmes=_normalize_repo_readmes(data.get("repo_readmes")),
+            repo_descriptions=_normalize_repo_descriptions(
+                data.get("repo_descriptions")
+            ),
             pins=[str(x) for x in pins_raw],
             readme_last=str(data.get("readme_last") or ""),
             readme_last_en=str(data.get("readme_last_en") or ""),

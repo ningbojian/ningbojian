@@ -881,3 +881,183 @@ def test_custom_region_language_mismatch_warns_without_rewriting(tmp_path, monke
         tmp_path / "README.md"
     ).read_text(encoding="utf-8")
     assert "这是我手写的中文内容" in (tmp_path / "README.en.md").read_text(encoding="utf-8")
+
+
+# ============================ 仓库描述写回（2026-10-25） ============================
+
+
+def _desc_cfg(tmp_path: Path, *, enabled: bool = True) -> Path:
+    """repo_descriptions 场景配置：单语、无翻译干扰，只考察描述写回链路。"""
+    cfg = tmp_path / "config.yaml"
+    as_posix = lambda p: p.as_posix()  # noqa: E731
+    cfg.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+  bilingual: false
+repo_descriptions:
+  enabled: {"true" if enabled else "false"}
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    return cfg
+
+
+def _desc_client():
+    from fake_github import FakeHttp
+    from profile_agent.github_client import GitHubClient
+
+    http = FakeHttp()
+    return http, GitHubClient("pat", session=http, sleep=lambda _s: None)
+
+
+def _bump_fixture(fx: Path, full_name: str, *, pushed: str, description: str | None = None):
+    path = fx / "repos.json"
+    repos = json.loads(path.read_text(encoding="utf-8"))
+    for r in repos:
+        if r["full_name"] == full_name:
+            r["pushed_at"] = pushed
+            if description is not None:
+                r["description"] = description
+    path.write_text(json.dumps(repos, ensure_ascii=False), encoding="utf-8")
+
+
+def test_repo_descriptions_disabled_by_default_never_patches(tmp_path, monkeypatch):
+    import profile_agent.cli as cli_mod
+
+    cfg = _desc_cfg(tmp_path, enabled=False)
+    http, client = _desc_client()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_descriptions",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("关闭时不得调 AI")),
+    )
+    assert run(cfg, fixture=_copy_fixture(tmp_path), b_client=client) == 0
+    assert http.writes() == []
+
+
+def test_repo_descriptions_enabling_records_baseline_once_then_noop(
+    tmp_path, monkeypatch, capsys
+):
+    """升级路径：先按旧配置跑一轮，再开启开关——只记基线、零 PATCH、零 AI；
+    基线记完后下一轮门关闭，不会因为开关本身反复触发。"""
+    import profile_agent.cli as cli_mod
+
+    fx = _copy_fixture(tmp_path)
+    http, client = _desc_client()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_descriptions",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("首次只记基线")),
+    )
+    disabled = _desc_cfg(tmp_path, enabled=False)
+    assert run(disabled, fixture=fx, b_client=client) == 0
+    assert http.writes() == []
+
+    enabled = _desc_cfg(tmp_path, enabled=True)
+    assert run(enabled, fixture=fx, b_client=client) == 0
+    assert http.writes() == []
+    out = capsys.readouterr().out
+    assert "基线" in out
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = data["repo_descriptions"]["alice/cool-tool"]
+    assert entry["baseline"] == "一个很酷的工具"
+    assert entry["written"] == "一个很酷的工具"
+    assert entry["manual"] is False
+    assert "alice/alice" not in data["repo_descriptions"]  # profile 自身排除
+
+    assert run(enabled, fixture=fx, b_client=client) == 0
+    assert "无变化，跳过更新" in capsys.readouterr().out
+    assert http.writes() == []
+
+
+def test_repo_descriptions_push_updates_github_readme_and_snapshot(
+    tmp_path, monkeypatch, capsys
+):
+    """pushed_at 变了 → AI 生成新描述 → PATCH → 同轮渲染用新描述 + 快照存响应值。"""
+    import profile_agent.cli as cli_mod
+
+    from fake_github import FakeResponse
+    from profile_agent.github_client import API
+
+    fx = _copy_fixture(tmp_path)
+    http, client = _desc_client()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    cfg = _desc_cfg(tmp_path)
+    summary = tmp_path / "step_summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    assert run(cfg, fixture=fx, b_client=client) == 0  # 记基线
+
+    _bump_fixture(
+        fx, "alice/cool-tool", pushed="2026-10-24T00:00:00Z", description="一个很酷的工具"
+    )
+    seen = []
+
+    def fake_generate(items, cfg_ai, **kwargs):
+        seen.extend(items)
+        return {"alice/cool-tool": "会把 CSV 一键转成表格的命令行工具"}, ""
+
+    monkeypatch.setattr(cli_mod, "generate_descriptions", fake_generate)
+    http.add(
+        "PATCH",
+        f"{API}/repos/alice/cool-tool",
+        FakeResponse(200, {"description": "会把 CSV 一键转成表格的命令行工具"}),
+    )
+    assert run(cfg, fixture=fx, b_client=client) == 0
+
+    assert [i["full_name"] for i in seen] == ["alice/cool-tool"]
+    assert seen[0]["target"] == "zh"  # 描述原本是中文
+    assert [r["method"] for r in http.writes()] == ["PATCH"]
+    assert http.requests[-1]["json"] == {"description": "会把 CSV 一键转成表格的命令行工具"}
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "会把 CSV 一键转成表格的命令行工具" in readme  # 同轮渲染就用新描述
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    entry = data["repo_descriptions"]["alice/cool-tool"]
+    assert entry["written"] == "会把 CSV 一键转成表格的命令行工具"
+    assert entry["previous"] == "一个很酷的工具"
+    assert entry["pushed_at"] == "2026-10-24T00:00:00+00:00"
+    text = summary.read_text(encoding="utf-8")
+    assert "仓库描述" in text and "已更新" in text
+    assert "描述已更新" in capsys.readouterr().out
+
+
+def test_repo_descriptions_manual_edit_is_never_overwritten(tmp_path, monkeypatch, capsys):
+    """用户手改描述后永久交还控制权：不 PATCH、不调 AI，并明确提示。"""
+    import profile_agent.cli as cli_mod
+
+    fx = _copy_fixture(tmp_path)
+    http, client = _desc_client()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "", True))
+    cfg = _desc_cfg(tmp_path)
+    assert run(cfg, fixture=fx, b_client=client) == 0  # 记基线
+
+    _bump_fixture(
+        fx,
+        "alice/cool-tool",
+        pushed="2026-10-24T00:00:00Z",
+        description="我亲手写的描述，别动",
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_descriptions",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("手动改过不得调 AI")),
+    )
+    assert run(cfg, fixture=fx, b_client=client) == 0
+    assert http.writes() == []
+    data = json.loads((tmp_path / "data" / "snapshot.json").read_text(encoding="utf-8"))
+    assert data["repo_descriptions"]["alice/cool-tool"]["manual"] is True
+    assert "手动" in capsys.readouterr().out
+    assert "我亲手写的描述，别动" in (tmp_path / "README.md").read_text(encoding="utf-8")

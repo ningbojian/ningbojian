@@ -85,7 +85,7 @@ def test_snapshot_text_is_exactly_what_save_snapshot_writes(tmp_path):
 def test_schema2_upgrades_to_3_with_empty_repo_readmes(tmp_path):
     """SB01：schema 2 旧快照读入自动升级并补空 repo_readmes，旧字段原样保留。
 
-    有意变更（schema 4 双语/面板/三路合并）：升级目标由 3 改为 4。
+    有意变更（schema 5 仓库描述写回）：升级目标由 4 改为 5。
     """
     path = tmp_path / "s.json"
     path.write_text(
@@ -102,21 +102,21 @@ def test_schema2_upgrades_to_3_with_empty_repo_readmes(tmp_path):
     )
     loaded = load_snapshot(path)
     assert loaded is not None
-    assert loaded.schema == 4
+    assert loaded.schema == 5
     assert loaded.repo_readmes == {}
     assert loaded.username == "alice"
     assert loaded.bio.text == "旧简介"
-    # 二次往返后仍 schema=4 且含 "repo_readmes": {}
+    # 二次往返后仍 schema=5 且含 "repo_readmes": {}
     save_snapshot(path, loaded)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema"] == 4
+    assert data["schema"] == 5
     assert data["repo_readmes"] == {}
 
 
 def test_schema1_upgrades_to_3(tmp_path):
     """SB02：schema 1 快照同样兼容读入。
 
-    有意变更（schema 4 双语/面板/三路合并）：升级目标由 3 改为 4。
+    有意变更（schema 5 仓库描述写回）：升级目标由 4 改为 5。
     """
     path = tmp_path / "s.json"
     path.write_text(
@@ -125,7 +125,7 @@ def test_schema1_upgrades_to_3(tmp_path):
     )
     loaded = load_snapshot(path)
     assert loaded is not None
-    assert loaded.schema == 4
+    assert loaded.schema == 5
     assert loaded.repo_readmes == {}
     assert loaded.stats_fingerprint == "sha256:abc"
 
@@ -191,30 +191,40 @@ def test_malformed_repo_readme_entry_fills_defaults(tmp_path):
     assert entry["mode"] == "block"
 
 
-def test_snapshot_schema4_roundtrip_pins_and_bio_en(tmp_path):
-    """schema 4：新增 pins（生效置顶名单）、bio.text_en（英文简介）、
-    readme_last（上次写入内容，三路合并 base）——保存后读回逐字段一致。"""
+def test_snapshot_schema5_roundtrip_pins_bio_en_and_descriptions(tmp_path):
+    """schema 5：pins、bio.text_en、readme_last、repo_descriptions 保存后读回一致。"""
     snap = Snapshot(
-        schema=4,
+        schema=5,
         username="alice",
         pins=["alice/cool-tool", "alice/web-app"],
         bio=BioInfo(text="你好。", text_en="Hi.", input_hash="sha256:x"),
         readme_last="# 上次写入的 README\n",
+        repo_descriptions={
+            "alice/cool-tool": {
+                "baseline": "旧描述",
+                "previous": "旧描述",
+                "written": "新描述",
+                "pushed_at": "2026-10-20T00:00:00+00:00",
+                "generated_at": "2026-10-25T00:00:00+00:00",
+                "manual": False,
+            }
+        },
     )
     p = tmp_path / "snapshot.json"
     save_snapshot(p, snap)
     got = load_snapshot(p)
     assert got is not None
-    assert got.schema == 4
+    assert got.schema == 5
     assert got.pins == ["alice/cool-tool", "alice/web-app"]
     assert got.bio.text_en == "Hi."
     assert got.readme_last == "# 上次写入的 README\n"
+    assert got.repo_descriptions["alice/cool-tool"]["written"] == "新描述"
 
 
-def test_schema3_upgrades_to_4(tmp_path):
-    """旧快照（schema 3、无新字段）读入自动升级：schema=4、新字段空缺省。"""
+def test_schema4_upgrades_to_5_with_empty_repo_descriptions(tmp_path):
+    """旧快照（schema 4、无描述写回字段）读入自动升级：schema=5、空缺省。"""
     old = {
-        "schema": 3,
+        "schema": 4,
         "username": "alice",
         "stats_fingerprint": "sha256:abc",
         "repos": [],
@@ -226,7 +236,37 @@ def test_schema3_upgrades_to_4(tmp_path):
     p.write_text(json.dumps(old, ensure_ascii=False), encoding="utf-8")
     got = load_snapshot(p)
     assert got is not None
-    assert got.schema == 4
+    assert got.schema == 5
+    assert got.repo_descriptions == {}
     assert got.pins == []
     assert got.bio.text_en == ""
     assert got.readme_last == ""
+
+
+def test_malformed_repo_descriptions_entries_are_normalized(tmp_path):
+    """坏条目丢弃、字符串字段补空、manual 强制布尔——残缺快照不得让进程崩溃。"""
+    p = tmp_path / "snapshot.json"
+    p.write_text(
+        json.dumps(
+            {
+                "schema": 5,
+                "repo_descriptions": {
+                    "alice/x": {"baseline": "b", "manual": 1},
+                    "alice/y": "坏条目",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    got = load_snapshot(p)
+    assert got is not None
+    assert set(got.repo_descriptions) == {"alice/x"}
+    entry = got.repo_descriptions["alice/x"]
+    assert entry == {
+        "baseline": "b",
+        "previous": "",
+        "written": "",
+        "pushed_at": "",
+        "generated_at": "",
+        "manual": True,
+    }

@@ -89,7 +89,7 @@ class BioInfo:
 
 @dataclass
 class Snapshot:
-    schema: int = 4
+    schema: int = 5
     username: str = ""
     stats_fingerprint: str = ""
     stats_config_hash: str = ""
@@ -99,6 +99,10 @@ class Snapshot:
     # 模式 B（repo_readmes）逐仓状态：full_name → {sha, block_hash, mode,
     # failed_hash, last_input_hash, pending, updated_at}（设计 §5.1，schema 3）
     repo_readmes: dict[str, dict] = field(default_factory=dict)
+    # 仓库描述写回逐仓状态：full_name → {baseline, previous, written,
+    # pushed_at, generated_at, manual}（schema 5；baseline 是首次见到的描述，
+    # written 是工具上次成功写入的值——当前描述 ≠ written 即视为用户手改）
+    repo_descriptions: dict[str, dict] = field(default_factory=dict)
     # 最近一次生效置顶（原生 Pinned 解析结果；读取失败时为回退结果，schema 4）
     pins: list[str] = field(default_factory=list)
     # 上次渲染输出（非合并写入）——生成区三路合并的 base，zh/en 各自独立（schema 4）

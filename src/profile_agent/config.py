@@ -112,6 +112,19 @@ class RepoReadmesConfig:
 
 
 @dataclass
+class RepoDescriptionsConfig:
+    """仓库描述自动写回（默认关闭）。
+
+    第一次见到仓库只记基线、绝不 PATCH；用户手动改过描述即永久交还控制权；
+    每轮最多写 BATCH_LIMIT 个。include/exclude 语义与 repo_readmes 完全一致。
+    """
+
+    enabled: bool = False
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Config:
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     github: GitHubConfig = field(default_factory=GitHubConfig)
@@ -120,6 +133,9 @@ class Config:
     readme: ReadmeConfig = field(default_factory=ReadmeConfig)
     ai: AIConfig = field(default_factory=AIConfig)
     repo_readmes: RepoReadmesConfig = field(default_factory=RepoReadmesConfig)
+    repo_descriptions: RepoDescriptionsConfig = field(
+        default_factory=RepoDescriptionsConfig
+    )
     snapshot: SnapshotConfig = field(default_factory=SnapshotConfig)
 
 
@@ -276,6 +292,21 @@ def load_config(path: Path, *, fallback_username: str | None = None) -> Config:
         max_diff_chars=int(rr.get("max_diff_chars", 6000)),
         prompt_version=int(rr.get("prompt_version", 1)),
         pr_branch=str(rr.get("pr_branch") or "readme-auto/update"),
+    )
+
+    # 仓库描述自动写回（2026-10-25）：默认关闭；开关不进 render_fingerprint——
+    # 开启/关闭本身不该重写 README，用 repo_descriptions.is_dirty 单独开门
+    rd = _section(data, "repo_descriptions")
+    rd_include = rd.get("include") or []
+    rd_exclude = rd.get("exclude") or []
+    if not isinstance(rd_include, list):
+        raise ConfigError("repo_descriptions.include 必须是列表")
+    if not isinstance(rd_exclude, list):
+        raise ConfigError("repo_descriptions.exclude 必须是列表")
+    cfg.repo_descriptions = RepoDescriptionsConfig(
+        enabled=bool(rd.get("enabled", False)),
+        include=[str(x) for x in rd_include],
+        exclude=[str(x) for x in rd_exclude],
     )
 
     snap = _section(data, "snapshot")

@@ -36,6 +36,14 @@ from .github_client import API, GitHubClient, GitHubError
 from .models import Snapshot, TemplateContext
 from .preserve import extract_custom, merge_readme_3way
 from .render import render_readme, write_if_changed
+from .repo_descriptions import (
+    apply_updates,
+    generate_descriptions,
+    is_dirty,
+    plan_updates,
+    summary_lines as description_summary_lines,
+    target_language,
+)
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
 from .repo_readmes_pr import (
@@ -462,6 +470,28 @@ def run(
             merge_requested = bool(parse_merge_targets(str(issue_cached.get("body") or "")))
         _merge_from_issue(issue_cached, "开局")
 
+    # 仓库描述写回（2026-10-25）：开关不进 render_fingerprint，用 desc_dirty 单独开门。
+    # 首次记基线、有新推送或手动修改识别都属于「有待办」——否则门关着基线永远写不进去。
+    desc_entries: dict[str, dict] = dict(prev.repo_descriptions) if prev else {}
+    descriptions_active = bool(
+        cfg.repo_descriptions.enabled
+        and ai_active
+        and b_client_eff is not None
+        and not dry_run
+    )
+    desc_dirty = descriptions_active and is_dirty(
+        repos, cfg.repo_descriptions, desc_entries, cfg.github.username
+    )
+    if cfg.repo_descriptions.enabled and not dry_run:
+        if b_client_eff is None:
+            _line = "仓库描述写回已开启，但缺少 WORKFLOW_PAT，本次跳过（配置后自动启用）"
+            print(_line, file=sys.stderr)
+            _append_summary(f"- ⚠️ {_line}")
+        elif not no_ai and not ai_active:
+            _line = "仓库描述写回已开启，但缺少 AI key，本次跳过（配好后自动重试）"
+            print(_line, file=sys.stderr)
+            _append_summary(f"- ⚠️ {_line}")
+
     # 增量门（2026-10-23 设计验证修订）：b_force（对话框承诺「全量重跑开 PR」，Q21）与
     # 清单勾选（merge_requested，用户在要求动作）都必须开门；enabled=false 时勾选只警告
     # 不运行（Q22）→ b_gate 含 enabled 判定，冲突警告已在上方输出
@@ -481,6 +511,7 @@ def run(
         and bio_fresh
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
         and not b_pending
+        and not desc_dirty  # 描述写回有待办（首次记基线/新推送）时开门
     ):
         print("无变化，跳过更新")
         return 0
@@ -880,6 +911,60 @@ def run(
         print(sources_line)
         _append_summary(f"- {sources_line}")
 
+    # 3.8 仓库描述写回（2026-10-25）：模式 B 之后、补位/翻译/简介之前——
+    # 同轮渲染、描述翻译与简介都直接使用新描述；不重新精选、不重算 totals。
+    desc_results: list[dict] = []
+    desc_notices: list[str] = []
+    desc_remaining = 0
+    if descriptions_active:
+        _desc_now = datetime.now(timezone.utc).isoformat()
+        candidates, desc_notices, desc_remaining = plan_updates(
+            repos,
+            cfg.repo_descriptions,
+            desc_entries,
+            cfg.github.username,
+            now_iso=_desc_now,
+        )
+        if candidates:
+            items = []
+            for r in candidates:
+                readme_text = readme_of(r.full_name)
+                items.append(
+                    {
+                        "full_name": r.full_name,
+                        "description": r.description,
+                        "readme": readme_text,
+                        "language": r.language,
+                        "topics": list(r.topics),
+                        "target": target_language(r.description, readme_text, cfg.ai),
+                    }
+                )
+            generated, warn = generate_descriptions(items, cfg.ai)
+            if warn:
+                print(warn, file=sys.stderr)
+                _append_summary(f"### 仓库描述\n- ⚠️ {warn}")
+            desc_results = apply_updates(
+                b_client_eff,
+                candidates,
+                generated,
+                desc_entries,
+                now_iso=_desc_now,
+            )
+            if any(r.get("status") == "updated" for r in desc_results):
+                # 描述已变：指纹、简介输入、补位目标同轮跟进（不重新精选/重算 totals）
+                fingerprint = stats_fingerprint(totals, repos, featured)
+                payload = build_bio_payload(
+                    user, featured, cfg.ai, bilingual=cfg.readme.bilingual
+                )
+                cur_hash = bio_input_hash(payload, cfg.ai)
+                short_targets = [r for r in short_targets if not r.description]
+        _desc_lines = desc_notices + description_summary_lines(
+            desc_results, desc_remaining
+        )
+        if _desc_lines:
+            print("\n".join(_desc_lines))
+            _append_summary("### 仓库描述\n" + "\n".join(_desc_lines))
+
     # 4. 描述补位：缺 description 的精选仓库，用其 README 生成一句主页文案
     short_intros: dict[str, str] = {}
     short_intros_en: dict[str, str] = {}
@@ -1099,7 +1184,7 @@ def run(
     merged_states.update(short_states)
     merged_states.update(desc_states)  # A-WP-B：英译缓存（desc_en/desc_en_src）落盘
     new_snap = Snapshot(
-        schema=4,  # 2026-10-23 WP1：pins/readme_last/readme_last_en/BioInfo.text_en
+        schema=5,  # 2026-10-25：新增 repo_descriptions（描述写回状态）
         username=cfg.github.username,
         stats_fingerprint=fingerprint,
         stats_config_hash=cfg_hash,
@@ -1134,6 +1219,7 @@ def run(
         ],
         bio=bio_info,
         repo_readmes=repo_readmes_state,
+        repo_descriptions=desc_entries,
         generated_at=now_iso,
     )
     save_snapshot(snap_path, new_snap)

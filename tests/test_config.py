@@ -304,3 +304,42 @@ def test_readme_sections_must_be_mapping(tmp_path):
     )
     with pytest.raises(ConfigError, match="readme.sections"):
         load_config(path)
+
+
+# ---- repo_descriptions 配置段（描述写回，2026-10-25）----
+
+
+def test_repo_descriptions_defaults_off(tmp_path):
+    """默认关闭：升级到新版本不会自动改任何仓库描述。"""
+    path = _write(tmp_path, 'github:\n  username: "a"\n')
+    rd = load_config(path).repo_descriptions
+    assert rd.enabled is False
+    assert rd.include == []
+    assert rd.exclude == []
+
+
+def test_repo_descriptions_full_values_respected(tmp_path):
+    path = _write(
+        tmp_path,
+        """
+github:
+  username: "a"
+repo_descriptions:
+  enabled: true
+  include: ["cool-tool"]
+  exclude: ["old-thing"]
+""",
+    )
+    rd = load_config(path).repo_descriptions
+    assert rd.enabled is True
+    assert rd.include == ["cool-tool"]
+    assert rd.exclude == ["old-thing"]
+
+
+def test_repo_descriptions_include_must_be_list(tmp_path):
+    path = _write(
+        tmp_path,
+        'github:\n  username: "a"\nrepo_descriptions:\n  include: "cool-tool"\n',
+    )
+    with pytest.raises(ConfigError, match="repo_descriptions.include"):
+        load_config(path)
