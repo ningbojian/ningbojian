@@ -64,7 +64,7 @@ ai:
 repo_readmes:
   enabled: true
   include: [] # 空 = 按 repos 过滤规则的全部仓库（灰度已结束，全量启用）
-  exclude: [] # 在 include 之上再排除
+  exclude: ["ningbojian/ProfileReadmeAgent"] # 模板仓库自身：README 是给用户的说明页，不自动改写
   max_diff_chars: 6000 # 喂给模型的 diff 字符上限
   prompt_version: 2 # 改模式 B 的 prompt 时 +1，强制重新生成（2026-10-23 嵌入原 README 修订基础）
   pr_branch: "readme-auto/update" # PR 分支名；主页从这里读未合并内容
