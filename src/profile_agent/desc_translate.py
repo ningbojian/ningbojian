@@ -16,9 +16,7 @@ import re
 
 from .bio import chat_text
 from .config import AIConfig
-
-# Han 基本区（一-鿿）+ 扩展A（㐀-䶿）；不含假名/谚文（不译非中文语言，零回归）
-_HAN_RE = re.compile("[一-鿿㐀-䶿]")
+from .text_lang import contains_han
 
 # 两个翻译方向各自的 system / 动词 / 目标语言名（提示词与警告文案同源，避免漂移）
 _DIRECTIONS = {
@@ -42,8 +40,11 @@ _DIRECTIONS = {
 
 
 def contains_cjk(text: str) -> bool:
-    """描述是否含汉字（基本区或扩展A）；纯 ASCII/假名等返回 False。"""
-    return bool(text) and bool(_HAN_RE.search(text))
+    """描述是否含汉字（基本区或扩展A）；纯 ASCII/假名等返回 False。
+
+    薄包装 ``text_lang.contains_han``：语言判定口径集中一处，避免两套正则漂移。
+    """
+    return contains_han(text)
 
 
 def _parse_desc_map(raw: str) -> dict[str, str] | None:

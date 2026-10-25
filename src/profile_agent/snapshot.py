@@ -9,11 +9,14 @@ from pathlib import Path
 from .models import BioInfo, Snapshot
 
 
+def snapshot_text(snap: Snapshot) -> str:
+    """快照的磁盘序列化（本地落盘与首次接管 PR 推送共用，必须逐字节一致）。"""
+    return json.dumps(asdict(snap), ensure_ascii=False, indent=2) + "\n"
+
+
 def save_snapshot(path: Path, snap: Snapshot) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(asdict(snap), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    path.write_text(snapshot_text(snap), encoding="utf-8")
 
 
 def _normalize_repo_readmes(raw: object) -> dict[str, dict]:

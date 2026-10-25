@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from profile_agent.models import BioInfo, Snapshot
-from profile_agent.snapshot import load_snapshot, save_snapshot
+from profile_agent.snapshot import load_snapshot, save_snapshot, snapshot_text
 
 
 def _sample() -> Snapshot:
@@ -68,6 +68,15 @@ def test_load_non_dict_json_returns_none(tmp_path):
     path = tmp_path / "s.json"
     path.write_text("[]", encoding="utf-8")
     assert load_snapshot(path) is None
+
+
+def test_snapshot_text_is_exactly_what_save_snapshot_writes(tmp_path):
+    """首次接管 PR 要按仓库相对路径推送快照——序列化必须与本地落盘逐字节一致。"""
+    path = tmp_path / "s.json"
+    snap = _sample()
+    save_snapshot(path, snap)
+    assert path.read_text(encoding="utf-8") == snapshot_text(snap)
+    assert snapshot_text(snap).endswith("\n")
 
 
 # ---- schema 3 与 repo_readmes（模式 B，测试计划 SB01-SB04）----
