@@ -21,6 +21,8 @@ from profile_agent.readme_block import END, START
 from profile_agent.repo_readmes_ai import ProcessResult
 
 PR_BRANCH = "readme-auto/update"
+# 首次接管专用分支（2026-10-25）：与日常更新分支分开，避免普通模式 B PR 干扰预览语义
+TAKEOVER_BRANCH = "readme-auto/takeover"
 BASE_BRANCH = "main"
 
 
@@ -29,6 +31,32 @@ class PrResult:
     number: int
     html_url: str
     refreshed: bool
+
+
+def takeover_pr_title(username: str) -> str:
+    """首次接管 PR 标题：一眼能看出这是预览，不是日常自动更新。"""
+    return f"feat({username}): 首次接管主页 README（预览，待审核）"
+
+
+def takeover_pr_body(*, username: str, snapshot_path: str, bilingual: bool) -> str:
+    """首次接管 PR 正文：讲清「合并什么、关了什么后果、冲突怎么办」。"""
+    files = "`README.md`" + (" 与 `README.en.md`" if bilingual else "")
+    return (
+        f">这是给 {username} 的一次性**首次接管预览**：合并本 PR = 采用工具生成的版面；"
+        f"关闭本 PR = 保留你现在的 `README.md`（main 不会改动）。\n"
+        "\n"
+        f"本 PR 同时更新 {files}，并把首次接管状态写入 `{snapshot_path}`。"
+        "两个文件必须一起合并——快照缺失会让下一轮再次进入首次接管。\n"
+        "\n"
+        "你原来的内容会**逐字完整**放进 custom 标记区，不会被翻译、改写或删除；"
+        "联系方式、社交账号、HTML 都原样保留。\n"
+        "\n"
+        "请注意：\n"
+        "- 合并后，下一轮才会恢复正常自动更新；\n"
+        "- 关闭本 PR 不会改动 main，但下一轮会重新开一个接管 PR"
+        "（main 上没有地方记录“已拒绝”）；\n"
+        "- PR 打开期间如果 main 又前进了，合并可能冲突：关闭重开，或手动解决冲突即可。\n"
+    )
 
 
 def build_pr_title(full_name: str) -> str:

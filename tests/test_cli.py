@@ -1061,3 +1061,274 @@ def test_repo_descriptions_manual_edit_is_never_overwritten(tmp_path, monkeypatc
     assert data["repo_descriptions"]["alice/cool-tool"]["manual"] is True
     assert "手动" in capsys.readouterr().out
     assert "我亲手写的描述，别动" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+# ============================ 首次接管 PR 预览（2026-10-25） ============================
+
+_TAKEOVER_BRANCH = "readme-auto/takeover"
+_OWNER = "alice/alice"
+_PULLS_TAKEOVER = (
+    f"https://api.github.com/repos/{_OWNER}/pulls"
+    f"?state=open&head=alice:{_TAKEOVER_BRANCH}&base=main"
+)
+
+
+def _handwritten(tmp_path: Path, *, bilingual: bool = True) -> None:
+    (tmp_path / "README.md").write_text(
+        "# 我的主页\n\n我手写的介绍，请完整保留。\n\n## 联系我\n- email: me@example.com\n",
+        encoding="utf-8",
+    )
+    if bilingual:
+        (tmp_path / "README.en.md").write_text(
+            "# My Profile\n\nHandwritten English intro to preserve.\n", encoding="utf-8"
+        )
+
+
+def _takeover_client(*, prs_first=None, with_commit_head=True, blob_ok=True):
+    from fake_github import FakeHttp, FakeResponse
+    from profile_agent.github_client import API, GitHubClient
+
+    http = FakeHttp()
+    # 开局检测 + open_or_refresh_pr 内部再查一次
+    first = prs_first if prs_first is not None else [FakeResponse(200, [])] * 2
+    http.add("GET", _PULLS_TAKEOVER, *first)
+    if with_commit_head:
+        http.add(
+            "GET",
+            f"{API}/repos/{_OWNER}/commits/HEAD",
+            FakeResponse(200, {"sha": "headsha123"}),
+        )
+        http.add(
+            "GET",
+            f"{API}/repos/{_OWNER}/git/ref/heads/{_TAKEOVER_BRANCH}",
+            FakeResponse(404),
+        )
+    if blob_ok:
+        http.add(
+            "POST",
+            f"{API}/repos/{_OWNER}/git/blobs",
+            *[FakeResponse(201, {"sha": f"blob{i}"}) for i in range(3)],
+        )
+    else:
+        # 每个 blob 重试 2 次（共 3 次）后抛错——足够让首个 blob 失败并触发回退
+        http.add(
+            "POST",
+            f"{API}/repos/{_OWNER}/git/blobs",
+            *[FakeResponse(500, text="boom") for _ in range(6)],
+        )
+    http.add("POST", f"{API}/repos/{_OWNER}/git/trees", FakeResponse(201, {"sha": "tree1"}))
+    http.add("POST", f"{API}/repos/{_OWNER}/git/commits", FakeResponse(201, {"sha": "commit1"}))
+    http.add("POST", f"{API}/repos/{_OWNER}/git/refs", FakeResponse(201, {"ref": "ref1"}))
+    http.add(
+        "POST",
+        f"{API}/repos/{_OWNER}/pulls",
+        FakeResponse(201, {"number": 12, "html_url": "https://github.com/alice/alice/pull/12"}),
+    )
+    return http, GitHubClient("pat", session=http, sleep=lambda _s: None)
+
+
+def _takeover_ai(monkeypatch):
+    import profile_agent.cli as cli_mod
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(cli_mod, "generate_bio", lambda *a, **k: ("简介", "Bio", True))
+    monkeypatch.setattr(cli_mod, "translate_descriptions", lambda items, cfg, **kw: ({}, ""))
+    return cli_mod
+
+
+def test_first_takeover_opens_pr_and_leaves_main_untouched(tmp_path, monkeypatch, capsys):
+    """首次接管：一个 PR 装齐中英 README + 快照；本地 main 一个字节都不动。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    before_zh = (tmp_path / "README.md").read_text(encoding="utf-8")
+    before_en = (tmp_path / "README.en.md").read_text(encoding="utf-8")
+    http, client = _takeover_client()
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+
+    out = capsys.readouterr().out
+    assert "接管" in out and "pull/12" in out
+    # 本地零写入（快照也不落盘——快照随 PR 一起合并）
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == before_zh
+    assert (tmp_path / "README.en.md").read_text(encoding="utf-8") == before_en
+    assert not (tmp_path / "data" / "snapshot.json").exists()
+
+    tree_req = next(r for r in http.requests if r["url"].endswith("/git/trees"))
+    paths = {e["path"] for e in tree_req["json"]["tree"]}
+    assert paths == {"README.md", "README.en.md", "data/snapshot.json"}
+    blobs = [r for r in http.requests if r["url"].endswith("/git/blobs")]
+    assert len(blobs) == 3
+    assert "我手写的介绍，请完整保留" in blobs[0]["json"]["content"]
+    assert "Handwritten English intro to preserve" in blobs[1]["json"]["content"]
+    snap = json.loads(blobs[2]["json"]["content"])
+    assert snap["schema"] == 5 and snap["username"] == "alice"
+    pr_req = next(r for r in http.requests if r["url"].endswith("/pulls") and r["method"] == "POST")
+    assert pr_req["json"]["head"] == _TAKEOVER_BRANCH
+    assert pr_req["json"]["base"] == "main"
+    assert "接管" in pr_req["json"]["title"]
+    assert "data/snapshot.json" in pr_req["json"]["body"]
+
+
+def test_takeover_skips_whole_round_while_pr_open(tmp_path, monkeypatch, capsys):
+    """接管 PR 还开着：直接跳过（不重渲染、不调 AI、不开第二条 PR）。"""
+    from fake_github import FakeResponse
+
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    http, client = _takeover_client(
+        prs_first=[
+            FakeResponse(
+                200,
+                [{"number": 12, "html_url": "https://github.com/alice/alice/pull/12"}],
+            )
+        ],
+        with_commit_head=False,
+    )
+    cli_mod = _takeover_ai(monkeypatch)
+    monkeypatch.setattr(
+        cli_mod,
+        "generate_bio",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("PR 待合并时不得调 AI")),
+    )
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    out = capsys.readouterr().out
+    assert "仍待合并" in out and "pull/12" in out
+    assert not any(r["method"] != "GET" for r in http.requests)
+    assert not (tmp_path / "data" / "snapshot.json").exists()
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# 我的主页")
+
+
+def test_takeover_without_pat_writes_directly_with_explicit_warning(
+    tmp_path, monkeypatch, capsys
+):
+    """没有 WORKFLOW_PAT：保持直接写 main，但必须明确告知无法预览。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path, bilingual=False)
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES) == 0
+    err = capsys.readouterr().err
+    assert "WORKFLOW_PAT" in err and "直接写入 main" in err
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "我手写的介绍，请完整保留" in readme  # 手写内容进 custom 区
+    assert "## 📊 统计信息" in readme  # 生成区照常落地
+    assert (tmp_path / "data" / "snapshot.json").exists()
+
+
+def test_takeover_dry_run_prints_and_never_calls_github(tmp_path, monkeypatch, capsys):
+    """dry-run 只打印渲染结果：不检测 PR、不推送、不写文件。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    http, client = _takeover_client()
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client, dry_run=True) == 0
+    assert http.requests == []
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# 我的主页")
+
+
+def test_takeover_bilingual_false_pushes_two_files(tmp_path, monkeypatch):
+    """单语模式：PR 里只有 README.md + 快照，不凭空造 en 文件。"""
+    as_posix = lambda p: p.as_posix()  # noqa: E731
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        f"""
+github:
+  username: "alice"
+repos:
+  exclude: ["alice/old-profile"]
+readme:
+  path: "{as_posix(tmp_path / 'README.md')}"
+  template: "{as_posix(TEMPLATE)}"
+  bilingual: false
+snapshot:
+  path: "{as_posix(tmp_path / 'data' / 'snapshot.json')}"
+""",
+        encoding="utf-8",
+    )
+    _handwritten(tmp_path, bilingual=False)
+    http, client = _takeover_client()
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    tree_req = next(r for r in http.requests if r["url"].endswith("/git/trees"))
+    assert {e["path"] for e in tree_req["json"]["tree"]} == {
+        "README.md",
+        "data/snapshot.json",
+    }
+
+
+def test_after_takeover_pr_merged_next_round_is_noop(tmp_path, monkeypatch, capsys):
+    """PR 合并后的下一轮：盘上已是机器 README + 新快照 → 正常增量门直接 no-op。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path)
+    http, client = _takeover_client()
+    _takeover_ai(monkeypatch)
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+
+    blobs = [r for r in http.requests if r["url"].endswith("/git/blobs")]
+    (tmp_path / "README.md").write_text(blobs[0]["json"]["content"], encoding="utf-8")
+    (tmp_path / "README.en.md").write_text(blobs[1]["json"]["content"], encoding="utf-8")
+    (tmp_path / "data").mkdir(exist_ok=True)
+    (tmp_path / "data" / "snapshot.json").write_text(
+        blobs[2]["json"]["content"], encoding="utf-8"
+    )
+
+    assert run(cfg, fixture=FIXTURES) == 0
+    assert "无变化，跳过更新" in capsys.readouterr().out
+
+
+def test_takeover_pr_failure_falls_back_to_direct_write(tmp_path, monkeypatch, capsys):
+    """PR 创建失败（网络/权限）：回退直接写 main，任务不失败。"""
+    cfg = _write_config(tmp_path)
+    _handwritten(tmp_path, bilingual=False)
+    http, client = _takeover_client(blob_ok=False)
+    _takeover_ai(monkeypatch)
+
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    err = capsys.readouterr().err
+    assert "回退" in err and "main" in err
+    assert (tmp_path / "data" / "snapshot.json").exists()
+    assert "我手写的介绍" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_takeover_opens_gate_even_when_fingerprint_unchanged(tmp_path, monkeypatch):
+    """指纹完全没变也必须开门：否则第二次运行会 no-op，接管 PR 永远开不出来。"""
+    cfg = _write_config(tmp_path)
+    _takeover_ai(monkeypatch)
+    assert run(cfg, fixture=FIXTURES) == 0  # 正常首跑：机器 README + 快照
+    (tmp_path / "README.md").write_text(
+        "# 手写主页\n这是我后来换上的手写内容。\n", encoding="utf-8"
+    )
+    (tmp_path / "README.en.md").write_text(
+        "# Handwritten\nReplaced after the first run.\n", encoding="utf-8"
+    )
+
+    http, client = _takeover_client()
+    assert run(cfg, fixture=FIXTURES, b_client=client) == 0
+    assert http.has("POST", "/pulls")
+
+
+def test_after_takeover_merged_data_change_updates_normally(tmp_path, monkeypatch):
+    """合并后数据变化：不再走接管分支，按普通增量更新本地 README。"""
+    fx = _copy_fixture(tmp_path)
+    cfg = _desc_cfg(tmp_path, enabled=False)
+    _handwritten(tmp_path, bilingual=False)
+    http, client = _takeover_client()
+    _takeover_ai(monkeypatch)
+    assert run(cfg, fixture=fx, b_client=client) == 0
+
+    blobs = [r for r in http.requests if r["url"].endswith("/git/blobs")]
+    (tmp_path / "README.md").write_text(blobs[0]["json"]["content"], encoding="utf-8")
+    (tmp_path / "data").mkdir(exist_ok=True)
+    (tmp_path / "data" / "snapshot.json").write_text(
+        blobs[1]["json"]["content"], encoding="utf-8"
+    )
+
+    _bump_fixture(fx, "alice/cool-tool", pushed="2026-10-26T00:00:00Z", description="新的描述")
+    assert run(cfg, fixture=fx) == 0
+    readme = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "新的描述" in readme
+    assert "我手写的介绍，请完整保留" in readme  # custom 区仍然保留

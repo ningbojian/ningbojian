@@ -47,16 +47,20 @@ from .repo_descriptions import (
 from .repo_readmes import CompareGone, compute_queue, participants
 from .repo_readmes_ai import MISSING_KEY_REASON, process_queue
 from .repo_readmes_pr import (
+    TAKEOVER_BRANCH,
     advance_baseline_from_merged_pr,
     get_open_pr,
     get_pr_detail,
     get_pr_state,
     merge_pr,
+    open_or_refresh_pr,
     parse_commit_titles,
     push_results,
+    takeover_pr_body,
+    takeover_pr_title,
 )
 from .short_intro import generate_short_intro, short_intro_input_hash
-from .snapshot import load_snapshot, save_snapshot
+from .snapshot import load_snapshot, save_snapshot, snapshot_text
 from .text_lang import language_mismatch
 from .wait_merges import wait_first_line, wait_for_merges
 
@@ -177,6 +181,17 @@ def _report_custom_mode(mode: str, where: str) -> None:
             f"警告：{where} 的 custom 标记不配对（start/end 须各恰好一次），本次按空处理",
             file=sys.stderr,
         )
+
+
+def _repo_rel_path(path: Path, root: Path) -> tuple[str, bool]:
+    """本地路径 → 仓库相对路径（PR 的 tree 只接受相对路径）。
+
+    配置把 README/快照放在仓库外时回落文件名并返回 False，调用方据此警告。
+    """
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix(), True
+    except ValueError:
+        return path.name, False
 
 
 def _append_summary(markdown: str) -> None:
@@ -317,6 +332,15 @@ def run(
         if cfg.readme.bilingual and en_readme_path.exists()
         else ""
     )
+    # 首次接管检测（2026-10-25）：必须早于增量门——数据/配置完全没变时，
+    # 第一次接管仍然要运行（否则手写 README 永远等不到预览 PR）。
+    custom_zh, mode_zh = extract_custom(disk_zh)
+    custom_en, mode_en = (
+        extract_custom(disk_en)
+        if (readme_active and cfg.readme.bilingual)
+        else ("", "machine")
+    )
+    takeover_active = readme_active and ("take_over" in (mode_zh, mode_en))
     legacy_residue = readme_active and (
         any(m in disk_zh for m in LEGACY_MARKERS_ZH)
         or any(m in disk_en for m in LEGACY_MARKERS_EN)
@@ -470,6 +494,31 @@ def run(
             merge_requested = bool(parse_merge_targets(str(issue_cached.get("body") or "")))
         _merge_from_issue(issue_cached, "开局")
 
+    # 首次接管 PR 检测（2026-10-25）：放在勾选合并之后、增量门之前。
+    # 勾选是人工授权，门早退不得吞掉；但接管 PR 未合并前暂停本轮 B/描述写回，
+    # 避免快照分叉与「预览还没看，外部状态先被改」。
+    profile_base = "main"
+    if takeover_active:
+        _profile_repo = next((r for r in repos if r.full_name == owner_repo), None)
+        if _profile_repo is not None and _profile_repo.default_branch:
+            profile_base = _profile_repo.default_branch
+    takeover_pr: dict | None = None
+    if takeover_active and b_client_eff is not None and not dry_run:
+        try:
+            takeover_pr = get_open_pr(
+                b_client_eff, owner_repo, TAKEOVER_BRANCH, base=profile_base
+            )
+        except Exception as exc:  # noqa: BLE001 —— 查询失败不阻断本轮渲染
+            print(f"检查首次接管 PR 失败（本轮继续，按无 PR 处理）：{exc}", file=sys.stderr)
+    if takeover_pr is not None and not force:
+        _line = (
+            f"首次接管 PR #{takeover_pr.get('number')} 仍待合并，本轮跳过；"
+            f"合并后自动进入正常更新：{takeover_pr.get('html_url') or ''}"
+        )
+        print(_line)
+        _append_summary(f"- ⏳ {_line}")
+        return 0
+
     # 仓库描述写回（2026-10-25）：开关不进 render_fingerprint，用 desc_dirty 单独开门。
     # 首次记基线、有新推送或手动修改识别都属于「有待办」——否则门关着基线永远写不进去。
     desc_entries: dict[str, dict] = dict(prev.repo_descriptions) if prev else {}
@@ -478,6 +527,7 @@ def run(
         and ai_active
         and b_client_eff is not None
         and not dry_run
+        and not takeover_active
     )
     desc_dirty = descriptions_active and is_dirty(
         repos, cfg.repo_descriptions, desc_entries, cfg.github.username
@@ -512,6 +562,7 @@ def run(
         and (not short_targets or _short_intros_clean(short_targets, cfg, prev, readme_of))
         and not b_pending
         and not desc_dirty  # 描述写回有待办（首次记基线/新推送）时开门
+        and not takeover_active  # 首次接管：指纹没变也必须开门
     ):
         print("无变化，跳过更新")
         return 0
@@ -530,7 +581,12 @@ def run(
     if fetchers is None and b_client_eff is not None and cfg.repo_readmes.enabled:
         fetchers = _fetchers_from_client(b_client_eff)
     # B 活跃条件：启用 且（测试注入 fetchers 或 生产 PAT 可用）——queue-only 模式合法（IW10）
-    b_active = cfg.repo_readmes.enabled and (fetchers is not None or b_client_eff is not None)
+    # 首次接管轮暂停模式 B：PR 预览还没合并，不能先动其他仓库的外部状态
+    b_active = (
+        cfg.repo_readmes.enabled
+        and (fetchers is not None or b_client_eff is not None)
+        and not takeover_active
+    )
     # 各仓默认分支（§5.5 PR 目标；master 仓库不再硬编码 main 导致 422）
     default_bases = {r.full_name: r.default_branch for r in repos}
 
@@ -1083,17 +1139,14 @@ def run(
     readme_last_new = prev.readme_last if prev else ""
     readme_last_en_new = prev.readme_last_en if prev else ""
     if readme_active:
-        # 盘上内容已在增量门前读取（A-WP2 迁移门复用）；custom 区逐文件独立提取
-        custom_zh, mode_zh = extract_custom(disk_zh)
+        # custom 区已在增量门前提取（首次接管检测复用同一份，避免二读）
         _report_custom_mode(mode_zh, "README.md")
         # 语言提醒（2026-10-25）：手写区语言不匹配只警告，绝不翻译或改写
         if custom_zh and language_mismatch(custom_zh, "zh"):
             _line = "⚠️ README.md 的 custom 区看起来是英文（目标语言：中文）；手写内容不会被翻译或改写"
             print(_line, file=sys.stderr)
             _append_summary(f"- {_line}")
-        custom_en = ""
         if cfg.readme.bilingual:
-            custom_en, mode_en = extract_custom(disk_en)
             _report_custom_mode(mode_en, "README.en.md")
             if custom_en and language_mismatch(custom_en, "en"):
                 _line = "⚠️ README.en.md 的 custom 区看起来是中文（目标语言：英文）；手写内容不会被翻译或改写"
@@ -1151,11 +1204,14 @@ def run(
         # （该轮以新渲染为准，一次性——文档明示）
         base_zh = prev.readme_last if (prev and prev.readme_last) else disk_zh
         merged_zh = merge_readme_3way(base_zh, disk_zh, content)
-        changed = write_if_changed(readme_path, merged_zh)
+        merged_en = ""
         if cfg.readme.bilingual:
             base_en = prev.readme_last_en if (prev and prev.readme_last_en) else disk_en
             merged_en = merge_readme_3way(base_en, disk_en, content_en)
-            if write_if_changed(en_readme_path, merged_en):
+        # 首次接管不写本地：内容全部进 PR，等合并后才落 main（快照同船）
+        if not takeover_active:
+            changed = write_if_changed(readme_path, merged_zh)
+            if cfg.readme.bilingual and write_if_changed(en_readme_path, merged_en):
                 changed = True
     elif dry_run:
         print("readme 已禁用（readme.enabled=false 或 --skip-readme），跳过 overview 生成")
@@ -1222,7 +1278,76 @@ def run(
         repo_descriptions=desc_entries,
         generated_at=now_iso,
     )
-    save_snapshot(snap_path, new_snap)
+    if takeover_active:
+        pr_opened = False
+        if b_client_eff is None:
+            _line = (
+                "检测到手写 README，但未配置 WORKFLOW_PAT，无法创建首次接管 PR；"
+                "已直接写入 main（配置后可用 PR 预览）"
+            )
+            print(_line, file=sys.stderr)
+            _append_summary(f"- ⚠️ {_line}")
+        else:
+            try:
+                head_data, _ = b_client_eff._get(f"{API}/repos/{owner_repo}/commits/HEAD")
+                head_sha = (
+                    str(head_data.get("sha") or "")
+                    if isinstance(head_data, dict)
+                    else ""
+                )
+                if not head_sha:
+                    raise GitHubError("无法读取主页仓库 HEAD")
+                rel_zh, zh_ok = _repo_rel_path(readme_path, root)
+                rel_snap, snap_ok = _repo_rel_path(snap_path, root)
+                files: dict[str, str] = {rel_zh: merged_zh}
+                if cfg.readme.bilingual:
+                    rel_en, en_ok = _repo_rel_path(en_readme_path, root)
+                    files[rel_en] = merged_en
+                    if not en_ok:
+                        _warn = "README.en.md 不在仓库目录内，PR 中已回落文件名，请检查配置"
+                        print(_warn, file=sys.stderr)
+                        _append_summary(f"- ⚠️ {_warn}")
+                files[rel_snap] = snapshot_text(new_snap)
+                if not zh_ok or not snap_ok:
+                    _warn = "README/快照不在仓库目录内，PR 中已回落文件名，请检查配置"
+                    print(_warn, file=sys.stderr)
+                    _append_summary(f"- ⚠️ {_warn}")
+                result = open_or_refresh_pr(
+                    b_client_eff,
+                    full_name=owner_repo,
+                    content=merged_zh,
+                    head_sha=head_sha,
+                    title=takeover_pr_title(cfg.github.username),
+                    body=takeover_pr_body(
+                        username=cfg.github.username,
+                        snapshot_path=rel_snap,
+                        bilingual=cfg.readme.bilingual,
+                    ),
+                    branch=TAKEOVER_BRANCH,
+                    base=profile_base,
+                    files=files,
+                )
+                _action = "已刷新" if result.refreshed else "已打开"
+                _line = (
+                    f"首次接管：{_action} PR #{result.number}（{result.html_url}）；"
+                    "main 未改动，合并后自动进入正常更新"
+                )
+                print(_line)
+                _append_summary(f"- ✅ {_line}")
+                pr_opened = True
+            except Exception as exc:  # noqa: BLE001 —— PR 失败不阻断，回退直接写 main
+                _line = f"首次接管 PR 创建失败（已回退直接写入 main，任务继续）：{exc}"
+                print(_line, file=sys.stderr)
+                _append_summary(f"- ⚠️ {_line}")
+        if pr_opened:
+            return 0
+        # 回退路径：没有 PAT 或 PR 创建失败——保持旧行为，直接写 main
+        changed = write_if_changed(readme_path, merged_zh)
+        if cfg.readme.bilingual and write_if_changed(en_readme_path, merged_en):
+            changed = True
+        save_snapshot(snap_path, new_snap)
+    else:
+        save_snapshot(snap_path, new_snap)
 
     # 6.5 收尾（§4-5）：本轮确实更新了 Overview 且清单仍开着时，原地追加终态行。
     # （终审 I4：未更新 Overview 不写「已进入 main」——提交由随后的工作流步骤完成，
