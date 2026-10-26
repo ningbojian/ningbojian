@@ -67,22 +67,10 @@
 
 ---
 
-## 📦 仓库列表
-
-| 仓库 | 简介 | Stars | 语言 |
-| --- | --- | --- | --- |
-| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 1 |  |
-| [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | Windows 下的手机热点代理助手，自动探测手机侧代理并一键设置系统级代理，关窗自动关闭，零依赖单文件。 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
-| [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
-| [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
-| [agri-ecommerce-platform](https://github.com/ningbojian/agri-ecommerce-platform) | 电商助农项目两阶段展示：原生微信小程序电商原型 + Spring Boot/MyBatis-Plus/MySQL   前后端订单平台 | 0 | ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) |
-
----
-
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-26 10:36（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-26 10:45（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
