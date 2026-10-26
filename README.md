@@ -1,4 +1,4 @@
-<!-- 此 README 由 profile-agent 自动生成：生成区随数据更新、手工微调会保留（与数据冲突处以数据为准、删除会恢复），详见 docs/guide.md。
+<!-- 此 README 由 profile-agent 自动生成：生成区随数据更新、手工微调会保留（与数据冲突处以数据为准、删除会恢复），详见 https://github.com/ningbojian/ProfileReadmeAgent/blob/main/docs/guide.md。
      可编辑区：custom 标记之间的内容，永远保留。 -->
 🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)
 
@@ -27,7 +27,7 @@
 
 ## 🏷️ 技术标签
 
-![Python](https://img.shields.io/badge/Python-5%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)
+![Python](https://img.shields.io/badge/Python-4%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)
 
 ---
 
@@ -35,15 +35,19 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--24-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--25-c9d8e8?style=flat)
 
 > GitHub Trending Agent - WeCom daily trending digest + NL search + star sync
 
 ### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)
 
-![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)
+![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--26-c9d8e8?style=flat)
 
-> 模板仓库：一键生成自动更新的 GitHub 个人主页 README，含仓库统计、精选项目卡片与中文 AI 简介，每周定时刷新。
+> GitHub 个人主页 README 自动维护模板：仓库统计、置顶项目、全部仓库列表、AI 简介、中英双语，Actions 定时增量更新
+
+- ai
+- automation
+- chinese
 
 ### ⭐ [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase)
 
@@ -67,7 +71,7 @@
 
 | 仓库 | 简介 | Stars | 语言 |
 | --- | --- | --- | --- |
-| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
+| [ningbojian](https://github.com/ningbojian/ningbojian) | — | 1 |  |
 | [phone-hotspot-proxy](https://github.com/ningbojian/phone-hotspot-proxy) | Windows 下的手机热点代理助手，自动探测手机侧代理并一键设置系统级代理，关窗自动关闭，零依赖单文件。 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [shiyuan](https://github.com/ningbojian/shiyuan) | Django + 姓氏文化查询与可视化网站 | 1 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
 | [MultiFuncCalculator](https://github.com/ningbojian/MultiFuncCalculator) | 多功能计算器与益智游戏合集：科学计算、进制转换、华容道、数独、2048（Python/Tkinter/Pygame） | 0 | ![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) |
@@ -78,7 +82,7 @@
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-25 15:40（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-26 10:36（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
