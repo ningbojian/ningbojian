@@ -37,7 +37,7 @@ readme:
     bio: true # 简介
     stats: true # 统计卡与技术标签
     pinned: true # 📌 置顶项目（关掉后这些仓库回到下方列表）
-    table: true # 📦 仓库列表（与 pinned 都关 → 不输出任何仓库区块）
+    table: false # 📦 仓库列表：false = 只展示 GitHub 主页 Pinned 的那几个，不列全部仓库（与 pinned 都关 → 不输出任何仓库区块）
 
 ai:
   enabled: true
