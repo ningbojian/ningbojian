@@ -6,7 +6,7 @@ schedule:
 
 github:
   username: "ningbojian" # 必填：你的 GitHub 用户名
-  token_env: "GITHUB_TOKEN" # token 所在环境变量名（Actions 内置 GITHUB_TOKEN 即可）
+  token_env: "GITHUB_TOKEN" # 内置 token 只够读本仓库；配了 WORKFLOW_PAT secret 时工具会自动优先用它
 
 repos:
   exclude_forks: true
