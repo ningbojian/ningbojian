@@ -41,13 +41,16 @@ readme:
 
 ai:
   enabled: true
-  # provider: "anthropic" = Anthropic Messages 原生接口（Claude 官方、OpenCode Zen、MiMo 等）
+  # provider: "anthropic" = Anthropic Messages 原生接口（Claude 官方、MiMo 等）
   # provider: "openai"    = 任意 OpenAI 兼容接口：DeepSeek / 通义千问 / Kimi / Ollama 等
   #   换成别的 Anthropic 兼容服务时只改 base_url 与 model（地址填到 /v1 之前，SDK 会自己拼 /v1/messages）；
   #   换成 OpenAI 兼容服务时改 provider: "openai" 并把 base_url 填到 /v1（代码会拼 /chat/completions）。
   #   key 一律只放 Secret，不要写进本文件。
-  provider: "anthropic"
-  base_url: "https://opencode.ai/zen/go" # OpenCode Go：Anthropic Messages 原生
+  provider: "openai"
+  # OpenCode Go：DeepSeek V4.1 Flash 只提供 OpenAI 兼容端点（Anthropic Messages 端点只有 Haiku / MiniMax / Qwen）。
+  # 别用 CLI 的 https://opencode.ai/zen/go —— 那条路由不认个人 API key，会返回
+  # “Upstream request failed: Go requires a credential”。key 必须是「已开通 Go 订阅的工作区」的 oc_sk_ 密钥。
+  base_url: "https://opencode.ai/inference/go/openai/v1"
   key_env: "AI_API_KEY" # Secret 名字（workflow 已内置注入）
   model: "deepseek-v4.1-flash"
   headers: # OpenCode Go 必填，缺失会直接返回 MissingSessionID（值稳定即可）
