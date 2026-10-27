@@ -50,6 +50,8 @@ ai:
   base_url: "https://opencode.ai/zen/go" # OpenCode Go：Anthropic Messages 原生
   key_env: "AI_API_KEY" # Secret 名字（workflow 已内置注入）
   model: "deepseek-v4.1-flash"
+  headers: # OpenCode Go 必填，缺失会直接返回 MissingSessionID（值稳定即可）
+    x-opencode-session: "profile-agent"
   max_repos: 15 # 喂给模型的仓库数上限
   max_age_days: 14 # 简介最长复用天数，超过才重新生成
   bio_min_chars: 100
