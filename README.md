@@ -35,13 +35,13 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--25-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
 
 > GitHub Trending Agent - WeCom daily trending digest + NL search + star sync
 
 ### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)
 
-![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--26-c9d8e8?style=flat)
+![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
 
 > GitHub 个人主页 README 自动维护模板：仓库统计、置顶项目、全部仓库列表、AI 简介、中英双语，Actions 定时增量更新
 
@@ -70,7 +70,7 @@
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-27 09:20（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-27 11:31（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
