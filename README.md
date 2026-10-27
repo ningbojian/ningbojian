@@ -58,14 +58,14 @@
 
 ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--24-c9d8e8?style=flat)
 
-> 只读 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话。零配置、零网络，让存活中的手机会话在 IDE 内可见。
+> 一个只读的 VS Code 侧边栏扩展，实时展示由手机端 Pairlet 驱动的 Claude Code 会话。零配置、零网络，不写入转录，也不注入输入。
 
 ---
 
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-27 12:52（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-27 13:19（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
