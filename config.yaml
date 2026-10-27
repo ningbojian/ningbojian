@@ -41,17 +41,15 @@ readme:
 
 ai:
   enabled: true
-  # provider: "anthropic" = Claude 官方 key（ANTHROPIC_API_KEY）
-  # provider: "openai"    = 任意 OpenAI 兼容接口：DeepSeek / 通义千问 / Kimi / MiMo / Ollama 等
-  #   openai 模式示例（用 MiMo 时把 base_url 换成 MiMo 开通页文档里的接口地址）：
-  #   provider: "openai"
-  #   base_url: "https://api.deepseek.com"   ← 填你服务商的地址（通常含 /v1）
-  #   key_env: "AI_API_KEY"                ← secret 名字（workflow 已内置注入，建议就叫这个）
-  #   model: "mimo-..."                      ← 填服务商文档里的模型名
+  # provider: "anthropic" = Anthropic Messages 原生接口（Claude 官方、OpenCode Zen、MiMo 等）
+  # provider: "openai"    = 任意 OpenAI 兼容接口：DeepSeek / 通义千问 / Kimi / Ollama 等
+  #   换成别的 Anthropic 兼容服务时只改 base_url 与 model（地址填到 /v1 之前，SDK 会自己拼 /v1/messages）；
+  #   换成 OpenAI 兼容服务时改 provider: "openai" 并把 base_url 填到 /v1（代码会拼 /chat/completions）。
+  #   key 一律只放 Secret，不要写进本文件。
   provider: "anthropic"
-  base_url: "https://api.xiaomimimo.com/anthropic"
-  key_env: "AI_API_KEY"
-  model: "mimo-v2.6-flash" # 降本可改 "claude-haiku-5-5"
+  base_url: "https://opencode.ai/zen/go" # OpenCode Go：Anthropic Messages 原生
+  key_env: "AI_API_KEY" # Secret 名字（workflow 已内置注入）
+  model: "deepseek-v4.1-flash"
   max_repos: 15 # 喂给模型的仓库数上限
   max_age_days: 14 # 简介最长复用天数，超过才重新生成
   bio_min_chars: 100
