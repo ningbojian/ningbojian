@@ -4,12 +4,7 @@
 
 # 👋 你好，我是 ningbojian
 
-热衷于把日常需求做成能跑起来的小工具。近期在做 GitHub Trending Agent，为企业微信生成每日热门摘要、支持自然语言搜索与 star 同步；也完成了六自由度机械臂绘画链路、Django 姓氏文化查询与可视化等项目。日常以 Python 与 TypeScript 为主，关注图像处理、Web 应用与自动化方向。
-
-亮点：
-- github-trending-agent：企业微信每日热门摘要与 star 同步
-- RoboArmDev-Showcase：OpenCV/HALCON 机械臂绘画轨迹链路
-- shiyuan：Django 与 MySQL 姓氏文化查询可视化网站
+我主要用 Python 与 TypeScript，关注自动化、AI 工具、计算机视觉和 Web 全栈。做过 GitHub Trending 日报、个人主页 README 自动更新、六自由度机械臂绘画、Django 姓氏文化网站与助农电商平台。喜欢把重复流程做成可运行、可迭代的小工具。
 
 ---
 
@@ -37,7 +32,7 @@
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
 
-> GitHub Trending Agent - WeCom daily trending digest + NL search + star sync
+> GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步
 
 ### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)
 
@@ -70,7 +65,7 @@
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-27 12:09（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-27 12:23（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
