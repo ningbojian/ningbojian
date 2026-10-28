@@ -4,13 +4,13 @@
 
 # 👋 你好，我是 ningbojian
 
-我主要用 Python 与 TypeScript，关注自动化、AI 工具、计算机视觉和 Web 全栈。做过 GitHub Trending 日报、个人主页 README 自动更新、六自由度机械臂绘画、Django 姓氏文化网站与助农电商平台。喜欢把重复流程做成可运行、可迭代的小工具。
+专注 Python/TypeScript 自动化，代表项目有 github-trending-agent 和 ProfileReadmeAgent，分别用于 GitHub 趋势推送、主页 README 定时更新；也做过机械臂 OpenCV/HALCON 轨迹处理与 Django 姓氏文化网站。
 
 ---
 
 ## 📊 统计信息
 
-![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-9-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-2-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)
+![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-10-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-3-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -30,7 +30,7 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--28-c9d8e8?style=flat)
 
 > GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步
 
@@ -58,14 +58,14 @@
 
 ![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
 
-> 一个只读的 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话，零配置、无网络请求，不写入转录也不发送输入。
+> 只读的 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话，零配置、无网络请求与遥测。
 
 ---
 
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-27 15:10（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-10-28 16:46（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
