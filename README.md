@@ -4,13 +4,13 @@
 
 # 👋 你好，我是 ningbojian
 
-专注 Python/TypeScript 自动化，代表项目有 github-trending-agent 和 ProfileReadmeAgent，分别用于 GitHub 趋势推送、主页 README 定时更新；也做过机械臂 OpenCV/HALCON 轨迹处理与 Django 姓氏文化网站。
+开发者 ningbojian，主要用 Python 与 TypeScript 做自动化工具和小型 Web 应用。代表项目有自动维护 GitHub 主页 README 的 ProfileReadmeAgent、推送 Trending 日报的 github-trending-agent，以及用 OpenCV/HALCON 完成图像处理与轨迹生成的六自由度机械臂绘画项目；也做过 Django 姓氏文化站等项目。
 
 ---
 
 ## 📊 统计信息
 
-![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-10-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-3-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)
+![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-10-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -30,7 +30,7 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--31-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--02-c9d8e8?style=flat)
 
 > GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步
 
@@ -65,7 +65,7 @@
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-10-31 16:36（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-11-03 17:44（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
