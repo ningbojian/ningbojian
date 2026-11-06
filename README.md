@@ -30,7 +30,7 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--02-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--04-c9d8e8?style=flat)
 
 > GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步
 
@@ -65,7 +65,7 @@
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-11-03 17:44（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-11-06 17:33（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 
