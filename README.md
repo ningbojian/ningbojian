@@ -4,13 +4,13 @@
 
 # 👋 你好，我是 ningbojian
 
-主要用 Python 和 TypeScript 做自动化工具与 AI Agent 工程化，代表项目有 GitHub Trending 日报推送、主页 README 自动维护模板，以及基于 OpenCV/HALCON 的六自由度机械臂轨迹生成。也做过 Django 数据可视化站点。
+主要用 Python 与 TypeScript 开发 AI Agent 工具和自动化小工具，也涉及计算机视觉与桌面应用。代表项目包括 GitHub Trending Agent（企业微信趋势日报与自然语言搜索）、ProfileReadmeAgent（主页 README 定时增量更新模板）、RoboArmDev-Showcase（OpenCV/HALCON 图像处理与六自由度机械臂绘画链路），以及 LangGraph 资源护栏中间件和 Electron 待办看板。倾向于把想法做成可运行的完整流程。
 
 ---
 
 ## 📊 统计信息
 
-![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)
+![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-14-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-4-8aa6c4?style=flat)
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true" alt="GitHub 统计卡片" />
@@ -22,7 +22,7 @@
 
 ## 🏷️ 技术标签
 
-![Python](https://img.shields.io/badge/Python-4%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)
+![Python](https://img.shields.io/badge/Python-2%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--15-c9d8e8?style=flat)
+![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--20-c9d8e8?style=flat)
 
 > GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步
 
@@ -54,18 +54,22 @@
 - halcon
 - image-processing
 
-### ⭐ [vscode-pairlet-live](https://github.com/ningbojian/vscode-pairlet-live)
+### ⭐ [LangGraphResourceGuardianMiddlewareAgent](https://github.com/ningbojian/LangGraphResourceGuardianMiddlewareAgent)
 
-![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)
+![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--17-c9d8e8?style=flat)
 
-> 只读的 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话，零配置、无网络请求与遥测。
+> 面向开发者的 LangGraph 智能体多资源守卫 + 离线批处理优化器。
+
+- ai-agents
+- cost-control
+- guardrails
 
 ---
 
 ## ℹ️ 说明备注
 
 > [!NOTE]
-> 本页面由 profile-agent 自动生成于 2026-11-18 18:22（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
+> 本页面由 profile-agent 自动生成于 2026-11-21 17:58（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。
 
 ![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)
 

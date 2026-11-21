@@ -1,14 +1,39 @@
 {
   "schema": 5,
   "username": "ningbojian",
-  "stats_fingerprint": "sha256:25638f67c1cf7835138bdbf1fa21ed7ee2378993d404ecf7a71e492552d8de88",
+  "stats_fingerprint": "sha256:c035692fdd1b97fcca21bdef1e3c86a636a7449dadb052311151b79de855e552",
   "stats_config_hash": "sha256:3f4fbc2c0c972d83502d0ef45e800f61f5ecef628380bb3b1c1d6a7c00de005d",
   "totals": {
-    "public_repos": 12,
+    "public_repos": 14,
     "followers": 4,
-    "total_stars": 6
+    "total_stars": 4
   },
   "repos": [
+    {
+      "full_name": "ningbojian/shiyuan",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-23T14:32:47+00:00",
+      "desc_en": "Django website for surnames culture search and visualization",
+      "desc_en_src": "Django + 姓氏文化查询与可视化网站"
+    },
+    {
+      "full_name": "ningbojian/phone-hotspot-proxy",
+      "stars": 0,
+      "language": "Python",
+      "pushed_at": "2026-10-27T07:09:49+00:00",
+      "short_intro": "连接手机热点后双击即可自动探测手机侧代理并设置 Windows 系统代理，关闭时关闭代理，且会备份原始设置。",
+      "short_intro_en": "A Windows tool that, after you connect to a phone hotspot, auto-detects the phon",
+      "short_intro_hash": "sha256:ddaaf31ef4d315b54b266508e0a45057a16aaeacf8de55610f59e888beca58be"
+    },
+    {
+      "full_name": "ningbojian/DeskTopToDoList",
+      "stars": 0,
+      "language": "JavaScript",
+      "pushed_at": "2026-11-19T11:15:17+00:00",
+      "desc_en": "Windows desktop to-do board: mixed text and image layout, OCR-based automatic DDL recognition from images, always-on-top/desktop-pinned toggle, and scheduled reminders (Electron)",
+      "desc_en_src": "Windows 桌面待办看板：文字/图片混排、图片 OCR 自动识别 DDL、置顶/贴桌面切换、到点提醒（Electron）"
+    },
     {
       "full_name": "ningbojian/GameResource",
       "stars": 0,
@@ -30,7 +55,7 @@
       "full_name": "ningbojian/github-trending-agent",
       "stars": 1,
       "language": "TypeScript",
-      "pushed_at": "2026-11-15T09:39:04+00:00",
+      "pushed_at": "2026-11-20T08:36:04+00:00",
       "desc_zh": "GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步",
       "desc_zh_src": "GitHub Trending Agent - WeCom daily trending digest + NL search + star sync"
     },
@@ -38,7 +63,7 @@
       "full_name": "ningbojian/ningbojian",
       "stars": 1,
       "language": "",
-      "pushed_at": "2026-11-15T09:39:12+00:00",
+      "pushed_at": "2026-11-18T10:22:48+00:00",
       "short_intro": "个人主页 README 源仓库，由 profile-agent 依据 config.yaml 自动生成，展示仓库统计、语言分布与精选项目列表。",
       "short_intro_hash": "sha256:7f1e026b3b8450d61041e0158d85e90c91d082ebacbd8c1054f3321e1f0be991"
     },
@@ -69,29 +94,12 @@
       "short_intro_hash": "sha256:5d0326cc88b902bf87fc07b3da49dc1a661f9ed6f2ddaa754e47555053184647"
     },
     {
-      "full_name": "ningbojian/phone-hotspot-proxy",
-      "stars": 1,
-      "language": "Python",
-      "pushed_at": "2026-10-27T07:09:49+00:00",
-      "short_intro": "连接手机热点后双击即可自动探测手机侧代理并设置 Windows 系统代理，关闭时关闭代理，且会备份原始设置。",
-      "short_intro_en": "A Windows tool that, after you connect to a phone hotspot, auto-detects the phon",
-      "short_intro_hash": "sha256:ddaaf31ef4d315b54b266508e0a45057a16aaeacf8de55610f59e888beca58be"
-    },
-    {
       "full_name": "ningbojian/RoboArmDev-Showcase",
       "stars": 1,
       "language": "Python",
       "pushed_at": "2026-10-23T14:32:38+00:00",
       "desc_en": "Team project for drawing/writing with a 6-DOF robotic arm: OpenCV/HALCON image processing, trajectory extraction, Chinese stroke-order coordinate generation, and robotic arm execution pipeline",
       "desc_en_src": "六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路"
-    },
-    {
-      "full_name": "ningbojian/shiyuan",
-      "stars": 1,
-      "language": "Python",
-      "pushed_at": "2026-10-23T14:32:47+00:00",
-      "desc_en": "Django website for surnames culture search and visualization",
-      "desc_en_src": "Django + 姓氏文化查询与可视化网站"
     },
     {
       "full_name": "ningbojian/agri-ecommerce-platform",
@@ -111,10 +119,10 @@
     }
   ],
   "bio": {
-    "text": "主要用 Python 和 TypeScript 做自动化工具与 AI Agent 工程化，代表项目有 GitHub Trending 日报推送、主页 README 自动维护模板，以及基于 OpenCV/HALCON 的六自由度机械臂轨迹生成。也做过 Django 数据可视化站点。",
-    "text_en": "I work mainly in Python and TypeScript on automation tooling and AI agent engineering. Recent projects include a GitHub Trending daily digest, a template that automatically keeps a profile README up to date, and a six-axis robotic arm pipeline for trajectory generation built on OpenCV and HALCON. I've also built a Django data-visualization site.",
-    "input_hash": "sha256:dca3dc595cde74870a12235a49c0dc3eb437e9757cf2f0bec2f7d52c3738bda3",
-    "generated_at": "2026-11-18T10:22:46.895360+00:00",
+    "text": "主要用 Python 与 TypeScript 开发 AI Agent 工具和自动化小工具，也涉及计算机视觉与桌面应用。代表项目包括 GitHub Trending Agent（企业微信趋势日报与自然语言搜索）、ProfileReadmeAgent（主页 README 定时增量更新模板）、RoboArmDev-Showcase（OpenCV/HALCON 图像处理与六自由度机械臂绘画链路），以及 LangGraph 资源护栏中间件和 Electron 待办看板。倾向于把想法做成可运行的完整流程。",
+    "text_en": "I mainly build AI agent tooling and automation utilities in Python and TypeScript, with some computer vision and desktop app work along the way. Representative projects include GitHub Trending Agent (a WeCom daily digest with natural-language search), ProfileReadmeAgent (a scheduled, incremental profile README template), and RoboArmDev-Showcase (OpenCV/HALCON image processing and a trajectory pipeline for a 6-DOF drawing arm), plus a LangGraph resource-guard middleware and an Electron todo board. I like turning ideas into complete, runnable workflows.",
+    "input_hash": "sha256:8413e08e31c9a8c88e3241617e285d5be23e8e8d637e30b2d8efada21ffd31b1",
+    "generated_at": "2026-11-21T09:58:46.868429+00:00",
     "model": "deepseek-v4.1-flash",
     "prompt_version": 2,
     "en_dropped_hash": ""
@@ -127,7 +135,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:a01d5d1609ed545905445f46dd42c99bd2041c7f71eb40dc4c64dd5538ec54ec",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/MultiFuncCalculator": {
       "sha": "d3daa5ecec19ed348c03eee54002e2b1fc922da9",
@@ -136,7 +144,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:cb5fa52e00afdc175db62c0a614de2e594ec17eb9f59d2e24b09b9ab415a73a1",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/ProfileReadmeAgent": {
       "sha": "bbfa14e60b93bc10fac8bc6cff9ddccc73f6db27",
@@ -154,7 +162,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:b5d264b272839366a8ce683ab48881375a544253e67040fa1487958e98d6233e",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/agri-ecommerce-platform": {
       "sha": "bab9676c0beb22a77caf7a45e94c007944dd4d3d",
@@ -163,7 +171,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:296e038d60d6f61be7c8d50cc141775511dfa33cf96bc8c86553032dd4e5f72a",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/phone-hotspot-proxy": {
       "sha": "5a341d54490a65b7d58ac34b5fb031b639fcf6ca",
@@ -172,16 +180,17 @@
       "failed_hash": "",
       "last_input_hash": "sha256:c4b4cb7f2cff4ef3a9ecb9de4b2dcbd4efb8d719bd7b9f8bb5336614dfe0d352",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/github-trending-agent": {
       "sha": "52ffb314986ad747cb40f3a891a6e488bac9853b",
-      "block_hash": "sha256:6ae741ff74a7079f901fb8fbaaf9db2064555ad8872add677c98fe8587bbc964",
+      "block_hash": "sha256:8bebd6ad963f111ad567a2a4bda68fd2bf4ae6a31f1ad70def95eaa1781267b8",
       "mode": "block",
       "failed_hash": "",
-      "last_input_hash": "sha256:83305d635ac01cce2713b8eeb900f643696c14de4adaa9e14a7351cbe64e1147",
+      "last_input_hash": "sha256:72edabc81f77f315a3fc3a72aadf9e104a0cda65ddb359ca23cf8b1657a8991a",
       "pending": false,
-      "updated_at": "2026-11-15T09:38:19.790530+00:00"
+      "updated_at": "2026-11-21T09:58:15.775966+00:00",
+      "block_hash_en": "sha256:8716b31c69ce8c1f828046fb21b297073669eab57dcd6b921ab6dadedccb17e5"
     },
     "ningbojian/vscode-pairlet-live": {
       "sha": "6192117209f0a2824e8f72362c8cb65ae7fdb07a",
@@ -190,7 +199,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:f67cd7abc3a1b8cf367bacf9bdbd23f210ccadb005d4a69206b71e1f8aec5599",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/whodunit-ops": {
       "sha": "18d6db8c82a29ea409fff6797c0d5e830d0e558d",
@@ -199,7 +208,7 @@
       "failed_hash": "",
       "last_input_hash": "sha256:c9812c7f8b3a8289520e2f20479143599aba0b0017789f006400f3a297194cb0",
       "pending": false,
-      "updated_at": "2026-11-18T10:22:16.126212+00:00"
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     },
     "ningbojian/GameResource": {
       "sha": "f18b325ec6bd154a4ea3bfe1756aabf5f3de336a",
@@ -218,6 +227,15 @@
       "last_input_hash": "",
       "pending": false,
       "updated_at": "2026-11-18T10:22:16.126212+00:00"
+    },
+    "ningbojian/DeskTopToDoList": {
+      "sha": "6715cc8bc3c527450e372fd40f4e0ecbe8503c92",
+      "block_hash": "",
+      "mode": "block",
+      "failed_hash": "",
+      "last_input_hash": "",
+      "pending": false,
+      "updated_at": "2026-11-21T09:58:09.396108+00:00"
     }
   },
   "repo_descriptions": {},
@@ -225,9 +243,9 @@
     "ningbojian/github-trending-agent",
     "ningbojian/ProfileReadmeAgent",
     "ningbojian/RoboArmDev-Showcase",
-    "ningbojian/vscode-pairlet-live"
+    "ningbojian/LangGraphResourceGuardianMiddlewareAgent"
   ],
-  "readme_last": "<!-- 此 README 由 profile-agent 自动生成：生成区随数据更新、手工微调会保留（与数据冲突处以数据为准、删除会恢复），详见 https://github.com/ningbojian/ProfileReadmeAgent/blob/main/docs/guide.md。\n     可编辑区：custom 标记之间的内容，永远保留。 -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 你好，我是 ningbojian\n\n主要用 Python 和 TypeScript 做自动化工具与 AI Agent 工程化，代表项目有 GitHub Trending 日报推送、主页 README 自动维护模板，以及基于 OpenCV/HALCON 的六自由度机械臂轨迹生成。也做过 Django 数据可视化站点。\n\n---\n\n## 📊 统计信息\n\n![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-6-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub 统计卡片\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"语言分布卡片\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"连续贡献卡片\" />\n</p>\n\n---\n\n## 🏷️ 技术标签\n\n![Python](https://img.shields.io/badge/Python-4%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)\n\n---\n\n## 📌 置顶项目\n\n### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)\n\n![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--15-c9d8e8?style=flat)\n\n> GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步\n\n### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> GitHub 个人主页 README 自动维护模板：仓库统计、置顶项目、全部仓库列表、AI 简介、中英双语，Actions 定时增量更新\n\n- ai\n- automation\n- chinese\n\n### ⭐ [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/RoboArmDev-Showcase?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/RoboArmDev-Showcase?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)\n\n> 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路\n\n- computer-vision\n- halcon\n- image-processing\n\n### ⭐ [vscode-pairlet-live](https://github.com/ningbojian/vscode-pairlet-live)\n\n![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> 只读的 VS Code 侧边栏扩展，实时直播手机端 Pairlet 驱动的 Claude Code 会话，零配置、无网络请求与遥测。\n\n---\n\n## ℹ️ 说明备注\n\n> [!NOTE]\n> 本页面由 profile-agent 自动生成于 2026-11-18 18:22（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。\n\n![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
-  "readme_last_en": "<!-- This README is auto-generated by profile-agent: the generated region follows your data and your manual tweaks are preserved (data wins on conflict; deletions are restored). See https://github.com/ningbojian/ProfileReadmeAgent/blob/main/docs/guide.md.\n     Editable areas — content between the custom markers — are always preserved. -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 Hi, I'm ningbojian\n\nI work mainly in Python and TypeScript on automation tooling and AI agent engineering. Recent projects include a GitHub Trending daily digest, a template that automatically keeps a profile README up to date, and a six-axis robotic arm pipeline for trajectory generation built on OpenCV and HALCON. I've also built a Django data-visualization site.\n\n---\n\n## 📊 Statistics\n\n![Public repos](https://img.shields.io/badge/Public%20repos-12-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![Total stars](https://img.shields.io/badge/Total%20stars-6-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub stats card\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"Language chart\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"Contribution streak\" />\n</p>\n\n---\n\n## 🏷️ Tech Stack\n\n![Python](https://img.shields.io/badge/Python-4%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)\n\n---\n\n## 📌 Pinned\n\n### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)\n\n![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--15-c9d8e8?style=flat)\n\n> GitHub Trending Agent - WeCom daily trending digest + NL search + star sync\n\n### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> Template for automatically maintaining a GitHub profile README: repository stats, pinned projects, full repository list, AI-generated introduction, Chinese/English bilingual, scheduled incremental updates via Actions\n\n- ai\n- automation\n- chinese\n\n### ⭐ [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/RoboArmDev-Showcase?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/RoboArmDev-Showcase?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)\n\n> Team project for drawing/writing with a 6-DOF robotic arm: OpenCV/HALCON image processing, trajectory extraction, Chinese stroke-order coordinate generation, and robotic arm execution pipeline\n\n- computer-vision\n- halcon\n- image-processing\n\n### ⭐ [vscode-pairlet-live](https://github.com/ningbojian/vscode-pairlet-live)\n\n![JavaScript](https://img.shields.io/badge/JavaScript-b09a3f?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/vscode-pairlet-live?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/vscode-pairlet-live?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> A read-only VS Code sidebar extension that live-streams Claude Code sessions dri\n\n---\n\n## ℹ️ Notes\n\n> [!NOTE]\n> This page is auto-generated by profile-agent at 2026-11-18 18:22 (UTC+8); repo data comes from the GitHub API and badge values refresh live.\n\n![Profile views](https://komarev.com/ghpvc/?username=ningbojian)\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
-  "generated_at": "2026-11-18T10:22:46.895360+00:00"
+  "readme_last": "<!-- 此 README 由 profile-agent 自动生成：生成区随数据更新、手工微调会保留（与数据冲突处以数据为准、删除会恢复），详见 https://github.com/ningbojian/ProfileReadmeAgent/blob/main/docs/guide.md。\n     可编辑区：custom 标记之间的内容，永远保留。 -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 你好，我是 ningbojian\n\n主要用 Python 与 TypeScript 开发 AI Agent 工具和自动化小工具，也涉及计算机视觉与桌面应用。代表项目包括 GitHub Trending Agent（企业微信趋势日报与自然语言搜索）、ProfileReadmeAgent（主页 README 定时增量更新模板）、RoboArmDev-Showcase（OpenCV/HALCON 图像处理与六自由度机械臂绘画链路），以及 LangGraph 资源护栏中间件和 Electron 待办看板。倾向于把想法做成可运行的完整流程。\n\n---\n\n## 📊 统计信息\n\n![公开仓库](https://img.shields.io/badge/%E5%85%AC%E5%BC%80%E4%BB%93%E5%BA%93-14-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![总 Star](https://img.shields.io/badge/%E6%80%BB%20Star-4-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub 统计卡片\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"语言分布卡片\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"连续贡献卡片\" />\n</p>\n\n---\n\n## 🏷️ 技术标签\n\n![Python](https://img.shields.io/badge/Python-2%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)\n\n---\n\n## 📌 置顶项目\n\n### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)\n\n![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--20-c9d8e8?style=flat)\n\n> GitHub Trending Agent——企业微信每日趋势摘要 + 自然语言搜索 + star 同步\n\n### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> GitHub 个人主页 README 自动维护模板：仓库统计、置顶项目、全部仓库列表、AI 简介、中英双语，Actions 定时增量更新\n\n- ai\n- automation\n- chinese\n\n### ⭐ [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/RoboArmDev-Showcase?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/RoboArmDev-Showcase?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)\n\n> 六自由度机械臂绘画/写字团队项目：OpenCV/HALCON 图像处理、轨迹提取、中文笔顺坐标生成与机械臂执行链路\n\n- computer-vision\n- halcon\n- image-processing\n\n### ⭐ [LangGraphResourceGuardianMiddlewareAgent](https://github.com/ningbojian/LangGraphResourceGuardianMiddlewareAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--17-c9d8e8?style=flat)\n\n> 面向开发者的 LangGraph 智能体多资源守卫 + 离线批处理优化器。\n\n- ai-agents\n- cost-control\n- guardrails\n\n---\n\n## ℹ️ 说明备注\n\n> [!NOTE]\n> 本页面由 profile-agent 自动生成于 2026-11-21 17:58（北京时间）；仓库数据来自 GitHub API，徽章数值实时刷新。\n\n![主页访问计数](https://komarev.com/ghpvc/?username=ningbojian)\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
+  "readme_last_en": "<!-- This README is auto-generated by profile-agent: the generated region follows your data and your manual tweaks are preserved (data wins on conflict; deletions are restored). See https://github.com/ningbojian/ProfileReadmeAgent/blob/main/docs/guide.md.\n     Editable areas — content between the custom markers — are always preserved. -->\n🇨🇳 [中文](./README.md) · 🇺🇸 [English](./README.en.md)\n\n# 👋 Hi, I'm ningbojian\n\nI mainly build AI agent tooling and automation utilities in Python and TypeScript, with some computer vision and desktop app work along the way. Representative projects include GitHub Trending Agent (a WeCom daily digest with natural-language search), ProfileReadmeAgent (a scheduled, incremental profile README template), and RoboArmDev-Showcase (OpenCV/HALCON image processing and a trajectory pipeline for a 6-DOF drawing arm), plus a LangGraph resource-guard middleware and an Electron todo board. I like turning ideas into complete, runnable workflows.\n\n---\n\n## 📊 Statistics\n\n![Public repos](https://img.shields.io/badge/Public%20repos-14-8aa6c4?style=flat) ![Followers](https://img.shields.io/badge/Followers-4-8aa6c4?style=flat) ![Total stars](https://img.shields.io/badge/Total%20stars-4-8aa6c4?style=flat)\n\n<p align=\"center\">\n  <img src=\"https://github-readme-stats.vercel.app/api?username=ningbojian&amp;theme=github_dark&amp;show_icons=true&amp;hide_border=true\" alt=\"GitHub stats card\" />\n  <img src=\"https://github-readme-stats.vercel.app/api/top-langs/?username=ningbojian&amp;layout=compact&amp;theme=github_dark&amp;hide_border=true\" alt=\"Language chart\" />\n  <img src=\"https://streak-stats.demolab.com/?user=ningbojian&amp;theme=github_dark&amp;hide_border=true\" alt=\"Contribution streak\" />\n</p>\n\n---\n\n## 🏷️ Tech Stack\n\n![Python](https://img.shields.io/badge/Python-2%E2%98%85-5b7f9e?style=flat) ![TypeScript](https://img.shields.io/badge/TypeScript-1%E2%98%85-5e81a8?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-0%E2%98%85-b09a3f?style=flat)\n\n---\n\n## 📌 Pinned\n\n### ⭐ [github-trending-agent](https://github.com/ningbojian/github-trending-agent)\n\n![TypeScript](https://img.shields.io/badge/TypeScript-5e81a8?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/github-trending-agent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/github-trending-agent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--20-c9d8e8?style=flat)\n\n> GitHub Trending Agent - WeCom daily trending digest + NL search + star sync\n\n### ⭐ [ProfileReadmeAgent](https://github.com/ningbojian/ProfileReadmeAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/ProfileReadmeAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/ProfileReadmeAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--27-c9d8e8?style=flat)\n\n> Template for automatically maintaining a GitHub profile README: repository stats, pinned projects, full repository list, AI-generated introduction, Chinese/English bilingual, scheduled incremental updates via Actions\n\n- ai\n- automation\n- chinese\n\n### ⭐ [RoboArmDev-Showcase](https://github.com/ningbojian/RoboArmDev-Showcase)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/RoboArmDev-Showcase?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/RoboArmDev-Showcase?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--10--23-c9d8e8?style=flat)\n\n> Team project for drawing/writing with a 6-DOF robotic arm: OpenCV/HALCON image processing, trajectory extraction, Chinese stroke-order coordinate generation, and robotic arm execution pipeline\n\n- computer-vision\n- halcon\n- image-processing\n\n### ⭐ [LangGraphResourceGuardianMiddlewareAgent](https://github.com/ningbojian/LangGraphResourceGuardianMiddlewareAgent)\n\n![Python](https://img.shields.io/badge/Python-5b7f9e?style=flat) ![stars](https://img.shields.io/github/stars/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=stars&labelColor=8aa6c4&color=c9d8e8) ![forks](https://img.shields.io/github/forks/ningbojian/LangGraphResourceGuardianMiddlewareAgent?style=flat&label=forks&labelColor=8aa6c4&color=c9d8e8) ![last_push](https://img.shields.io/badge/last_push-2026--11--17-c9d8e8?style=flat)\n\n> Developer-facing multi-resource guard + offline batch optimizer for LangGraph agents.\n\n- ai-agents\n- cost-control\n- guardrails\n\n---\n\n## ℹ️ Notes\n\n> [!NOTE]\n> This page is auto-generated by profile-agent at 2026-11-21 17:58 (UTC+8); repo data comes from the GitHub API and badge values refresh live.\n\n![Profile views](https://komarev.com/ghpvc/?username=ningbojian)\n\n<!-- profile-agent:custom:start -->\n<!-- profile-agent:custom:end -->\n",
+  "generated_at": "2026-11-21T09:58:46.868429+00:00"
 }
